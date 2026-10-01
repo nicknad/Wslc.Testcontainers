@@ -10,6 +10,8 @@ internal static class WslcHost
 {
     public static void EnsureAvailable()
     {
+        WslPlatform.ThrowIfUnsupported();
+        EnsureWslVersion();
         IReadOnlyList<Component> missing;
         try
         {
@@ -40,6 +42,33 @@ internal static class WslcHost
         catch
         {
             return "unknown";
+        }
+    }
+
+    private static void EnsureWslVersion()
+    {
+        uint major;
+        uint minor;
+        uint revision;
+        try
+        {
+            var version = WslcService.GetVersion();
+            major = version.Major;
+            minor = version.Minor;
+            revision = version.Revision;
+        }
+        catch (Exception exception)
+        {
+            throw new WslRuntimeException(
+                "The WSL container runtime is not available. Install WSL 2.9.3 or newer with 'wsl --install' and retry.",
+                exception);
+        }
+
+        if (!WslPlatform.IsWslVersionSupported(major, minor, revision))
+        {
+            throw new WslRuntimeException(
+                $"WSL {major}.{minor}.{revision} is too old. Wslc.Testcontainers requires WSL {WslPlatform.MinimumWslVersion} or newer. " +
+                "Run 'wsl --update' and retry.");
         }
     }
 }

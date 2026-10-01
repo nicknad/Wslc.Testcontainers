@@ -13,4 +13,8 @@ public sealed class RedisBuilder : WslModuleBuilder<RedisBuilder>
     }
 
     public RedisContainer Build() => new(BuildContainer());
+
+    protected override WslContainerBuilder Configure(WslContainerBuilder builder) =>
+        // Replicates the image ENTRYPOINT/CMD (docker-entrypoint.sh redis-server).
+        builder.WithCommand("/usr/local/bin/docker-entrypoint.sh", "redis-server");
 }

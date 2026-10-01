@@ -48,12 +48,12 @@ public abstract class WslModuleBuilder<TBuilder>
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsAvailable(_port))
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage))
             .WithStartupTimeout(_timeout);
-        Configure(builder);
-        return builder.Build();
+        return Configure(builder).Build();
     }
 
-    /// <summary>Applies module-specific settings to the core builder.</summary>
-    protected virtual void Configure(WslContainerBuilder builder)
-    {
-    }
+    /// <summary>
+    /// Applies module-specific settings to the core builder. The core builder is immutable,
+    /// so overrides must return the updated builder (e.g. <c>builder.WithCommand(...)</c>).
+    /// </summary>
+    protected virtual WslContainerBuilder Configure(WslContainerBuilder builder) => builder;
 }

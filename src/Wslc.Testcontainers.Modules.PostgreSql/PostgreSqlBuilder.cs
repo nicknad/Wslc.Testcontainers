@@ -39,9 +39,13 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
 
     public PostgreSqlContainer Build() => new(BuildContainer(), _username, _password, _database);
 
-    protected override void Configure(WslContainerBuilder builder) =>
+    protected override WslContainerBuilder Configure(WslContainerBuilder builder) =>
         builder
             .WithEnvironment("POSTGRES_USER", _username)
             .WithEnvironment("POSTGRES_PASSWORD", _password)
-            .WithEnvironment("POSTGRES_DB", _database);
+            .WithEnvironment("POSTGRES_DB", _database)
+            // Replicates the image ENTRYPOINT/CMD (docker-entrypoint.sh postgres).
+            // The container init process replaces the keep-alive shell; without this
+            // the server never starts and readiness can never succeed.
+            .WithCommand("/usr/local/bin/docker-entrypoint.sh", "postgres");
 }

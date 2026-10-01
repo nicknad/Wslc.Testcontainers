@@ -8,19 +8,12 @@
     <AssemblyName>Wslc.Testcontainers</AssemblyName>
     <PackageId>Wslc.Testcontainers</PackageId>
     <Description>Testcontainers-style ephemeral WSL containers for .NET integration tests, built on the Microsoft.WSL.Containers API.</Description>
-    <Authors>WSLC contributors</Authors>
     <PackageTags>wsl;containers;testing;integration-testing;testcontainers;windows</PackageTags>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageReadmeFile>README.md</PackageReadmeFile>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WSL.Containers" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 
 </Project>

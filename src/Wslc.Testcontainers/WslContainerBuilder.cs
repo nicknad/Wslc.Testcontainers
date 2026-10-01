@@ -161,6 +161,7 @@ public sealed class WslContainerBuilder
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
     public WslContainer Build()
     {
+        WslPlatform.ThrowIfUnsupported();
         var configuration = ApplyEnvironmentDefaults(_configuration);
         Validate(configuration);
         return new WslContainer(configuration);

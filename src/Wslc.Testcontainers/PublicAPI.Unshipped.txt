@@ -18,7 +18,7 @@ static Wslc.Testcontainers.WslcEnvironment.DataDirectory.get -> string!
 static Wslc.Testcontainers.WslcEnvironment.DefaultImage.get -> string?
 static Wslc.Testcontainers.WslcEnvironment.ReuseByDefault.get -> bool
 static Wslc.Testcontainers.WslcEnvironment.SessionId.get -> string!
-virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.Configure(Wslc.Testcontainers.WslContainerBuilder! builder) -> void
+virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.Configure(Wslc.Testcontainers.WslContainerBuilder! builder) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.ExecOptions
 Wslc.Testcontainers.ExecOptions.Environment.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
 Wslc.Testcontainers.ExecOptions.Environment.init -> void
@@ -157,6 +157,12 @@ Wslc.Testcontainers.WslModuleContainer.Name.get -> string!
 Wslc.Testcontainers.WslModuleContainer.StartAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.StopAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.WslModuleContainer(Wslc.Testcontainers.IWslContainer! inner) -> void
+Wslc.Testcontainers.WslPlatform
+static readonly Wslc.Testcontainers.WslPlatform.MinimumWindowsVersion -> System.Version!
+static readonly Wslc.Testcontainers.WslPlatform.MinimumWslVersion -> System.Version!
+static Wslc.Testcontainers.WslPlatform.DescribeCurrent() -> string!
+static Wslc.Testcontainers.WslPlatform.IsSupported.get -> bool
+static Wslc.Testcontainers.WslPlatform.ThrowIfUnsupported() -> void
 Wslc.Testcontainers.WslNetworkException
 Wslc.Testcontainers.WslNetworkException.WslNetworkException(string! message, System.Exception? innerException = null) -> void
 Wslc.Testcontainers.WslProcessException

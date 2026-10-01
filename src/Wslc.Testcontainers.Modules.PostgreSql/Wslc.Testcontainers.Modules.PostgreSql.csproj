@@ -8,6 +8,7 @@
     <AssemblyName>Wslc.Testcontainers.Modules.PostgreSql</AssemblyName>
     <PackageId>Wslc.Testcontainers.Modules.PostgreSql</PackageId>
     <Description>PostgreSQL module for Wslc.Testcontainers: typed builder and connection string.</Description>
+    <PackageTags>wsl;containers;testing;integration-testing;testcontainers;windows;postgresql</PackageTags>
     <IsPackable>true</IsPackable>
   </PropertyGroup>
 

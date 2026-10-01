@@ -4,10 +4,12 @@ on:
   schedule:
     - cron: "0 3 * * *"
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   integration:
     runs-on: windows-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -15,8 +17,14 @@ jobs:
           dotnet-version: 10.0.x
       - name: Update WSL
         run: wsl --update
+      - name: WSL version
+        run: wsl --version
       - run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
       - name: Run integration tests
         run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build --filter "FullyQualifiedName~Integration" --nologo -v minimal
+        env:
+          WSLC_RUN_INTEGRATION: "1"
+      - name: Run Postgres module tests (real container)
+        run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release --nologo -v minimal
         env:
           WSLC_RUN_INTEGRATION: "1"

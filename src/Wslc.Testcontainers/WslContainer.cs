@@ -74,8 +74,10 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     /// <inheritdoc />
-    public Task StartAsync(CancellationToken cancellationToken = default) =>
-        RunExclusiveAsync(async () =>
+    public Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        WslPlatform.ThrowIfUnsupported();
+        return RunExclusiveAsync(async () =>
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
             if (!_started)
@@ -83,6 +85,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 await StartCoreAsync(cancellationToken).ConfigureAwait(false);
             }
         }, cancellationToken);
+    }
 
     /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken = default) =>

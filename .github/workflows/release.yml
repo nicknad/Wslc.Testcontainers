@@ -1,0 +1,121 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (e.g. 0.1.0-preview.1, without leading v)"
+        required: true
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  resolve-version:
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        shell: pwsh
+        run: |
+          if ('${{ github.ref_type }}' -eq 'tag') {
+            $v = '${{ github.ref_name }}'.TrimStart('v')
+          } else {
+            $v = '${{ inputs.version }}'.TrimStart('v')
+          }
+          if ([string]::IsNullOrWhiteSpace($v)) { throw 'Version is empty. Push a v* tag or pass inputs.version.' }
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Output "Release version: $v"
+      - name: CHANGELOG check
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $log = Get-Content CHANGELOG.md -Raw
+          if ($log -notmatch [regex]::Escape($v) -and $log -notmatch 'Unreleased') {
+            throw "CHANGELOG.md mentions neither $v nor Unreleased. Move Unreleased notes to a '## $v' heading before releasing."
+          }
+
+  unit:
+    needs: resolve-version
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tfm:
+          - net8.0-windows10.0.19041.0
+          - net9.0-windows10.0.19041.0
+          - net10.0-windows10.0.19041.0
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+            10.0.x
+      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} --filter "FullyQualifiedName!~Integration" --nologo -v minimal
+
+  guard-linux:
+    needs: resolve-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --filter "FullyQualifiedName~WslPlatform" --nologo -v minimal
+
+  integration:
+    needs: [unit, guard-linux]
+    uses: ./.github/workflows/integration.yml
+
+  publish:
+    needs: [resolve-version, integration]
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.resolve-version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
+      - name: Pack with tag version
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/packages | Out-Null
+          dotnet pack src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          Get-ChildItem artifacts/packages
+      - name: Install smoke test (local feed, outside repo)
+        shell: pwsh
+        run: |
+          $feed = (Resolve-Path artifacts/packages).Path
+          $smoke = Join-Path $env:RUNNER_TEMP 'wslc-smoke'
+          if (Test-Path $smoke) { Remove-Item -Recurse -Force $smoke }
+          dotnet new console -o $smoke -f net10.0 --no-restore | Out-Null
+          $csproj = Get-ChildItem "$smoke/*.csproj" | Select-Object -First 1
+          (Get-Content $csproj.FullName -Raw) `
+            -replace '<TargetFramework>net10\.0</TargetFramework>', '<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>' `
+            | Set-Content $csproj.FullName
+          dotnet add $csproj.FullName package Wslc.Testcontainers --version "$env:VERSION" --source "$feed"
+          dotnet build $csproj.FullName -c Release --nologo -v minimal
+      # Requires a NuGet.org trusted publisher for this repo + workflow.
+      # See https://learn.microsoft.com/nuget/nuget-org/trusted-publishing
+      - name: Push to nuget.org (trusted publishing, OIDC)
+        shell: pwsh
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --source https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ github.ref_type }}' -eq 'tag' ? '${{ github.ref_name }}' : "v$env:VERSION"
+          gh release create "$tag" --title "$tag" --notes "NuGet: Wslc.Testcontainers $env:VERSION (+ PostgreSql/Redis modules). See CHANGELOG.md." artifacts/packages/*.nupkg artifacts/packages/*.snupkg --latest=false

@@ -1,0 +1,226 @@
+# Wslc.Testcontainers
+
+Ephemeral, isolated **WSL containers** for .NET integration tests — a Testcontainers-style API built
+directly on the official [`Microsoft.WSL.Containers`](https://www.nuget.org/packages/Microsoft.WSL.Containers)
+runtime. No Docker daemon required.
+
+```csharp
+using Wslc.Testcontainers;
+using Wslc.Testcontainers.Waiting;
+
+await using var postgres = new WslContainerBuilder()
+    .FromImage("docker.io/library/postgres:17")
+    .WithEnvironment("POSTGRES_PASSWORD", "secret")
+    .WithPort(5432)
+    .WithWaitStrategy(
+        Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromMinutes(2))
+            .UntilTcpPortIsAvailable(5432))
+    .Build();
+
+await postgres.StartAsync();
+
+var connectionString =
+    $"Host={postgres.Host};Port={postgres.GetMappedPort(5432)};Username=postgres;Password=secret";
+```
+
+## Requirements
+
+- Windows 10 2004+ or Windows 11 (x64 / ARM64)
+- WSL **2.9.3 or newer** with container support: `wsl --install` (or `wsl --update`)
+- .NET 8, 9 or 10 on Windows
+
+## Install
+
+```powershell
+dotnet add package Wslc.Testcontainers
+dotnet add package Wslc.Testcontainers.Modules.PostgreSql
+dotnet add package Wslc.Testcontainers.Modules.Redis
+```
+
+Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
+For local development the `examples/` use `ProjectReference`; consumers use
+the `PackageReference` lines above. To pack locally:
+
+```powershell
+dotnet pack src/Wslc.Testcontainers -c Release
+```
+
+## Core concepts
+
+| Concept               | Description                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `WslContainerBuilder` | Immutable, `With...`/`From...` builder. Every call returns a new configuration.                    |
+| `WslContainer`        | One disposable container in its own WSL session. Create with `Build()`, start with `StartAsync()`. |
+| `Wait`                | Readiness strategies (`IWaitStrategy`) evaluated by `StartAsync()` before it completes.            |
+| `IWslProcess`         | A long-running process started with `StartProcessAsync`.                                           |
+
+Each `WslContainer` owns a dedicated WSL session with its own storage, so tests are isolated and can
+run in parallel. Instances are named `wslc-{session}-{random}` and are destroyed by `DisposeAsync()`.
+
+## Sources
+
+```csharp
+.FromImage("docker.io/library/redis:7")          // pull (cached in session storage)
+.FromTarball(@"C:\images\rootfs.tar", "app:test") // import a root filesystem tarball
+```
+
+If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
+
+## Builder
+
+| Method                                                            | Purpose                                                            |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `FromImage(image)`                                                | Use a container image. Pulled on first use.                        |
+| `FromTarball(path, imageName?)`                                   | Import a root filesystem tarball as an image.                      |
+| `WithCommand(command, params args)`                               | Init process. Defaults to a keep-alive shell so `ExecAsync` works. |
+| `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
+| `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
+| `WithPort(containerPort)`                                         | Exposes a Linux port on a dynamic Windows port.                    |
+| `WithWaitStrategy(strategy)`                                      | Adds a readiness condition. All must pass.                         |
+| `WithFile(source, destination)`                                   | Copies a Windows file into the container during startup.           |
+| `WithVolume(hostPath, containerPath, readOnly?)`                  | Mounts a Windows directory into the container.                     |
+| `WithReuse(true)`                                                 | Keeps session storage between runs (see Reuse).                    |
+| `WithStartupTimeout(timeout)`                                     | Overall startup budget. Default 120 s.                             |
+
+## Working with the container
+
+```csharp
+using Wslc.Testcontainers;
+
+// Execute and capture output
+ExecResult result = await container.ExecAsync("ps", "aux");
+Console.WriteLine(result.ExitCode);
+
+// Options: environment, working directory, stdin, timeout
+var result2 = await container.ExecAsync("psql", new[] { "-c", "SELECT 1" }, new ExecOptions
+{
+    Environment = new Dictionary<string, string> { ["PGPASSWORD"] = "secret" },
+    Timeout = TimeSpan.FromSeconds(30),
+});
+
+// Long-running processes
+IWslProcess process = container.StartProcessAsync("sleep", "3600");
+Console.WriteLine(process.Id);
+await process.KillAsync();
+
+// Files
+await container.CopyToAsync(@".\fixtures\app.conf", "/etc/app/app.conf");
+await container.CopyFromAsync("/var/log/app.log", @".\artifacts\app.log");
+
+// Logs
+await foreach (var line in container.LogsAsync())
+{
+    Console.WriteLine(line);
+}
+```
+
+## Readiness
+
+`StartAsync()` returns only after every configured strategy passes (or throws `WslReadinessException`).
+On failure, call `ex.Describe()` and dump `LogsAsync()` — see [troubleshooting](docs/troubleshooting.md).
+
+```csharp
+using Wslc.Testcontainers.Waiting;
+
+.WithWaitStrategy(Wait.ForWsl().UntilTcpPortIsAvailable(5432))
+.WithWaitStrategy(Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
+.WithWaitStrategy(Wait.ForWsl().UntilProcessIsRunning("postgres"))
+.WithWaitStrategy(Wait.ForWsl().UntilProcessExits("migration"))
+.WithWaitStrategy(Wait.ForWsl().UntilMessageIsLogged("database system is ready"))
+.WithWaitStrategy(Wait.ForWsl().UntilFileExists("/tmp/ready"))
+```
+
+Strategies support `WithTimeout(...)`, `WithRetryInterval(...)` and can be combined:
+
+```csharp
+var strategy = Wait.ForWsl()
+    .WithTimeout(TimeSpan.FromSeconds(60))
+    .UntilTcpPortIsAvailable(5432)
+    .And(Wait.ForWsl().UntilMessageIsLogged("ready to accept connections"));
+```
+
+Mapped ports are dynamic (`WindowsPort = 0`): the WSL runtime assigns a free host port and WSLC
+resolves it after start, so `GetMappedPort(5432)` never collides between parallel tests.
+
+## Lifecycle and cleanup
+
+```csharp
+using Wslc.Testcontainers;
+
+await using var container = new WslContainerBuilder()
+    .FromImage("docker.io/library/alpine:latest")
+    .Build();
+
+await container.StartAsync();
+// tests...
+// DisposeAsync stops processes, terminates the session and removes storage.
+```
+
+- `StopAsync()` stops processes and terminates the session but keeps storage.
+- `DisposeAsync()` also deletes ephemeral storage.
+- A process-exit hook performs best-effort cleanup if the test host crashes.
+- At startup, `WslResourceReaper.CleanupAsync()` deletes storage left behind by dead owners;
+  WSLC only ever touches resources it created.
+
+### Reuse
+
+`WithReuse(true)` makes the instance name a hash of the builder configuration and keeps the session
+storage between runs (images stay cached). Reuse is disabled under CI unless `WSLC_REUSE_IN_CI=1`.
+See [reuse](docs/reuse.md) for when reuse is safe and how modules encapsulate presets.
+
+## Modules
+
+Typed builders live in versioned module packages so tests stay declarative:
+
+```csharp
+using Wslc.Testcontainers.Modules.PostgreSql;
+using Wslc.Testcontainers.Modules.Redis;
+
+await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
+await postgres.StartAsync();
+var npgsql = postgres.GetConnectionString();
+
+await using var redis = new RedisBuilder().Build();
+await redis.StartAsync();
+var endpoint = redis.GetConnectionString(); // host:port for StackExchange.Redis
+```
+
+See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit
+fixture with per-test reset).
+
+## Configuration
+
+| Environment variable  | Meaning                                                     |
+| --------------------- | ----------------------------------------------------------- |
+| `WSLC_TIMEOUT`        | Default wait timeout (seconds or `TimeSpan`). Default 60 s. |
+| `WSLC_DATA_DIRECTORY` | Root for instance storage. Default `%LOCALAPPDATA%\Wslc`.   |
+| `WSLC_DEFAULT_IMAGE`  | Image used when none is configured.                         |
+| `WSLC_REUSE`          | `1`/`true` enables reuse by default.                        |
+| `WSLC_CLEANUP`        | `0`/`false` disables automatic storage cleanup.             |
+| `WSLC_REUSE_IN_CI`    | `1`/`true` allows reuse under CI.                           |
+| `WSLC_SESSION_ID`     | Overrides the session identifier used in instance names.    |
+
+Inside every container these variables are also available: `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`,
+`WSLC_CREATED_AT`, `WSLC_OWNER_PID`.
+
+## Limitations
+
+- `CopyToAsync`/`CopyFromAsync` and `WithFile` support **single files**; use `WithVolume` for directories.
+- Sources are container images; WSLC does not manage regular WSL distributions.
+- Port mappings require bridged networking, which WSLC enables automatically.
+
+## Development
+
+```powershell
+dotnet build Wslc.Testcontainers.slnx
+dotnet test Wslc.Testcontainers.slnx
+
+# Real-runtime tests (pull public images, require WSL container support)
+$env:WSLC_RUN_INTEGRATION = "1"
+dotnet test Wslc.Testcontainers.slnx
+```
+
+## License
+
+[MIT](LICENSE)

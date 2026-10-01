@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wslc.Testcontainers/Wslc.Testcontainers.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj" />
+  </Folder>
+  <Folder Name="/examples/">
+    <Project Path="examples/Quickstart/Quickstart.csproj" />
+    <Project Path="examples/Postgres/Postgres.csproj" />
+    <Project Path="examples/Postgres.Tests/Postgres.Tests.csproj" />
+  </Folder>
+</Solution>

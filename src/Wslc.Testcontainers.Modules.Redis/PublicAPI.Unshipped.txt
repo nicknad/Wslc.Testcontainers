@@ -1,0 +1,8 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.Redis.RedisContainer.ContainerPort = 6379 -> int
+Wslc.Testcontainers.Modules.Redis.RedisBuilder
+Wslc.Testcontainers.Modules.Redis.RedisBuilder.Build() -> Wslc.Testcontainers.Modules.Redis.RedisContainer!
+Wslc.Testcontainers.Modules.Redis.RedisBuilder.RedisBuilder() -> void
+Wslc.Testcontainers.Modules.Redis.RedisContainer
+Wslc.Testcontainers.Modules.Redis.RedisContainer.GetConnectionString() -> string!
+Wslc.Testcontainers.Modules.Redis.RedisContainer.GetMappedPort() -> int

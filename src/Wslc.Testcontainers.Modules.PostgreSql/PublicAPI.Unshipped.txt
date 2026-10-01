@@ -1,0 +1,11 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer.ContainerPort = 5432 -> int
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.Build() -> Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer!
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.PostgreSqlBuilder() -> void
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.WithDatabase(string! database) -> Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder!
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder!
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder!
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer.GetConnectionString() -> string!
+Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer.GetMappedPort() -> int

@@ -10,15 +10,13 @@ namespace Wslc.Testcontainers.Networking;
 /// <see cref="ContainerPortMapping"/> mechanism. A Windows port of 0 asks the WSL runtime
 /// to assign a free dynamic port, which is then discovered from the container inspect payload.
 /// </summary>
-internal sealed class WslcPortMapping : IWslNetwork
+internal sealed class WslcPortMapping
 {
     private const string InspectPortsProperty = "Ports";
 
     private readonly Dictionary<int, int> _ports;
 
     private WslcPortMapping(Dictionary<int, int> ports) => _ports = ports;
-
-    public string Host => IPAddress.Loopback.ToString();
 
     public IReadOnlyCollection<int> Ports => _ports.Keys;
 
@@ -156,11 +154,5 @@ internal sealed class WslcPortMapping : IWslNetwork
         {
             return false;
         }
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        _ports.Clear();
-        return ValueTask.CompletedTask;
     }
 }

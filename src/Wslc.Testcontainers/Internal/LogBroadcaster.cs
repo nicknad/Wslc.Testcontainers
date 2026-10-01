@@ -3,10 +3,16 @@ using System.Threading.Channels;
 
 namespace Wslc.Testcontainers.Internal;
 
-/// <summary>Thread-safe fan-out log buffer with bounded history.</summary>
+/// <summary>Thread-safe fan-out log buffer with bounded history and bounded subscribers.</summary>
+/// <remarks>
+/// History is capped at 10k lines. Each subscriber channel is bounded (1k, DropOldest) so an
+/// abandoned <c>LogsAsync</c> enumeration cannot grow memory without bound; still, callers must
+/// cancel/dispose log streams promptly (see <c>LogDumper</c>).
+/// </remarks>
 internal sealed class LogBroadcaster
 {
     private const int MaxHistory = 10_000;
+    private const int MaxSubscriberBuffered = 1_000;
     private readonly object _gate = new();
     private readonly LinkedList<LogLine> _history = new();
     private readonly List<Channel<LogLine>> _subscribers = new();
@@ -34,56 +40,28 @@ internal sealed class LogBroadcaster
         }
     }
 
-    public IReadOnlyList<LogLine> Snapshot(int maxLines = int.MaxValue)
+    public IReadOnlyList<LogLine> Snapshot()
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(maxLines);
-
         lock (_gate)
         {
-            if (maxLines >= _history.Count)
-            {
-                return _history.ToArray();
-            }
-
-            var result = new LogLine[maxLines];
-            var node = _history.Last;
-            for (var i = maxLines - 1; i >= 0; i--)
-            {
-                result[i] = node!.Value;
-                node = node.Previous;
-            }
-
-            return result;
+            return _history.ToArray();
         }
     }
 
-    public LogSubscription Subscribe(int historyLines = 0)
+    public LogSubscription Subscribe()
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(historyLines);
-
-        var channel = Channel.CreateUnbounded<LogLine>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<LogLine>(new BoundedChannelOptions(MaxSubscriberBuffered)
         {
             SingleReader = true,
             SingleWriter = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
         });
 
         lock (_gate)
         {
-            if (historyLines > 0 && _history.Count > 0)
+            foreach (var line in _history)
             {
-                var take = Math.Min(historyLines, _history.Count);
-                var node = _history.First;
-                var skip = _history.Count - take;
-                for (var i = 0; i < skip; i++)
-                {
-                    node = node!.Next;
-                }
-
-                for (var i = 0; i < take; i++)
-                {
-                    _ = channel.Writer.TryWrite(node!.Value);
-                    node = node.Next;
-                }
+                _ = channel.Writer.TryWrite(line);
             }
 
             if (_completed)
@@ -125,10 +103,7 @@ internal sealed class LogBroadcaster
         }
     }
 
-    public IAsyncEnumerable<LogLine> StreamAsync(CancellationToken cancellationToken = default) =>
-        StreamAsync(int.MaxValue, cancellationToken);
-
-    public async IAsyncEnumerable<LogLine> StreamAsync(int historyLines, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<LogLine> StreamAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         // Fast path for completed broadcasters: replay snapshot without a channel.
         bool completed;
@@ -139,8 +114,7 @@ internal sealed class LogBroadcaster
 
         if (completed)
         {
-            var snapshot = Snapshot(historyLines);
-            foreach (var line in snapshot)
+            foreach (var line in Snapshot())
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return line;
@@ -149,7 +123,7 @@ internal sealed class LogBroadcaster
             yield break;
         }
 
-        using var subscription = Subscribe(historyLines);
+        using var subscription = Subscribe();
         await foreach (var line in subscription.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
         {
             yield return line;

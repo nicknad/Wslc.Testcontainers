@@ -59,7 +59,7 @@ jobs:
             8.0.x
             9.0.x
             10.0.x
-      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} --filter "FullyQualifiedName!~Integration" --nologo -v minimal
+      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} -v minimal -- --filter "FullyQualifiedName!~Integration"
 
   guard-linux:
     needs: resolve-version
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --filter "FullyQualifiedName~WslPlatform" --nologo -v minimal
+      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
 
   integration:
     needs: [unit, guard-linux]

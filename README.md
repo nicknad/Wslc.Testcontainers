@@ -214,11 +214,11 @@ Inside every container these variables are also available: `WSLC_SESSION_ID`, `W
 
 ```powershell
 dotnet build Wslc.Testcontainers.slnx
-dotnet test Wslc.Testcontainers.slnx
+dotnet test --solution Wslc.Testcontainers.slnx
 
 # Real-runtime tests (pull public images, require WSL container support)
 $env:WSLC_RUN_INTEGRATION = "1"
-dotnet test Wslc.Testcontainers.slnx
+dotnet test --solution Wslc.Testcontainers.slnx
 ```
 
 ## License

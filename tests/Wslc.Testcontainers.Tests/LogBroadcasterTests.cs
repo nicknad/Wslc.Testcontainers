@@ -24,12 +24,12 @@ public sealed class LogBroadcasterTests
         var broadcaster = new LogBroadcaster();
         broadcaster.Publish(LogLine.Diagnostic("history"));
 
-        using var subscription = broadcaster.Subscribe(historyLines: 10);
+        using var subscription = broadcaster.Subscribe();
         broadcaster.Publish(LogLine.Diagnostic("live"));
         broadcaster.Complete();
 
         var lines = new List<string>();
-        await foreach (var line in subscription.Reader.ReadAllAsync())
+        await foreach (var line in subscription.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
         {
             lines.Add(line.Text);
         }
@@ -46,7 +46,7 @@ public sealed class LogBroadcasterTests
         broadcaster.Complete();
 
         var lines = new List<string>();
-        await foreach (var line in broadcaster.StreamAsync())
+        await foreach (var line in broadcaster.StreamAsync(TestContext.Current.CancellationToken))
         {
             lines.Add(line.Text);
         }

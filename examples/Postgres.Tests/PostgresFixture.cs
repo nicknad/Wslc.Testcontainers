@@ -20,7 +20,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         CancellationToken cancellationToken = default) =>
         _postgres.LogsAsync(cancellationToken);
 
-    public Task InitializeAsync() => _postgres.StartAsync();
+    public ValueTask InitializeAsync() => new(_postgres.StartAsync());
 
-    public Task DisposeAsync() => _postgres.DisposeAsync().AsTask();
+    public ValueTask DisposeAsync() => _postgres.DisposeAsync();
 }

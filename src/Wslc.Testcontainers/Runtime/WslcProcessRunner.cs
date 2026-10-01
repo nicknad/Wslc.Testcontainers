@@ -132,6 +132,14 @@ internal static class WslcProcessRunner
         CancellationToken cancellationToken,
         Action<LogLine>? observer)
     {
+        const long MaxCopyBytes = 1024L * 1024L * 1024L;
+        var fullSource = Path.GetFullPath(source);
+        var sourceLength = new FileInfo(fullSource).Length;
+        if (sourceLength > MaxCopyBytes)
+        {
+            throw new WslProcessException($"Copying '{source}' to '{destination}' exceeds 1 GiB limit ({sourceLength} bytes).");
+        }
+
         var settings = CreateSettings(
             new List<string>(5) { "/bin/sh", "-c", "mkdir -p \"$(dirname \"$1\")\" && cat > \"$1\"", "sh", destination },
             workingDirectory: null,
@@ -140,7 +148,7 @@ internal static class WslcProcessRunner
 
         return ExecuteCopyAsync(container, settings, observer, source, destination, cancellationToken, async process =>
         {
-            await using var sourceStream = File.OpenRead(Path.GetFullPath(source));
+            await using var sourceStream = File.OpenRead(fullSource);
             await using var stdin = process.NativeProcess.GetInputStream().AsStreamForWrite();
             await sourceStream.CopyToAsync(stdin, cancellationToken).ConfigureAwait(false);
             await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);

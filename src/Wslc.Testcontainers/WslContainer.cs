@@ -55,7 +55,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     public string Name { get; }
 
     /// <inheritdoc />
-    public string Host => _network?.Host ?? IPAddress.Loopback.ToString();
+    public string Host => IPAddress.Loopback.ToString();
 
     /// <summary>Gets the container image reference, when one was configured.</summary>
     public string? Image => _configuration.Image ?? _configuration.TarballImageName;
@@ -100,20 +100,30 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         ExecInternalAsync(command, arguments, null, CancellationToken.None);
 
     /// <inheritdoc />
-    public Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions options, CancellationToken cancellationToken = default) =>
+    public Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
         ExecInternalAsync(command, arguments, options, cancellationToken);
 
     /// <inheritdoc />
-    public IWslProcess StartProcessAsync(string command, params string[] arguments) =>
-        StartProcessAsync(command, arguments, new ExecOptions(), CancellationToken.None);
+    public IWslProcess StartProcess(string command, params string[] arguments) =>
+        StartProcess(command, arguments, null, CancellationToken.None);
 
     /// <inheritdoc />
-    public IWslProcess StartProcessAsync(string command, string[] arguments, ExecOptions options, CancellationToken cancellationToken = default)
+    public IWslProcess StartProcess(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
         ArgumentNullException.ThrowIfNull(arguments);
-        ArgumentNullException.ThrowIfNull(options);
+        if (options?.StandardInput is not null)
+        {
+            throw new ArgumentException("StandardInput applies only to ExecAsync, not to long-running StartProcess. Use ExecAsync for stdin.", nameof(options));
+        }
+
+        if (options?.Timeout is not null)
+        {
+            throw new ArgumentException("Timeout applies only to ExecAsync, not to long-running StartProcess. Kill the IWslProcess when done.", nameof(options));
+        }
+
+        ValidateExecOptions(options);
         var container = RequireContainer();
 
         var settings = BuildProcessSettings(command, arguments, options, enableStandardInput: false);
@@ -121,6 +131,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         var process = WslcProcessRunner.Start(container, settings, _logs.Publish);
         lock (_processes)
         {
+            PruneProcessesLocked();
             _processes.Add(process);
         }
 
@@ -128,33 +139,49 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     /// <inheritdoc />
-    public Task CopyToAsync(string source, string destination, CancellationToken cancellationToken = default)
+    [Obsolete("Use StartProcess(...) instead. StartProcessAsync was misnamed: it starts synchronously and returns IWslProcess, not Task.")]
+    public IWslProcess StartProcessAsync(string command, params string[] arguments) =>
+        StartProcess(command, arguments, null, CancellationToken.None);
+
+    /// <inheritdoc />
+    [Obsolete("Use StartProcess(...) instead. StartProcessAsync was misnamed: it starts synchronously and returns IWslProcess, not Task.")]
+    public IWslProcess StartProcessAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
+        StartProcess(command, arguments, options, cancellationToken);
+
+    /// <inheritdoc />
+    public Task CopyToAsync(string hostPath, string containerPath, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(hostPath);
+        RequireContainerPath(containerPath, nameof(containerPath));
         var container = RequireContainer();
-        if (!File.Exists(source))
+        var fullHostPath = Path.GetFullPath(hostPath);
+        if (!File.Exists(fullHostPath))
         {
-            throw new WslcException($"Source '{source}' does not exist. Only file copies are supported.");
+            throw new WslcException($"Host file '{hostPath}' does not exist. Only file copies are supported.");
         }
 
-        return WslcProcessRunner.CopyToAsync(container, source, destination, cancellationToken, _logs.Publish);
+        const long MaxCopyBytes = 1024L * 1024L * 1024L;
+        var length = new FileInfo(fullHostPath).Length;
+        if (length > MaxCopyBytes)
+        {
+            throw new WslcException($"Copying '{hostPath}' to '{containerPath}' exceeds 1 GiB limit ({length} bytes).");
+        }
+
+        return WslcProcessRunner.CopyToAsync(container, fullHostPath, containerPath, cancellationToken, _logs.Publish);
     }
 
     /// <inheritdoc />
-    public Task CopyFromAsync(string source, string destination, CancellationToken cancellationToken = default)
+    public Task CopyFromAsync(string containerPath, string hostPath, CancellationToken cancellationToken = default)
     {
+        RequireContainerPath(containerPath, nameof(containerPath));
+        ArgumentException.ThrowIfNullOrWhiteSpace(hostPath);
         var container = RequireContainer();
-        return WslcProcessRunner.CopyFromAsync(container, source, destination, cancellationToken, _logs.Publish);
+        return WslcProcessRunner.CopyFromAsync(container, containerPath, hostPath, cancellationToken, _logs.Publish);
     }
 
     /// <inheritdoc />
     public IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default) =>
         _logs.StreamAsync(cancellationToken);
-
-    /// <inheritdoc />
-    public IAsyncEnumerable<string> Stdout => _logs.StreamAsync().TextLines(LogSource.Stdout);
-
-    /// <inheritdoc />
-    public IAsyncEnumerable<string> Stderr => _logs.StreamAsync().TextLines(LogSource.Stderr);
 
     Task<ExecResult> IWaitTarget.ExecAsync(string command, string[] arguments, CancellationToken cancellationToken) =>
         ExecInternalAsync(command, arguments, null, cancellationToken);
@@ -206,6 +233,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
         ArgumentNullException.ThrowIfNull(arguments);
+        ValidateExecOptions(options);
 
         var container = RequireContainer();
         options ??= new ExecOptions();
@@ -311,6 +339,11 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             await WslContainerHost.EnsureInitializedAsync(token).ConfigureAwait(false);
             token.ThrowIfCancellationRequested();
 
+            if (_configuration.Reuse == true && !_reuse)
+            {
+                _logs.Publish(LogLine.Diagnostic("reuse was requested but is disabled (default off, or blocked under CI without WSLC_REUSE_IN_CI); using ephemeral instance"));
+            }
+
             _logs.Publish(LogLine.Diagnostic($"creating WSL container '{Name}' (runtime {WslcHost.GetVersion()})"));
             var image = await CreateSessionAndContainerAsync(token).ConfigureAwait(false);
 
@@ -350,6 +383,14 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private string EnsureStorageAndMetadata()
     {
         var storagePath = _store.GetSessionStorageDirectory(Name);
+        // The runtime requires an empty storage directory. StopAsync preserves the instance
+        // directory (for restart by name), so reset storage here to make Start-after-Stop work
+        // instead of failing with an obscure "directory not empty" runtime error.
+        if (Directory.Exists(storagePath))
+        {
+            WslInstanceStore.BestEffortDeleteDirectory(storagePath);
+        }
+
         Directory.CreateDirectory(storagePath);
         _storageCreated = true;
 
@@ -362,7 +403,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             State = "Creating",
             Owner = Environment.UserName,
             Image = _configuration.Image,
-            ConfigHash = _reuse ? WslConfigHasher.Compute(_configuration) : null,
             Reuse = _reuse,
         };
         _store.WriteMetadata(_metadata);
@@ -575,6 +615,22 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     private Dictionary<string, string> BuildEnvironment(IReadOnlyDictionary<string, string>? overrides)
     {
+        if (overrides is not null)
+        {
+            foreach (var key in overrides.Keys)
+            {
+                ValidateEnvironmentName(key);
+            }
+
+            foreach (var pair in overrides)
+            {
+                if (pair.Value is null)
+                {
+                    throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(overrides));
+                }
+            }
+        }
+
         var baseEnv = _configuration.Environment;
         var environment = new Dictionary<string, string>(
             baseEnv.Count + 4 + (overrides?.Count ?? 0),
@@ -600,13 +656,13 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         return environment;
     }
 
-    private ProcessSettings BuildProcessSettings(string command, IReadOnlyList<string> arguments, ExecOptions options, bool enableStandardInput)
+    private ProcessSettings BuildProcessSettings(string command, IReadOnlyList<string> arguments, ExecOptions? options, bool enableStandardInput)
     {
         var commandLine = BuildCommandLine(command, arguments);
         return WslcProcessRunner.CreateSettings(
             commandLine,
-            options.WorkingDirectory ?? _configuration.WorkingDirectory,
-            BuildEnvironment(options.Environment),
+            options?.WorkingDirectory ?? _configuration.WorkingDirectory,
+            BuildEnvironment(options?.Environment),
             enableStandardInput: enableStandardInput);
     }
 
@@ -817,6 +873,91 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         lock (_processes)
         {
             return _processes.ToArray();
+        }
+    }
+
+    private void PruneProcessesLocked()
+    {
+        // The container tracks live StartProcess handles so Stop/Dispose can kill them.
+        // Prune exited entries on every start so a chatty caller that forgets per-process
+        // Dispose cannot grow the list (and pin native handles) without bound.
+        for (var i = _processes.Count - 1; i >= 0; i--)
+        {
+            try
+            {
+                if (_processes[i].HasExited)
+                {
+                    _processes.RemoveAt(i);
+                }
+            }
+            catch
+            {
+                _processes.RemoveAt(i);
+            }
+        }
+    }
+
+    private static void RequireContainerPath(string path, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).", parameterName);
+        }
+
+        if (!path.StartsWith('/'))
+        {
+            throw new ArgumentException($"Container path '{path}' must be an absolute Linux path starting with '/'.", parameterName);
+        }
+    }
+
+    private static void ValidateExecOptions(ExecOptions? options)
+    {
+        if (options is null)
+        {
+            return;
+        }
+
+        if (options.Timeout is { } timeout && timeout <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(options), timeout, "Exec timeout must be positive.");
+        }
+
+        if (options.Environment is not null)
+        {
+            foreach (var pair in options.Environment)
+            {
+                ValidateEnvironmentName(pair.Key);
+                if (pair.Value is null)
+                {
+                    throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(options));
+                }
+            }
+        }
+
+        if (options.WorkingDirectory is { } workingDirectory && string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            throw new ArgumentException("Working directory must not be empty when set.", nameof(options));
+        }
+    }
+
+    private static void ValidateEnvironmentName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Environment variable name must not be empty.", nameof(name));
+        }
+
+        if (!char.IsLetter(name[0]) && name[0] != '_')
+        {
+            throw new ArgumentException($"Environment variable name '{name}' must start with a letter or underscore.", nameof(name));
+        }
+
+        foreach (var character in name)
+        {
+            if (!char.IsLetterOrDigit(character) && character != '_')
+            {
+                throw new ArgumentException($"Environment variable name '{name}' contains invalid character '{character}'.", nameof(name));
+            }
         }
     }
 

@@ -13,7 +13,5 @@ internal sealed record WslInstanceMetadata(
 
     public string? Image { get; init; }
 
-    public string? ConfigHash { get; init; }
-
     public bool Reuse { get; init; }
 }

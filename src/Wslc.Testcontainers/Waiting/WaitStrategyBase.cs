@@ -28,8 +28,34 @@ internal abstract record WaitStrategyBase : IWaitStrategy
         return this with { RetryInterval = retryInterval };
     }
 
-    public IWaitStrategy And(IWaitStrategy other) =>
-        new CompositeWaitStrategy(new IWaitStrategy[] { this, other });
+    public IWaitStrategy And(IWaitStrategy other)
+    {
+        ArgumentNullException.ThrowIfNull(other);
+        if (this is CompositeWaitStrategy composite && other is CompositeWaitStrategy otherComposite)
+        {
+            var combined = new List<IWaitStrategy>(composite.Strategies.Count + otherComposite.Strategies.Count);
+            combined.AddRange(composite.Strategies);
+            combined.AddRange(otherComposite.Strategies);
+            return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
+        }
+
+        if (this is CompositeWaitStrategy single)
+        {
+            var combined = new List<IWaitStrategy>(single.Strategies.Count + 1) { };
+            combined.AddRange(single.Strategies);
+            combined.Add(other);
+            return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
+        }
+
+        if (other is CompositeWaitStrategy otherSingle)
+        {
+            var combined = new List<IWaitStrategy>(otherSingle.Strategies.Count + 1) { this };
+            combined.AddRange(otherSingle.Strategies);
+            return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
+        }
+
+        return new CompositeWaitStrategy(new IWaitStrategy[] { this, other });
+    }
 
     public abstract Task WaitAsync(IWaitTarget target, CancellationToken cancellationToken);
 

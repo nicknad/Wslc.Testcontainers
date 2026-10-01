@@ -12,18 +12,9 @@ public interface IWslProcess : IAsyncDisposable
     /// <summary>Gets the process exit code. Throws when the process has not exited.</summary>
     int ExitCode { get; }
 
-    /// <summary>Streams the process standard output.</summary>
-    IAsyncEnumerable<string> Stdout { get; }
-
-    /// <summary>Streams the process standard error.</summary>
-    IAsyncEnumerable<string> Stderr { get; }
-
     /// <summary>Waits until the process exits and returns its exit code.</summary>
     Task<int> WaitForExitAsync(CancellationToken cancellationToken = default);
 
     /// <summary>Terminates the process.</summary>
     Task KillAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>Streams all output of the process.</summary>
-    IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default);
 }

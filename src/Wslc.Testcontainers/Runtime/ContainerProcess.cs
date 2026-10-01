@@ -1,6 +1,5 @@
 using System.Text;
 using Microsoft.WSL.Containers;
-using Wslc.Testcontainers.Internal;
 
 namespace Wslc.Testcontainers.Runtime;
 
@@ -11,8 +10,6 @@ namespace Wslc.Testcontainers.Runtime;
 internal sealed class ContainerProcess : IWslProcess
 {
     private readonly Microsoft.WSL.Containers.Process _process;
-    private readonly bool _captureOutput;
-    private readonly LogBroadcaster _logs = new();
     private readonly Action<LogLine>? _observer;
     private readonly CaptureBuffer _stdout = new();
     private readonly CaptureBuffer _stderr = new();
@@ -25,7 +22,6 @@ internal sealed class ContainerProcess : IWslProcess
     public ContainerProcess(Microsoft.WSL.Containers.Process process, bool captureOutput, Action<LogLine>? observer)
     {
         _process = process;
-        _captureOutput = captureOutput;
         _observer = observer;
         _stdoutLines = new LineAssembler(text => Publish(LogSource.Stdout, text));
         _stderrLines = new LineAssembler(text => Publish(LogSource.Stderr, text));
@@ -62,13 +58,6 @@ internal sealed class ContainerProcess : IWslProcess
             throw new InvalidOperationException("The process has not exited yet.");
         }
     }
-
-    public IAsyncEnumerable<string> Stdout => _logs.StreamAsync().TextLines(LogSource.Stdout);
-
-    public IAsyncEnumerable<string> Stderr => _logs.StreamAsync().TextLines(LogSource.Stderr);
-
-    public IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default) =>
-        _logs.StreamAsync(cancellationToken);
 
     internal string StdoutText => _stdout.Decode();
 
@@ -151,7 +140,6 @@ internal sealed class ContainerProcess : IWslProcess
         _stderrLines.Flush();
         _stdout.Dispose();
         _stderr.Dispose();
-        _logs.Complete();
         return default;
     }
 
@@ -187,7 +175,6 @@ internal sealed class ContainerProcess : IWslProcess
     private void Publish(LogSource source, string text)
     {
         var line = new LogLine(source, text, DateTimeOffset.UtcNow);
-        _logs.Publish(line);
         try
         {
             _observer?.Invoke(line);
@@ -197,9 +184,10 @@ internal sealed class ContainerProcess : IWslProcess
         }
     }
 
-    /// <summary>Incrementally decodes UTF-8 byte chunks into complete lines.</summary>
+    /// <summary>Incrementally decodes UTF-8 byte chunks into complete lines (pending capped at 256 KiB).</summary>
     internal sealed class LineAssembler
     {
+        private const int MaxPendingChars = 256 * 1024;
         private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
         private readonly StringBuilder _pending = new(256);
         private readonly Action<string> _onLine;
@@ -217,6 +205,15 @@ internal sealed class ContainerProcess : IWslProcess
             var chars = new char[count];
             _decoder.GetChars(data, 0, data.Length, chars, 0, flush: false);
             _pending.Append(chars);
+            // A process that emits a giant single line without '\n' would otherwise grow
+            // _pending without bound. Flush early to keep memory capped; the line is split
+            // but no data is lost beyond the normal history cap downstream.
+            if (_pending.Length > MaxPendingChars)
+            {
+                _onLine(_pending.ToString());
+                _pending.Clear();
+            }
+
             EmitLines(flush: false);
         }
 

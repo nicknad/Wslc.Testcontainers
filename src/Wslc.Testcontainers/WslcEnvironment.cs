@@ -5,28 +5,32 @@ namespace Wslc.Testcontainers;
 /// <summary>
 /// Process-wide WSLC configuration resolved from environment variables. Code-level builder
 /// configuration always takes precedence over these defaults.
+/// Truthy values are <c>1/true/yes/on</c>; falsy are <c>0/false/no/off</c> (case-insensitive).
+/// Any other non-empty value is treated as unset (falls back to defaults) — check spelling if
+/// a flag seems ignored. Snapshots (<see cref="DataDirectory"/>, <see cref="SessionId"/>) are
+/// captured on first use; changing env vars afterwards has no effect.
 /// </summary>
 public static class WslcEnvironment
 {
     /// <summary>Default readiness timeout, in seconds or as a <see cref="TimeSpan"/> string.</summary>
     public const string TimeoutVariable = "WSLC_TIMEOUT";
 
-    /// <summary>Directory used to store WSLC instances and caches.</summary>
+    /// <summary>Directory used to store WSLC instances and caches. Snapshotted on first store access.</summary>
     public const string DataDirectoryVariable = "WSLC_DATA_DIRECTORY";
 
     /// <summary>Container image used when a builder does not specify one.</summary>
     public const string DefaultImageVariable = "WSLC_DEFAULT_IMAGE";
 
-    /// <summary>Enables reuse by default when set to a truthy value.</summary>
+    /// <summary>Enables reuse by default when set to a truthy value (<c>1/true/yes/on</c>).</summary>
     public const string ReuseVariable = "WSLC_REUSE";
 
-    /// <summary>Set to a falsy value to disable automatic cleanup and the orphan reaper.</summary>
+    /// <summary>Set to a falsy value (<c>0/false/no/off</c>) to disable automatic cleanup and the orphan reaper.</summary>
     public const string CleanupVariable = "WSLC_CLEANUP";
 
-    /// <summary>Set to a truthy value to allow reuse while running under CI.</summary>
+    /// <summary>Set to a truthy value to allow reuse while running under CI (otherwise reuse is forced off).</summary>
     public const string ReuseInCiVariable = "WSLC_REUSE_IN_CI";
 
-    /// <summary>Overrides the session identifier used to name WSLC instances.</summary>
+    /// <summary>Overrides the session identifier used to name WSLC instances. Snapshotted once per process.</summary>
     public const string SessionIdVariable = "WSLC_SESSION_ID";
 
     internal static readonly TimeSpan DefaultWaitTimeoutValue = TimeSpan.FromSeconds(60);

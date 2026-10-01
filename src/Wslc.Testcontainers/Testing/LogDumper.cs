@@ -7,23 +7,6 @@ namespace Wslc.Testcontainers.Testing;
 /// </summary>
 public static class LogDumper
 {
-    /// <summary>Dumps up to <paramref name="maxLines"/> lines from a snapshot.</summary>
-    public static void Dump(
-        IReadOnlyList<LogLine> logs,
-        Action<string> writeLine,
-        int maxLines = 100)
-    {
-        ArgumentNullException.ThrowIfNull(logs);
-        ArgumentNullException.ThrowIfNull(writeLine);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLines);
-
-        var start = Math.Max(0, logs.Count - maxLines);
-        for (var i = start; i < logs.Count; i++)
-        {
-            writeLine(logs[i].ToString());
-        }
-    }
-
     /// <summary>
     /// Dumps up to <paramref name="maxLines"/> lines from a live stream, then stops.
     /// The cap is what bounds the read: log streams are otherwise infinite.

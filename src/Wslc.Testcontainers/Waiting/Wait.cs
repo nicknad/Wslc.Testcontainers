@@ -37,13 +37,14 @@ public sealed class WslWaitBuilder
     public IWaitStrategy UntilTcpPortIsAvailable(int port) =>
         Configure(new TcpPortWaitStrategy(ValidatePort(port)));
 
-    /// <summary>Waits until an HTTP GET against the given Linux port succeeds.</summary>
-    public IWaitStrategy UntilHttpRequestIsSucceeded(string path, int port) =>
-        Configure(new HttpWaitStrategy(RequireText(path, nameof(path)), ValidatePort(port)));
+    /// <summary>Waits until an HTTP GET against the given Linux port succeeds (2xx-4xx; 5xx retries).</summary>
+    /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health?ready=1</c>). Not a full URL.</param>
+    public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery, int port) =>
+        Configure(new HttpWaitStrategy(RequirePath(pathAndQuery, nameof(pathAndQuery)), ValidatePort(port)));
 
     /// <summary>Waits until an HTTP GET against Linux port 80 succeeds.</summary>
-    public IWaitStrategy UntilHttpRequestIsSucceeded(string path) =>
-        UntilHttpRequestIsSucceeded(path, 80);
+    public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery) =>
+        UntilHttpRequestIsSucceeded(pathAndQuery, 80);
 
     /// <summary>Waits until a process with the given name is running.</summary>
     public IWaitStrategy UntilProcessIsRunning(string processName) =>
@@ -53,13 +54,16 @@ public sealed class WslWaitBuilder
     public IWaitStrategy UntilProcessExits(string processName) =>
         Configure(new ProcessExitsWaitStrategy(RequireText(processName, nameof(processName))));
 
-    /// <summary>Waits until a message appears in the captured output.</summary>
+    /// <summary>
+    /// Waits until a message appears in captured stdout/stderr (ordinal substring, case-sensitive).
+    /// WSLC diagnostics (<c>LogSource.System</c>) are ignored; regex is not supported.
+    /// </summary>
     public IWaitStrategy UntilMessageIsLogged(string message) =>
         Configure(new LogMessageWaitStrategy(RequireText(message, nameof(message))));
 
-    /// <summary>Waits until a path exists inside the environment.</summary>
+    /// <summary>Waits until an absolute Linux path exists inside the environment (e.g. <c>/tmp/ready</c>).</summary>
     public IWaitStrategy UntilFileExists(string path) =>
-        Configure(new FileExistsWaitStrategy(RequireText(path, nameof(path))));
+        Configure(new FileExistsWaitStrategy(RequireContainerPath(path, nameof(path))));
 
     private IWaitStrategy Configure(IWaitStrategy strategy)
     {
@@ -87,4 +91,31 @@ public sealed class WslWaitBuilder
         string.IsNullOrWhiteSpace(value)
             ? throw new ArgumentException("Value must not be empty.", parameterName)
             : value;
+
+    private static string RequirePath(string value, string parameterName)
+    {
+        RequireText(value, parameterName);
+        if (value.Contains("://", StringComparison.Ordinal) || value.StartsWith("http:", StringComparison.OrdinalIgnoreCase) || value.StartsWith("https:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException($"HTTP wait path '{value}' must be a path-and-query (e.g. /health), not a full URL.", parameterName);
+        }
+
+        if (!value.StartsWith('/'))
+        {
+            throw new ArgumentException($"HTTP wait path '{value}' must start with '/'.", parameterName);
+        }
+
+        return value;
+    }
+
+    private static string RequireContainerPath(string value, string parameterName)
+    {
+        RequireText(value, parameterName);
+        if (!value.StartsWith('/'))
+        {
+            throw new ArgumentException($"Container path '{value}' must be an absolute Linux path starting with '/'.", parameterName);
+        }
+
+        return value;
+    }
 }

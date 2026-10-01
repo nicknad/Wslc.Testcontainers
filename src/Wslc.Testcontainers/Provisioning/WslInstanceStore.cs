@@ -13,19 +13,19 @@ internal sealed class WslInstanceStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    private readonly string _dataDirectory;
+
     public static WslInstanceStore Default { get; } = new(WslcEnvironment.DataDirectory, WslcEnvironment.SessionId);
 
     public WslInstanceStore(string dataDirectory, string sessionId)
     {
-        DataDirectory = dataDirectory;
+        _dataDirectory = dataDirectory;
         SessionId = sessionId;
     }
 
-    public string DataDirectory { get; }
-
     public string SessionId { get; }
 
-    public string InstancesDirectory => Path.Combine(DataDirectory, "instances");
+    public string InstancesDirectory => Path.Combine(_dataDirectory, "instances");
 
     public string GetInstanceDirectory(string instanceName) =>
         Path.Combine(InstancesDirectory, Sanitize(instanceName));

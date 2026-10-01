@@ -22,13 +22,12 @@ public sealed class WslResourceReaperTests
     }
 
     [Fact]
-    public void Reusable_instances_require_the_include_reusable_flag()
+    public void Reusable_instances_are_preserved()
     {
         var metadata = CreateMetadata(reuse: true);
 
+        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: true));
         Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false));
-        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false, includeReusable: false));
-        Assert.True(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false, includeReusable: true));
     }
 
     [Fact]

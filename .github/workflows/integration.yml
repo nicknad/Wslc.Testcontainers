@@ -21,10 +21,10 @@ jobs:
         run: wsl --version
       - run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
       - name: Run integration tests
-        run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build --filter "FullyQualifiedName~Integration" --nologo -v minimal
+        run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName~Integration"
         env:
           WSLC_RUN_INTEGRATION: "1"
       - name: Run Postgres module tests (real container)
-        run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release --nologo -v minimal
+        run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal
         env:
           WSLC_RUN_INTEGRATION: "1"

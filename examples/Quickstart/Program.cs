@@ -13,7 +13,7 @@ await using var container = new WslContainerBuilder()
 
 await container.StartAsync();
 
-var whoami = await container.ExecAsync("sh", new[] { "-c", "echo $HELLO && uname -a" }, new ExecOptions(), CancellationToken.None);
+var whoami = await container.ExecAsync("sh", new[] { "-c", "echo $HELLO && uname -a" }, null, CancellationToken.None);
 whoami.EnsureSuccess();
 Console.WriteLine($"exit={whoami.ExitCode} stdout={whoami.Stdout.Trim()}");
 

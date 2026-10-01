@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using Xunit;
 
 namespace Wslc.Testcontainers.Tests.Support;
@@ -7,7 +8,10 @@ public sealed class IntegrationFactAttribute : FactAttribute
 {
     public const string EnvironmentVariable = "WSLC_RUN_INTEGRATION";
 
-    public IntegrationFactAttribute()
+    public IntegrationFactAttribute(
+        [CallerFilePath] string? sourceFilePath = null,
+        [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (Environment.GetEnvironmentVariable(EnvironmentVariable) != "1")
         {

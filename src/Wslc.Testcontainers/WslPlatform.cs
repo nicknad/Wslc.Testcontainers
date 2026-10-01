@@ -10,9 +10,6 @@ namespace Wslc.Testcontainers;
 /// </summary>
 public static class WslPlatform
 {
-    /// <summary>Minimum supported Windows build (Windows 10, version 2004).</summary>
-    public static readonly Version MinimumWindowsVersion = new(10, 0, 19041);
-
     /// <summary>Minimum supported WSL version with container support.</summary>
     public static readonly Version MinimumWslVersion = new(2, 9, 3);
 
@@ -40,14 +37,6 @@ public static class WslPlatform
             $"Wslc.Testcontainers requires Windows 10 build 19041+ (x64/ARM64) with WSL {MinimumWslVersion} or newer. " +
             $"Current: {DescribeCurrent()}. " +
             $"Run 'wsl --install' (or 'wsl --update') on a supported Windows host and retry.");
-    }
-
-    /// <summary>Returns true when a WSL version meets the minimum container-support requirement.</summary>
-    internal static bool IsWslVersionSupported(Version version)
-    {
-        ArgumentNullException.ThrowIfNull(version);
-        var patch = version.Build >= 0 ? version.Build : version.Revision;
-        return IsWslVersionSupported((uint)version.Major, (uint)version.Minor, (uint)Math.Max(patch, 0));
     }
 
     /// <summary>Returns true when a WSL (major.minor.patch) version meets the minimum requirement.</summary>

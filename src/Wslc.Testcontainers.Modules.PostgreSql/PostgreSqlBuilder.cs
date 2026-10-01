@@ -2,6 +2,8 @@ namespace Wslc.Testcontainers.Modules.PostgreSql;
 
 // Testcontainers-style builder for Postgres. Encapsulates the image,
 // credentials, port, and readiness waits so tests don't memorize them.
+// NOTE: defaults (postgres/secret/customers) are for local tests only; override
+// WithPassword/WithUsername/WithDatabase for anything shared.
 public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
 {
     private string _username = "postgres";
@@ -19,22 +21,25 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
     public PostgreSqlBuilder WithUsername(string username)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
-        _username = username;
-        return this;
+        var clone = Clone();
+        clone._username = username;
+        return clone;
     }
 
     public PostgreSqlBuilder WithPassword(string password)
     {
         ArgumentNullException.ThrowIfNull(password);
-        _password = password;
-        return this;
+        var clone = Clone();
+        clone._password = password;
+        return clone;
     }
 
     public PostgreSqlBuilder WithDatabase(string database)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(database);
-        _database = database;
-        return this;
+        var clone = Clone();
+        clone._database = database;
+        return clone;
     }
 
     public PostgreSqlContainer Build() => new(BuildContainer(), _username, _password, _database);

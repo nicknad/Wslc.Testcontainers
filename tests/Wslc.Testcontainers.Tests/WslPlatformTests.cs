@@ -53,7 +53,6 @@ public sealed class WslPlatformTests
     public void Wsl_version_gate_enforces_minimum(uint major, uint minor, uint patch, bool expected)
     {
         Assert.Equal(expected, WslPlatform.IsWslVersionSupported(major, minor, patch));
-        Assert.Equal(expected, WslPlatform.IsWslVersionSupported(new Version((int)major, (int)minor, (int)patch)));
     }
 
     [Fact]

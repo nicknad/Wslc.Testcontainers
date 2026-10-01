@@ -81,6 +81,11 @@ public sealed class WslContainerBuilder
         foreach (var pair in variables)
         {
             RequireEnvironmentName(pair.Key);
+            if (pair.Value is null)
+            {
+                throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(variables));
+            }
+
             environment[pair.Key] = pair.Value;
         }
 
@@ -108,27 +113,51 @@ public sealed class WslContainerBuilder
         });
     }
 
-    /// <summary>Copies a Windows file into the container during startup.</summary>
-    public WslContainerBuilder WithFile(string source, string destination)
+    /// <summary>
+    /// Copies a Windows file into the container during startup.
+    /// Use <paramref name="hostPath"/> for the Windows source file and
+    /// <paramref name="containerPath"/> for the absolute Linux destination (e.g. <c>/app/config.json</c>).
+    /// Files larger than 1 GiB are rejected to avoid filling container disk.
+    /// </summary>
+    public WslContainerBuilder WithFile(string hostPath, string containerPath)
     {
-        RequireText(source, nameof(source));
-        RequireText(destination, nameof(destination));
-        if (!File.Exists(source))
+        RequireText(hostPath, nameof(hostPath));
+        RequireContainerPath(containerPath, nameof(containerPath));
+        if (!File.Exists(hostPath))
         {
-            throw new WslcException($"File source '{source}' does not exist. Only files are supported by WithFile.");
+            throw new WslcException($"File source '{hostPath}' does not exist. Only files are supported by WithFile.");
+        }
+
+        const long MaxCopyBytes = 1024L * 1024L * 1024L;
+        var length = new FileInfo(hostPath).Length;
+        if (length > MaxCopyBytes)
+        {
+            throw new WslcException($"File '{hostPath}' exceeds 1 GiB limit ({length} bytes) and cannot be copied into the container.");
         }
 
         return new WslContainerBuilder(_configuration with
         {
-            Files = Append(_configuration.Files, new WslFileCopy(source, destination)),
+            Files = Append(_configuration.Files, new WslFileCopy(hostPath, containerPath)),
         });
     }
 
-    /// <summary>Mounts a Windows directory into the container.</summary>
-    public WslContainerBuilder WithVolume(string hostPath, string containerPath, bool readOnly = false)
+    /// <summary>
+    /// Mounts a Windows directory into the container. Follows <c>host, container</c> order
+    /// like <c>docker run -v</c>; both are validated so a swapped call fails fast.
+    /// Prefer the <see cref="VolumeAccess"/> overload or <see cref="WithReadOnlyVolume"/>
+    /// over the <c>bool</c> overload for readability at the callsite.
+    /// </summary>
+    /// <param name="hostPath">Existing Windows directory.</param>
+    /// <param name="containerPath">Absolute Linux destination (e.g. <c>/workspace</c>).</param>
+    /// <param name="readOnly">When <c>true</c>, mounts read-only. Prefer <see cref="WithReadOnlyVolume"/>.</param>
+    public WslContainerBuilder WithVolume(string hostPath, string containerPath, bool readOnly = false) =>
+        WithVolume(hostPath, containerPath, readOnly ? VolumeAccess.ReadOnly : VolumeAccess.ReadWrite);
+
+    /// <summary>Mounts a Windows directory into the container with an explicit access mode.</summary>
+    public WslContainerBuilder WithVolume(string hostPath, string containerPath, VolumeAccess access)
     {
         RequireText(hostPath, nameof(hostPath));
-        RequireText(containerPath, nameof(containerPath));
+        RequireContainerPath(containerPath, nameof(containerPath));
         if (!Directory.Exists(hostPath))
         {
             throw new WslcException($"Volume host path '{hostPath}' does not exist or is not a directory.");
@@ -136,18 +165,28 @@ public sealed class WslContainerBuilder
 
         return new WslContainerBuilder(_configuration with
         {
-            Volumes = Append(_configuration.Volumes, new WslVolumeMount(Path.GetFullPath(hostPath), containerPath, readOnly)),
+            Volumes = Append(_configuration.Volumes, new WslVolumeMount(Path.GetFullPath(hostPath), containerPath, access == VolumeAccess.ReadOnly)),
         });
     }
 
+    /// <summary>Mounts a Windows directory into the container as read-only.</summary>
+    public WslContainerBuilder WithReadOnlyVolume(string hostPath, string containerPath) =>
+        WithVolume(hostPath, containerPath, VolumeAccess.ReadOnly);
+
     /// <summary>
-    /// Enables reuse across test runs. Reuse only applies when explicitly requested, is disabled
-    /// under CI by default, and derives the instance identity from the builder configuration.
+    /// Enables reuse across test runs. The instance name is derived from the configuration hash.
+    /// Reuse requires <c>WSLC_REUSE</c> truthy (or explicit <c>true</c> here) <i>and</i> is still
+    /// disabled under CI unless <c>WSLC_REUSE_IN_CI</c> is truthy. When disabled, startup logs a
+    /// diagnostic and falls back to an ephemeral instance — check logs if reuse seems ignored.
+    /// Reusable instances are never auto-deleted; run the reaper purge to reclaim disk.
     /// </summary>
     public WslContainerBuilder WithReuse(bool reuse = true) =>
         new(_configuration with { Reuse = reuse });
 
-    /// <summary>Overrides the overall startup timeout.</summary>
+    /// <summary>
+    /// Overrides the overall startup timeout. Must be &gt;= the sum of configured wait-strategy
+    /// timeouts (waits run sequentially); <see cref="Build"/> throws otherwise with guidance.
+    /// </summary>
     public WslContainerBuilder WithStartupTimeout(TimeSpan timeout)
     {
         if (timeout <= TimeSpan.Zero)
@@ -192,6 +231,22 @@ public sealed class WslContainerBuilder
         {
             throw new WslcException($"Tarball '{tarball}' does not exist.");
         }
+
+        if (configuration.WaitStrategies.Count > 0)
+        {
+            var totalWaits = TimeSpan.Zero;
+            foreach (var strategy in configuration.WaitStrategies)
+            {
+                totalWaits += strategy.Timeout;
+            }
+
+            if (totalWaits > configuration.StartupTimeout)
+            {
+                throw new WslcException(
+                    $"Startup timeout {configuration.StartupTimeout.TotalSeconds:0.###}s is smaller than the sum of wait-strategy timeouts {totalWaits.TotalSeconds:0.###}s. " +
+                    $"Waits run sequentially, so startup would always fire first. Increase WithStartupTimeout(...) or reduce wait WithTimeout(...) values.");
+            }
+        }
     }
 
     private static Dictionary<string, string> CopyEnvironment(
@@ -212,6 +267,19 @@ public sealed class WslContainerBuilder
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new ArgumentException("Value must not be empty.", parameterName);
+        }
+    }
+
+    private static void RequireContainerPath(string path, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            throw new ArgumentException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).", parameterName);
+        }
+
+        if (!path.StartsWith('/'))
+        {
+            throw new ArgumentException($"Container path '{path}' must be an absolute Linux path starting with '/'.", parameterName);
         }
     }
 

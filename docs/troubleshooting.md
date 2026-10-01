@@ -21,7 +21,7 @@ Unit tests run everywhere. Real-runtime tests are opt-in:
 
 ```powershell
 $env:WSLC_RUN_INTEGRATION = "1"
-dotnet test Wslc.Testcontainers.slnx
+dotnet test --solution Wslc.Testcontainers.slnx
 ```
 
 Without the variable, `[IntegrationFact]` tests skip with the reason printed.

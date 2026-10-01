@@ -1,6 +1,5 @@
 using Wslc.Testcontainers.Testing;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Customers.Tests;
 
@@ -25,14 +24,15 @@ public sealed class CustomerServiceTest
     {
         // Given a clean database on the shared container.
         var customerService = new CustomerService(_fixture.Provider);
-        await customerService.ResetAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await customerService.ResetAsync(cancellationToken);
 
         try
         {
             // When
-            await customerService.CreateAsync(new Customer(1, "George"));
-            await customerService.CreateAsync(new Customer(2, "John"));
-            var customers = await customerService.GetCustomersAsync();
+            await customerService.CreateAsync(new Customer(1, "George"), cancellationToken);
+            await customerService.CreateAsync(new Customer(2, "John"), cancellationToken);
+            var customers = await customerService.GetCustomersAsync(cancellationToken);
 
             // Then
             Assert.Equal(2, customers.Count);

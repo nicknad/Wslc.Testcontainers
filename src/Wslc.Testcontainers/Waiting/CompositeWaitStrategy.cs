@@ -1,6 +1,6 @@
 namespace Wslc.Testcontainers.Waiting;
 
-/// <summary>Requires several strategies to be satisfied. They are evaluated sequentially.</summary>
+/// <summary>Requires several strategies to be satisfied. They are evaluated sequentially within the composite timeout.</summary>
 internal sealed record CompositeWaitStrategy(IReadOnlyList<IWaitStrategy> Strategies) : WaitStrategyBase
 {
     public override string Name =>
@@ -8,9 +8,23 @@ internal sealed record CompositeWaitStrategy(IReadOnlyList<IWaitStrategy> Strate
 
     public override async Task WaitAsync(IWaitTarget target, CancellationToken cancellationToken)
     {
-        foreach (var strategy in Strategies)
+        ArgumentNullException.ThrowIfNull(target);
+        // The composite Timeout bounds the whole sequence; child strategies keep their own
+        // timeouts for diagnostics, but the composite CTS guarantees we never exceed the sum.
+        using var timeoutSource = new CancellationTokenSource(Timeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        try
         {
-            await strategy.WaitAsync(target, cancellationToken).ConfigureAwait(false);
+            foreach (var strategy in Strategies)
+            {
+                await strategy.WaitAsync(target, linked.Token).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw CreateTimeout(target, stopwatch.Elapsed);
         }
     }
 }

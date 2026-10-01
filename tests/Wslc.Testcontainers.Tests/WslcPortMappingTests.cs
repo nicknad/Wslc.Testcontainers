@@ -56,7 +56,7 @@ public sealed class WslcPortMappingTests
             var mapping = WslcPortMapping.Create(new[] { 8080 });
             mapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"" + port + "\"}]}}");
 
-            Assert.True(await mapping.IsPortOpenAsync(8080));
+            Assert.True(await mapping.IsPortOpenAsync(8080, TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -66,6 +66,6 @@ public sealed class WslcPortMappingTests
         var closedMapping = WslcPortMapping.Create(new[] { 8080 });
         closedMapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"" + port + "\"}]}}");
 
-        Assert.False(await closedMapping.IsPortOpenAsync(8080));
+        Assert.False(await closedMapping.IsPortOpenAsync(8080, TestContext.Current.CancellationToken));
     }
 }

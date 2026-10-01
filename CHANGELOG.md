@@ -4,6 +4,14 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 
 ## Unreleased
 
+### Changed
+
+- Tests and examples now use xUnit.net v3 (`xunit.v3` 4.0.1) with the Microsoft Testing Platform: `global.json` opts into MTP, commands use `dotnet test --solution ...`, and test-app options are passed after `--`.
+
+### Removed
+
+- Public API (unshipped preview): `WslResourceReaper.CleanupAllAsync()` (the reaper never deletes reusable instances), `WslPlatform.MinimumWindowsVersion`, `LogDumper.Dump(IReadOnlyList<LogLine>, ...)`, `IWslProcess.Stdout`/`Stderr`/`LogsAsync`, and `IWslContainer.Stdout`/`Stderr`. Use `container.LogsAsync()` and `ExecResult` for container and process output.
+
 ## 0.1.0-preview.1
 
 First public preview of `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`).

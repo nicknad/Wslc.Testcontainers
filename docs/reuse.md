@@ -34,9 +34,13 @@ builder: the core stays generic, presets stay versioned with their image.
 
 ## Cleanup
 
-- `StopAsync()` stops processes but keeps storage; `DisposeAsync()` deletes
+- `StopAsync()` stops processes but keeps storage (restart clears session storage so the runtime starts empty); `DisposeAsync()` deletes
   ephemeral storage. The process-exit hook does best-effort cleanup on crash.
-- Orphans from dead owners are reaped on next `StartAsync()`. To force it:
-  `await WslResourceReaper.CleanupAsync()`.
+- Orphans from dead owners are reaped on next `StartAsync()` (PID-recycling safe). To force it:
+  `await WslResourceReaper.CleanupAsync()`. Corrupt/missing metadata is deleted only after 7 days.
+- Reusable instances are preserved by `DisposeAsync()` and by the reaper, even
+  when their owner is gone. Reclaim with `await WslResourceReaper.PurgeReuseAsync()` (all reuse)
+  or `await WslResourceReaper.CleanupIncludingReuseAsync()` (dead owners only), or delete the
+  printed `wslc-reuse-*` directory to force a clean slate (the next start re-pulls the image).
 - Storage root: `%LOCALAPPDATA%\Wslc` (`WSLC_DATA_DIRECTORY` overrides).
   Delete an instance directory only for the printed container name.

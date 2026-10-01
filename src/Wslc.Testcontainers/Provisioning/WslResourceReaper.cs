@@ -10,7 +10,7 @@ namespace Wslc.Testcontainers.Provisioning;
 /// <remarks>
 /// Ephemeral instances are deleted when the owner is gone. Reusable instances are preserved
 /// by default (they survive owner exit by design) — call <see cref="PurgeReuseAsync"/> or
-/// <see cref="CleanupAsync(bool, CancellationToken)"/> with <c>includeReuse:true</c> to reclaim
+/// <see cref="CleanupIncludingReuseAsync"/> to reclaim
 /// them. Directories with missing/corrupt metadata are deleted only after a 7-day grace period
 /// to avoid removing just-crashed writes.
 /// </remarks>
@@ -24,13 +24,12 @@ public static class WslResourceReaper
         Task.Run(() => CleanupCore(cancellationToken, includeReuse: false), cancellationToken);
 
     /// <summary>
-    /// Deletes storage of abandoned instances. When <paramref name="includeReuse"/> is <c>true</c>,
-    /// reusable instances whose owner is gone are also deleted.
+    /// Deletes storage of abandoned instances including reusable ones whose owner is gone.
+    /// Prefer <see cref="PurgeReuseAsync"/> to delete all reuse caches regardless of liveness.
     /// </summary>
-    /// <param name="includeReuse">Whether to include reusable instances.</param>
-    /// <param name="cancellationToken">Cancellation token (required to avoid overload ambiguity).</param>
-    public static Task<IReadOnlyList<string>> CleanupAsync(bool includeReuse, CancellationToken cancellationToken) =>
-        Task.Run(() => CleanupCore(cancellationToken, includeReuse), cancellationToken);
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public static Task<IReadOnlyList<string>> CleanupIncludingReuseAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() => CleanupCore(cancellationToken, includeReuse: true), cancellationToken);
 
     /// <summary>
     /// Deletes all reusable instances (<c>wslc-reuse-*</c>) regardless of owner liveness.

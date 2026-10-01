@@ -48,12 +48,12 @@ dotnet pack src/Wslc.Testcontainers -c Release
 
 ## Core concepts
 
-| Concept               | Description                                                                                        |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `WslContainerBuilder` | Immutable, `With...`/`From...` builder. Every call returns a new configuration.                    |
+| Concept               | Description                                                                                   |
+| --------------------- | --------------------------------------------------------------------------------------------- |
+| `WslContainerBuilder` | Immutable, `With...`/`From...` builder. Every call returns a new configuration.               |
 | `WslContainer`        | One disposable container in its own WSL session. Create with `Build()`, start with `StartAsync()`. |
-| `Wait`                | Readiness strategies (`IWaitStrategy`) evaluated by `StartAsync()` before it completes.            |
-| `IWslProcess`         | A long-running process started with `StartProcessAsync`.                                           |
+| `Wait`                | Readiness strategies (`IWaitStrategy`) evaluated by `StartAsync()` before it completes.       |
+| `IWslProcess`         | A long-running process started with `StartProcess` (must be disposed).                        |
 
 Each `WslContainer` owns a dedicated WSL session with its own storage, so tests are isolated and can
 run in parallel. Instances are named `wslc-{session}-{random}` and are destroyed by `DisposeAsync()`.
@@ -78,10 +78,10 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
 | `WithPort(containerPort)`                                         | Exposes a Linux port on a dynamic Windows port.                    |
 | `WithWaitStrategy(strategy)`                                      | Adds a readiness condition. All must pass.                         |
-| `WithFile(source, destination)`                                   | Copies a Windows file into the container during startup.           |
-| `WithVolume(hostPath, containerPath, readOnly?)`                  | Mounts a Windows directory into the container.                     |
+| `WithFile(hostPath, containerPath)`                               | Copies a Windows file (≤1 GiB) into the container. Absolute Linux dest. |
+| `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mounts a Windows directory. Order is host, container. |
 | `WithReuse(true)`                                                 | Keeps session storage between runs (see Reuse).                    |
-| `WithStartupTimeout(timeout)`                                     | Overall startup budget. Default 120 s.                             |
+| `WithStartupTimeout(timeout)`                                     | Overall startup budget (must be ≥ sum of wait timeouts). Default 120 s. |
 
 ## Working with the container
 
@@ -92,24 +92,29 @@ using Wslc.Testcontainers;
 ExecResult result = await container.ExecAsync("ps", "aux");
 Console.WriteLine(result.ExitCode);
 
-// Options: environment, working directory, stdin, timeout
+// Options: environment, working directory, stdin, timeout (pass null for defaults)
 var result2 = await container.ExecAsync("psql", new[] { "-c", "SELECT 1" }, new ExecOptions
 {
     Environment = new Dictionary<string, string> { ["PGPASSWORD"] = "secret" },
     Timeout = TimeSpan.FromSeconds(30),
-});
+}, CancellationToken.None);
 
-// Long-running processes
-IWslProcess process = container.StartProcessAsync("sleep", "3600");
+// Long-running processes (StandardInput/Timeout are Exec-only and throw here)
+IWslProcess process = container.StartProcess("sleep", "3600");
 Console.WriteLine(process.Id);
 await process.KillAsync();
+await process.DisposeAsync();
 
-// Files
+// Output from the init process, ExecAsync and StartProcess all flows
+// through container.LogsAsync() (infinite until cancelled — bound with CTS or LogDumper).
+
+// Files (≤1 GiB each way; container paths must be absolute Linux paths)
 await container.CopyToAsync(@".\fixtures\app.conf", "/etc/app/app.conf");
 await container.CopyFromAsync("/var/log/app.log", @".\artifacts\app.log");
 
-// Logs
-await foreach (var line in container.LogsAsync())
+// Logs (infinite stream — always cancel; see docs/troubleshooting.md)
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+await foreach (var line in container.LogsAsync(cts.Token))
 {
     Console.WriteLine(line);
 }
@@ -157,11 +162,12 @@ await container.StartAsync();
 // DisposeAsync stops processes, terminates the session and removes storage.
 ```
 
-- `StopAsync()` stops processes and terminates the session but keeps storage.
-- `DisposeAsync()` also deletes ephemeral storage.
+- `StopAsync()` stops processes and terminates the session but keeps storage (restart resets storage so `StartAsync` works again).
+- `DisposeAsync()` also deletes ephemeral storage (reuse storage is preserved by design).
 - A process-exit hook performs best-effort cleanup if the test host crashes.
-- At startup, `WslResourceReaper.CleanupAsync()` deletes storage left behind by dead owners;
-  WSLC only ever touches resources it created.
+- At startup, `WslResourceReaper.CleanupAsync()` deletes ephemeral storage left behind by dead
+  owners (PID-recycling safe, 7-day grace for corrupt metadata); `WithReuse(true)` storage is never reaped automatically — use `CleanupIncludingReuseAsync()` or `PurgeReuseAsync()`. WSLC only ever touches
+  resources it created.
 
 ### Reuse
 
@@ -212,6 +218,9 @@ Inside every container these variables are also available: `WSLC_SESSION_ID`, `W
 
 ## Development
 
+Building and testing require the .NET 10 SDK (`global.json`), which also opts into the
+Microsoft Testing Platform; test-app options are passed after `--`.
+
 ```powershell
 dotnet build Wslc.Testcontainers.slnx
 dotnet test --solution Wslc.Testcontainers.slnx
@@ -219,6 +228,10 @@ dotnet test --solution Wslc.Testcontainers.slnx
 # Real-runtime tests (pull public images, require WSL container support)
 $env:WSLC_RUN_INTEGRATION = "1"
 dotnet test --solution Wslc.Testcontainers.slnx
+
+# Subset of the unit suite
+dotnet test --project tests/Wslc.Testcontainers.Tests -f net10.0-windows10.0.19041.0 `
+  -- --filter "FullyQualifiedName~WslPlatform"
 ```
 
 ## License

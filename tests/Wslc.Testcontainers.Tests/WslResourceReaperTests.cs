@@ -38,6 +38,32 @@ public sealed class WslResourceReaperTests
         Assert.False(WslResourceReaper.IsOwnerAlive(int.MaxValue));
     }
 
+    [Fact]
+    public void Reuse_instance_lock_is_detected()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "wslc-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            Assert.False(WslResourceReaper.IsReuseInstanceInUse(directory));
+
+            using (new FileStream(
+                Path.Combine(directory, "wslc.lock"),
+                FileMode.OpenOrCreate,
+                FileAccess.ReadWrite,
+                FileShare.None))
+            {
+                Assert.True(WslResourceReaper.IsReuseInstanceInUse(directory));
+            }
+
+            Assert.False(WslResourceReaper.IsReuseInstanceInUse(directory));
+        }
+        finally
+        {
+            WslInstanceStore.BestEffortDeleteDirectory(directory);
+        }
+    }
+
     private static WslInstanceMetadata CreateMetadata(bool reuse) => new(
         "session",
         "wslc-test-0000",

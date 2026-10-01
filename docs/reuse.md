@@ -39,8 +39,9 @@ builder: the core stays generic, presets stay versioned with their image.
 - Orphans from dead owners are reaped on next `StartAsync()` (PID-recycling safe). To force it:
   `await WslResourceReaper.CleanupAsync()`. Corrupt/missing metadata is deleted only after 7 days.
 - Reusable instances are preserved by `DisposeAsync()` and by the reaper, even
-  when their owner is gone. Reclaim with `await WslResourceReaper.PurgeReuseAsync()` (all reuse)
-  or `await WslResourceReaper.CleanupIncludingReuseAsync()` (dead owners only), or delete the
-  printed `wslc-reuse-*` directory to force a clean slate (the next start re-pulls the image).
+  when their owner is gone. Reclaim with `await WslResourceReaper.PurgeReuseAsync()` (force, all reuse)
+  or `await WslResourceReaper.CleanupIncludingReuseAsync()` (dead owners only; skips instances a
+  running process still holds), or delete the printed `wslc-reuse-*` directory to force a clean
+  slate (the next start re-pulls the image).
 - Storage root: `%LOCALAPPDATA%\Wslc` (`WSLC_DATA_DIRECTORY` overrides).
   Delete an instance directory only for the printed container name.

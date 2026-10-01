@@ -25,6 +25,9 @@ public static class WslResourceReaper
 
     /// <summary>
     /// Deletes storage of abandoned instances including reusable ones whose owner is gone.
+    /// Reuse instances currently held by a running process (<c>wslc.lock</c> acquired) are
+    /// skipped, because their metadata owner may be a dead earlier process while another
+    /// process is actively using the instance.
     /// Prefer <see cref="PurgeReuseAsync"/> to delete all reuse caches regardless of liveness.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -32,9 +35,9 @@ public static class WslResourceReaper
         Task.Run(() => CleanupCore(cancellationToken, includeReuse: true), cancellationToken);
 
     /// <summary>
-    /// Deletes all reusable instances (<c>wslc-reuse-*</c>) regardless of owner liveness.
-    /// Use to reclaim disk from long-lived reuse caches. Ephemeral orphans are left to
-    /// <see cref="CleanupAsync(CancellationToken)"/>.
+    /// Force-deletes all reusable instances (<c>wslc-reuse-*</c>) regardless of owner
+    /// liveness and without checking the instance lock; do not call while another process
+    /// may be using one. Ephemeral orphans are left to <see cref="CleanupAsync(CancellationToken)"/>.
     /// </summary>
     public static Task<IReadOnlyList<string>> PurgeReuseAsync(CancellationToken cancellationToken = default) =>
         Task.Run(() => PurgeReuseCore(cancellationToken), cancellationToken);
@@ -75,6 +78,14 @@ public static class WslResourceReaper
 
             var ownerAlive = IsOwnerAlive(metadata);
             if (!ShouldCleanup(metadata, ownerAlive, includeReuse))
+            {
+                continue;
+            }
+
+            // A reuse instance's metadata owner is the process that first created it, which is
+            // normally dead by design. The lock is the only reliable "currently in use" signal,
+            // so never delete one another live process holds.
+            if (metadata.Reuse && IsReuseInstanceInUse(directory))
             {
                 continue;
             }
@@ -157,6 +168,36 @@ public static class WslResourceReaper
         catch (InvalidOperationException)
         {
             return false;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Access denied querying another user's process: assume alive to avoid deleting live storage.
+            return true;
+        }
+    }
+
+    /// <summary>Returns true when another process currently holds the instance reuse lock.</summary>
+    internal static bool IsReuseInstanceInUse(string instanceDirectory)
+    {
+        var lockPath = Path.Combine(instanceDirectory, "wslc.lock");
+        if (!File.Exists(lockPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Cannot probe the lock (ACL); treat as in use rather than delete blind.
+            return true;
         }
     }
 

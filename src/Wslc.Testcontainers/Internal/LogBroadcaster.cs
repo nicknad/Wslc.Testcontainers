@@ -5,8 +5,10 @@ namespace Wslc.Testcontainers.Internal;
 
 /// <summary>Thread-safe fan-out log buffer with bounded history and bounded subscribers.</summary>
 /// <remarks>
-/// History is capped at 10k lines. Each subscriber channel is bounded (1k, DropOldest) so an
-/// abandoned <c>LogsAsync</c> enumeration cannot grow memory without bound; still, callers must
+/// History is capped at 10k lines in a ring buffer and snapshots are cached until the next
+/// publish, so readiness polls that call <c>GetRecentLogs</c> do not allocate a fresh array
+/// on every check. Each subscriber channel is bounded (1k, DropOldest) so an abandoned
+/// <c>LogsAsync</c> enumeration cannot grow memory without bound; still, callers must
 /// cancel/dispose log streams promptly (see <c>LogDumper</c>).
 /// </remarks>
 internal sealed class LogBroadcaster
@@ -14,8 +16,13 @@ internal sealed class LogBroadcaster
     private const int MaxHistory = 10_000;
     private const int MaxSubscriberBuffered = 1_000;
     private readonly object _gate = new();
-    private readonly LinkedList<LogLine> _history = new();
+    private readonly LogLine[] _history = new LogLine[MaxHistory];
     private readonly List<Channel<LogLine>> _subscribers = new();
+    private int _head;
+    private int _count;
+    private int _version;
+    private IReadOnlyList<LogLine>? _snapshot;
+    private int _snapshotVersion = -1;
     private bool _completed;
 
     public void Publish(LogLine line)
@@ -27,11 +34,17 @@ internal sealed class LogBroadcaster
                 return;
             }
 
-            _history.AddLast(line);
-            while (_history.Count > MaxHistory)
+            _history[(_head + _count) % MaxHistory] = line;
+            if (_count == MaxHistory)
             {
-                _history.RemoveFirst();
+                _head = (_head + 1) % MaxHistory;
             }
+            else
+            {
+                _count++;
+            }
+
+            _version++;
 
             foreach (var subscriber in _subscribers)
             {
@@ -44,7 +57,19 @@ internal sealed class LogBroadcaster
     {
         lock (_gate)
         {
-            return _history.ToArray();
+            if (_snapshot is null || _snapshotVersion != _version)
+            {
+                var lines = new LogLine[_count];
+                for (var i = 0; i < _count; i++)
+                {
+                    lines[i] = _history[(_head + i) % MaxHistory];
+                }
+
+                _snapshot = Array.AsReadOnly(lines);
+                _snapshotVersion = _version;
+            }
+
+            return _snapshot;
         }
     }
 
@@ -59,9 +84,9 @@ internal sealed class LogBroadcaster
 
         lock (_gate)
         {
-            foreach (var line in _history)
+            for (var i = 0; i < _count; i++)
             {
-                _ = channel.Writer.TryWrite(line);
+                _ = channel.Writer.TryWrite(_history[(_head + i) % MaxHistory]);
             }
 
             if (_completed)

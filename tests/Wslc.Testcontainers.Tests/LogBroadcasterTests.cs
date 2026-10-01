@@ -68,4 +68,45 @@ public sealed class LogBroadcasterTests
         Assert.Equal(10_000, snapshot.Count);
         Assert.Equal("line 50", snapshot[0].Text);
     }
+
+    [Fact]
+    public void Snapshot_is_cached_until_the_next_publish()
+    {
+        var broadcaster = new LogBroadcaster();
+        broadcaster.Publish(LogLine.Diagnostic("one"));
+
+        var first = broadcaster.Snapshot();
+        Assert.Same(first, broadcaster.Snapshot());
+
+        broadcaster.Publish(LogLine.Diagnostic("two"));
+        var second = broadcaster.Snapshot();
+
+        Assert.NotSame(first, second);
+        Assert.Equal(2, second.Count);
+        Assert.Equal("two", second[1].Text);
+    }
+
+    [Fact]
+    public async Task Slow_subscribers_drop_the_oldest_lines_when_full()
+    {
+        var broadcaster = new LogBroadcaster();
+        using var subscription = broadcaster.Subscribe();
+
+        for (var index = 0; index < 1_050; index++)
+        {
+            broadcaster.Publish(LogLine.Diagnostic($"line {index}"));
+        }
+
+        broadcaster.Complete();
+
+        var lines = new List<string>();
+        await foreach (var line in subscription.Reader.ReadAllAsync(TestContext.Current.CancellationToken))
+        {
+            lines.Add(line.Text);
+        }
+
+        Assert.Equal(1_000, lines.Count);
+        Assert.Equal("line 50", lines[0]);
+        Assert.Equal("line 1049", lines[^1]);
+    }
 }

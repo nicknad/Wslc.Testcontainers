@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using Wslc.Testcontainers.Waiting;
@@ -85,26 +86,41 @@ internal static class WslConfigHasher
 {
     public static string Compute(WslContainerConfiguration configuration)
     {
-        var builder = new StringBuilder(512);
-        builder.Append("image=").AppendLine(configuration.Image);
-        builder.Append("tarball=").AppendLine(configuration.TarballPath);
-        builder.Append("tarballImage=").AppendLine(configuration.TarballImageName);
-        builder.Append("command=").Append(configuration.Command).Append('\u001f').AppendLine(string.Join('\u001f', configuration.CommandArguments));
-        builder.Append("cwd=").AppendLine(configuration.WorkingDirectory);
+        // Length-prefixed binary encoding: the previous newline/separator text encoding was
+        // not injective, so a value containing a delimiter could hash the same as two
+        // separate fields and reuse the wrong instance. Prefixing every field with its byte
+        // count removes that ambiguity, and null is encoded distinctly from an empty string.
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
-        // Sort in place to avoid OrderBy sorter allocations on hot reuse path.
+        WriteString(hash, configuration.Image);
+        WriteString(hash, configuration.TarballPath);
+        WriteString(hash, configuration.TarballImageName);
+        WriteString(hash, configuration.Command);
+
+        WriteInt32(hash, configuration.CommandArguments.Count);
+        foreach (var argument in configuration.CommandArguments)
+        {
+            WriteString(hash, argument);
+        }
+
+        WriteString(hash, configuration.WorkingDirectory);
+
+        // Sort in place to avoid OrderBy sorter allocations on the reuse path.
         var env = configuration.Environment.ToArray();
         Array.Sort(env, static (a, b) => string.CompareOrdinal(a.Key, b.Key));
+        WriteInt32(hash, env.Length);
         foreach (var pair in env)
         {
-            builder.Append("env:").Append(pair.Key).Append('=').AppendLine(pair.Value);
+            WriteString(hash, pair.Key);
+            WriteString(hash, pair.Value);
         }
 
         var ports = configuration.Ports.ToArray();
         Array.Sort(ports);
+        WriteInt32(hash, ports.Length);
         foreach (var port in ports)
         {
-            builder.Append("port:").AppendLine(port.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            WriteInt32(hash, port);
         }
 
         var files = configuration.Files.ToArray();
@@ -113,13 +129,12 @@ internal static class WslConfigHasher
             var c = string.CompareOrdinal(a.Destination, b.Destination);
             return c != 0 ? c : string.CompareOrdinal(a.Source, b.Source);
         });
+        WriteInt32(hash, files.Length);
         foreach (var file in files)
         {
-            builder.Append("file:").Append(file.Source).Append("->").AppendLine(file.Destination);
-            if (File.Exists(file.Source))
-            {
-                builder.Append("sha=").AppendLine(HashFile(file.Source));
-            }
+            WriteString(hash, file.Source);
+            WriteString(hash, file.Destination);
+            WriteFileContentHash(hash, file.Source);
         }
 
         var volumes = configuration.Volumes.ToArray();
@@ -128,19 +143,55 @@ internal static class WslConfigHasher
             var c = string.CompareOrdinal(a.ContainerPath, b.ContainerPath);
             return c != 0 ? c : string.CompareOrdinal(a.HostPath, b.HostPath);
         });
+        WriteInt32(hash, volumes.Length);
+        Span<byte> readOnlyMarker = stackalloc byte[1];
         foreach (var volume in volumes)
         {
-            builder.Append("volume:").Append(volume.HostPath).Append("->").Append(volume.ContainerPath)
-                .Append(" ro=").AppendLine(volume.ReadOnly ? "1" : "0");
+            WriteString(hash, volume.HostPath);
+            WriteString(hash, volume.ContainerPath);
+            readOnlyMarker[0] = volume.ReadOnly ? (byte)1 : (byte)0;
+            hash.AppendData(readOnlyMarker);
         }
 
-        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
-        return Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
-    private static string HashFile(string path)
+    private static void WriteString(IncrementalHash hash, string? value)
     {
+        if (value is null)
+        {
+            WriteInt32(hash, -1);
+            return;
+        }
+
+        var byteCount = Encoding.UTF8.GetByteCount(value);
+        WriteInt32(hash, byteCount);
+        if (byteCount == 0)
+        {
+            return;
+        }
+
+        hash.AppendData(Encoding.UTF8.GetBytes(value));
+    }
+
+    private static void WriteInt32(IncrementalHash hash, int value)
+    {
+        Span<byte> buffer = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
+        hash.AppendData(buffer);
+    }
+
+    private static void WriteFileContentHash(IncrementalHash hash, string path)
+    {
+        if (!File.Exists(path))
+        {
+            hash.AppendData(stackalloc byte[1] { 0 });
+            return;
+        }
+
+        hash.AppendData(stackalloc byte[1] { 1 });
         using var stream = File.OpenRead(path);
-        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
+        var contentHash = SHA256.HashData(stream);
+        hash.AppendData(contentHash);
     }
 }

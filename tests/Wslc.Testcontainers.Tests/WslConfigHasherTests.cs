@@ -62,6 +62,46 @@ public sealed class WslConfigHasherTests
     }
 
     [Fact]
+    public void Delimiter_characters_in_environment_values_cannot_collide()
+    {
+        var first = new WslContainerConfiguration
+        {
+            Image = "alpine",
+            Environment = new Dictionary<string, string> { ["A"] = "x\nenv:B=y" },
+        };
+        var second = new WslContainerConfiguration
+        {
+            Image = "alpine",
+            Environment = new Dictionary<string, string> { ["A"] = "x", ["B"] = "y" },
+        };
+
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
+    }
+
+    [Fact]
+    public void Argument_separator_characters_cannot_collide()
+    {
+        var first = new WslContainerConfiguration
+        {
+            Image = "alpine",
+            Command = "sh",
+            CommandArguments = new[] { "a\u001fb" },
+        };
+        var second = first with { CommandArguments = new[] { "a", "b" } };
+
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
+    }
+
+    [Fact]
+    public void Null_and_empty_values_hash_differently()
+    {
+        var first = new WslContainerConfiguration { Image = "alpine", WorkingDirectory = null };
+        var second = first with { WorkingDirectory = string.Empty };
+
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
+    }
+
+    [Fact]
     public void File_content_changes_the_hash()
     {
         var path = Path.Combine(Path.GetTempPath(), $"wslc-hash-{Guid.NewGuid():N}.txt");
@@ -79,6 +119,30 @@ public sealed class WslConfigHasherTests
             var after = WslConfigHasher.Compute(configuration);
 
             Assert.NotEqual(before, after);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void Missing_file_and_empty_file_hash_differently()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"wslc-hash-{Guid.NewGuid():N}.txt");
+        try
+        {
+            var configuration = new WslContainerConfiguration
+            {
+                Image = "alpine",
+                Files = new[] { new WslFileCopy(path, "/tmp/file.txt") },
+            };
+            var missing = WslConfigHasher.Compute(configuration);
+
+            File.WriteAllBytes(path, Array.Empty<byte>());
+            var empty = WslConfigHasher.Compute(configuration);
+
+            Assert.NotEqual(missing, empty);
         }
         finally
         {

@@ -1,6 +1,6 @@
 namespace Wslc.Testcontainers;
 
-/// <summary>Optional settings for <see cref="IWslContainer.ExecAsync(string, string[], ExecOptions?, CancellationToken)"/>.</summary>
+/// <summary>Optional settings for <see cref="IWslContainer.ExecAsync"/>.</summary>
 /// <remarks>
 /// Pass <c>null</c> instead of <c>new ExecOptions()</c> for defaults.
 /// <c>StandardInput</c> and <c>Timeout</c> apply only to <c>ExecAsync</c>; <c>StartProcess</c>

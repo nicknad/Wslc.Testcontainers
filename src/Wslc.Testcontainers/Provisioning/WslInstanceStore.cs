@@ -14,6 +14,7 @@ internal sealed class WslInstanceStore
     };
 
     private readonly string _dataDirectory;
+    private readonly object _metadataGate = new();
 
     public static WslInstanceStore Default { get; } = new(WslcEnvironment.DataDirectory, WslcEnvironment.SessionId);
 
@@ -42,12 +43,31 @@ internal sealed class WslInstanceStore
         var directory = GetInstanceDirectory(metadata.InstanceId);
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, MetadataFileName);
-        var tempPath = path + ".tmp";
+        var json = JsonSerializer.Serialize(metadata, JsonOptions);
 
-        // Write-then-rename so a crash mid-write cannot leave truncated JSON behind.
-        // Corrupt metadata is treated as "not ours" by the reaper and would leak storage.
-        File.WriteAllText(tempPath, JsonSerializer.Serialize(metadata, JsonOptions));
-        File.Move(tempPath, path, overwrite: true);
+        lock (_metadataGate)
+        {
+            // Write-then-rename so a crash mid-write cannot leave truncated JSON behind.
+            // A unique temp name keeps concurrent writers (state transitions racing cleanup)
+            // from clobbering each other's temp file.
+            var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            try
+            {
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, path, overwrite: true);
+            }
+            finally
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch
+                {
+                    // Best effort: a failed write must not leave temp litter behind.
+                }
+            }
+        }
     }
 
     public WslInstanceMetadata? TryReadMetadata(string instanceName)
@@ -55,12 +75,18 @@ internal sealed class WslInstanceStore
         try
         {
             var path = Path.Combine(GetInstanceDirectory(instanceName), MetadataFileName);
-            if (!File.Exists(path))
+            string json;
+            lock (_metadataGate)
             {
-                return null;
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                json = File.ReadAllText(path);
             }
 
-            return JsonSerializer.Deserialize<WslInstanceMetadata>(File.ReadAllText(path), JsonOptions);
+            return JsonSerializer.Deserialize<WslInstanceMetadata>(json, JsonOptions);
         }
         catch
         {

@@ -60,6 +60,21 @@ public sealed class WslInstanceStoreTests : IDisposable
         Assert.Equal(Path.Combine(_store.InstancesDirectory, "wslc-a_b_c"), directory);
     }
 
+    [Fact]
+    public void Concurrent_metadata_writes_do_not_race()
+    {
+        var metadata = CreateMetadata();
+
+        Parallel.For(0, 100, index =>
+        {
+            _store.WriteMetadata(metadata with { State = index % 2 == 0 ? "Running" : "Stopped" });
+            Assert.NotNull(_store.TryReadMetadata(metadata.InstanceId));
+        });
+
+        var instanceDirectory = _store.GetInstanceDirectory(metadata.InstanceId);
+        Assert.Empty(Directory.EnumerateFiles(instanceDirectory, "*.tmp"));
+    }
+
     private WslInstanceMetadata CreateMetadata() => new(
         _store.SessionId,
         "wslc-test-1234abcd",

@@ -37,6 +37,25 @@ public sealed class WslcPortMappingTests
     }
 
     [Fact]
+    public void Inspect_payload_accepts_numeric_host_ports()
+    {
+        var mapping = WslcPortMapping.Create(new[] { 8080 });
+        mapping.ResolveFromInspect("""{"Ports":{"8080/tcp":[{"HostPort":4514}]}}""");
+
+        Assert.Equal(4514, mapping.GetMappedPort(8080));
+    }
+
+    [Fact]
+    public void Inspect_payload_ignores_invalid_host_ports()
+    {
+        var mapping = WslcPortMapping.Create(new[] { 8080 });
+        mapping.ResolveFromInspect(
+            """{"Ports":{"8080/tcp":[{"HostPort":{}},{"HostPort":"abc"},{"HostPort":"70000"},{"HostPort":"4515"}]}}""");
+
+        Assert.Equal(4515, mapping.GetMappedPort(8080));
+    }
+
+    [Fact]
     public void Unknown_ports_throw()
     {
         var mapping = WslcPortMapping.Create(new[] { 8080 });

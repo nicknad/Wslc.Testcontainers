@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -111,7 +112,8 @@ internal sealed class WslcPortMapping
         foreach (var property in ports.EnumerateObject())
         {
             var separator = property.Name.IndexOf('/');
-            if (separator <= 0 || !int.TryParse(property.Name[..separator], out var containerPort))
+            if (separator <= 0 ||
+                !int.TryParse(property.Name.AsSpan(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out var containerPort))
             {
                 continue;
             }
@@ -124,14 +126,26 @@ internal sealed class WslcPortMapping
             foreach (var entry in property.Value.EnumerateArray())
             {
                 if (entry.TryGetProperty("HostPort", out var hostPortElement) &&
-                    ushort.TryParse(hostPortElement.GetString(), out var hostPort) &&
-                    hostPort != 0)
+                    TryReadMappedPort(hostPortElement, out var hostPort))
                 {
                     _ports[containerPort] = hostPort;
                     break;
                 }
             }
         }
+    }
+
+    private static bool TryReadMappedPort(JsonElement element, out int port)
+    {
+        port = 0;
+        var parsed = element.ValueKind switch
+        {
+            JsonValueKind.String => int.TryParse(element.GetString(), NumberStyles.None, CultureInfo.InvariantCulture, out port),
+            JsonValueKind.Number => element.TryGetInt32(out port),
+            _ => false,
+        };
+
+        return parsed && port is > 0 and <= 65535;
     }
 
     public async Task<bool> IsPortOpenAsync(int containerPort, CancellationToken cancellationToken = default)

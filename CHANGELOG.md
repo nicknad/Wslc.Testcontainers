@@ -6,6 +6,8 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 
 ### Fixed
 
+- Postgres module now waits for the second "database system is ready to accept connections" log line. The image entrypoint starts a temporary server for initialization, logs readiness, then restarts; accepting the first occurrence let tests connect and get dropped mid-initialization (`UntilMessageIsLogged(message, occurrences)` added).
+- Real-runtime example tests (`examples/Postgres.Tests`) now skip unless `WSLC_RUN_INTEGRATION=1`, matching the documented opt-in and the CI integration job; previously `dotnet test --solution` pulled and started Postgres unconditionally.
 - Log capture no longer splits lines quadratically: `LineAssembler` resumes scanning and compacts once per chunk instead of removing each line from a `StringBuilder`, and capture buffers are fixed-size rings that drop the oldest bytes in place.
 - Log snaphots are cached until the next publish, so readiness polls (`GetRecentLogs`) no longer allocate a full history copy every retry; subscriber channels are bounded (1k, DropOldest).
 - Long-running child processes are registered before they start and exited entries are pruned, so a concurrent `StopAsync`/`DisposeAsync` can no longer miss and leak one.

@@ -44,6 +44,12 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
 
     public PostgreSqlContainer Build() => new(BuildContainer(), _username, _password, _database);
 
+    // The Postgres entrypoint starts a temporary server to run init scripts, logs readiness,
+    // then shuts it down and starts the real server. Accepting the first occurrence lets the
+    // test connect to the temp server and get dropped mid-initialization, so require the
+    // second, real readiness message.
+    protected override int ReadyMessageOccurrences => 2;
+
     protected override WslContainerBuilder Configure(WslContainerBuilder builder) =>
         builder
             .WithEnvironment("POSTGRES_USER", _username)

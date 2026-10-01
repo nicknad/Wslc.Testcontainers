@@ -72,14 +72,21 @@ public abstract class WslModuleBuilder<TBuilder>
         return clone;
     }
 
+    /// <summary>
+    /// How many times <c>_readyMessage</c> must appear before the module is considered ready.
+    /// Modules whose entrypoint starts a temporary server (Postgres) override this.
+    /// </summary>
+    protected virtual int ReadyMessageOccurrences => 1;
+
     /// <summary>Builds the core container with the module readiness waits applied.</summary>
     protected IWslContainer BuildContainer()
     {
-        var startupTimeout = ComputeStartupTimeout(_timeout);        var builder = new WslContainerBuilder()
+        var startupTimeout = ComputeStartupTimeout(_timeout);
+        var builder = new WslContainerBuilder()
             .FromImage(_image)
             .WithPort(_port)
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsAvailable(_port))
-            .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage))
+            .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage, ReadyMessageOccurrences))
             .WithStartupTimeout(startupTimeout);
         builder = Configure(builder);
         if (_customizer is not null)

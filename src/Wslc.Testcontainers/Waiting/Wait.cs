@@ -61,7 +61,20 @@ public sealed class WslWaitBuilder
     /// WSLC diagnostics (<c>LogSource.System</c>) are ignored; regex is not supported.
     /// </summary>
     public IWaitStrategy UntilMessageIsLogged(string message) =>
-        Configure(new LogMessageWaitStrategy(RequireText(message, nameof(message))));
+        UntilMessageIsLogged(message, occurrences: 1);
+
+    /// <summary>
+    /// Waits until a message appears at least <paramref name="occurrences"/> times in captured
+    /// stdout/stderr. Use for servers whose entrypoint logs readiness once from a temporary
+    /// initialization process before restarting, e.g. the Postgres image.
+    /// </summary>
+    /// <param name="message">Ordinal, case-sensitive substring to count.</param>
+    /// <param name="occurrences">Minimum number of occurrences required (&gt;= 1).</param>
+    public IWaitStrategy UntilMessageIsLogged(string message, int occurrences)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(occurrences, 1);
+        return Configure(new LogMessageWaitStrategy(RequireText(message, nameof(message)), occurrences));
+    }
 
     /// <summary>Waits until an absolute Linux path exists inside the environment (e.g. <c>/tmp/ready</c>).</summary>
     public IWaitStrategy UntilFileExists(string path) =>

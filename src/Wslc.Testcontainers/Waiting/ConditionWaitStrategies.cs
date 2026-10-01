@@ -33,21 +33,35 @@ internal sealed record FileExistsWaitStrategy(string Path) : PollingWaitStrategy
     }
 }
 
-/// <summary>Waits until a message appears in the captured logs.</summary>
-internal sealed record LogMessageWaitStrategy(string Message) : PollingWaitStrategyBase
+/// <summary>Waits until a message appears in the captured logs a given number of times.</summary>
+internal sealed record LogMessageWaitStrategy(string Message, int Occurrences = 1) : PollingWaitStrategyBase
 {
-    public override string Name => $"log message '{Message}' to be logged";
+    public override string Name => Occurrences <= 1
+        ? $"log message '{Message}' to be logged"
+        : $"log message '{Message}' to be logged {Occurrences} times";
 
     protected override Task<bool> CheckAsync(IWaitTarget target, CancellationToken cancellationToken)
     {
         var logs = target.GetRecentLogs();
+        var seen = 0;
         for (var i = 0; i < logs.Count; i++)
         {
             var line = logs[i];
-            if (line.Source != LogSource.System &&
-                line.Text.Contains(Message, StringComparison.Ordinal))
+            if (line.Source == LogSource.System)
             {
-                return Task.FromResult(true);
+                continue;
+            }
+
+            var index = line.Text.IndexOf(Message, StringComparison.Ordinal);
+            while (index >= 0)
+            {
+                seen++;
+                if (seen >= Occurrences)
+                {
+                    return Task.FromResult(true);
+                }
+
+                index = line.Text.IndexOf(Message, index + Message.Length, StringComparison.Ordinal);
             }
         }
 

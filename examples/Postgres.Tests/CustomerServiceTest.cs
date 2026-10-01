@@ -19,7 +19,7 @@ public sealed class CustomerServiceTest
         _output = output;
     }
 
-    [Fact]
+    [IntegrationFact]
     public async Task ShouldReturnTwoCustomers()
     {
         // Given a clean database on the shared container.

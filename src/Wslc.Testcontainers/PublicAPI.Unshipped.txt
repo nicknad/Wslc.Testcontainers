@@ -100,6 +100,7 @@ Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilFileExists(string! path) -> Wslc
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestIsSucceeded(string! pathAndQuery) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestIsSucceeded(string! pathAndQuery, int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilMessageIsLogged(string! message) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
+Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilMessageIsLogged(string! message, int occurrences) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilProcessExits(string! processName) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilProcessIsRunning(string! processName) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilTcpPortIsAvailable(int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
@@ -148,6 +149,7 @@ Wslc.Testcontainers.WslContainerBuilder.WithWorkingDirectory(string! workingDire
 Wslc.Testcontainers.WslContainerBuilder.WslContainerBuilder() -> void
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.BuildContainer() -> Wslc.Testcontainers.IWslContainer!
+virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.ReadyMessageOccurrences.get -> int
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithContainerConfiguration(System.Func<Wslc.Testcontainers.WslContainerBuilder!, Wslc.Testcontainers.WslContainerBuilder!>! customize) -> TBuilder!
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithImage(string! image) -> TBuilder!
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithReuse(bool reuse = true) -> TBuilder!

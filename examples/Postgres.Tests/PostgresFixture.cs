@@ -20,7 +20,11 @@ public sealed class PostgresFixture : IAsyncLifetime
         CancellationToken cancellationToken = default) =>
         _postgres.LogsAsync(cancellationToken);
 
-    public ValueTask InitializeAsync() => new(_postgres.StartAsync());
+    // Real-runtime tests are opt-in; skip starting (and pulling postgres) unless enabled.
+    public ValueTask InitializeAsync() =>
+        Environment.GetEnvironmentVariable(IntegrationFactAttribute.EnvironmentVariable) == "1"
+            ? new ValueTask(_postgres.StartAsync())
+            : ValueTask.CompletedTask;
 
     public ValueTask DisposeAsync() => _postgres.DisposeAsync();
 }

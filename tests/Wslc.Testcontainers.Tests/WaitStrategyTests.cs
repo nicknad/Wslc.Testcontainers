@@ -123,6 +123,39 @@ public sealed class WaitStrategyTests
     }
 
     [Fact]
+    public async Task Log_message_strategy_can_require_multiple_occurrences()
+    {
+        var target = new FakeWaitTarget();
+        target.Logs.Add(new LogLine(LogSource.Stdout, "ready", DateTimeOffset.UtcNow));
+
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromMilliseconds(250))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(10))
+            .UntilMessageIsLogged("ready", occurrences: 2);
+
+        // One occurrence is not enough; the Postgres entrypoint pattern needs the second.
+        await Assert.ThrowsAsync<WslReadinessException>(
+            () => strategy.WaitAsync(target, CancellationToken.None));
+
+        target.Logs.Add(new LogLine(LogSource.Stdout, "ready", DateTimeOffset.UtcNow));
+        await strategy.WaitAsync(target, CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task Log_message_occurrences_are_counted_within_a_single_line()
+    {
+        var target = new FakeWaitTarget();
+        target.Logs.Add(new LogLine(LogSource.Stdout, "ready ready", DateTimeOffset.UtcNow));
+
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromSeconds(2))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(10))
+            .UntilMessageIsLogged("ready", occurrences: 2);
+
+        await strategy.WaitAsync(target, CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Log_message_strategy_ignores_wslc_diagnostics()
     {
         var target = new FakeWaitTarget();
@@ -197,5 +230,8 @@ public sealed class WaitStrategyTests
         // HTTP waits take a path-and-query, never a full URL or a relative path.
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080));
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("health", 8080));
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().UntilMessageIsLogged("ready", 0));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilMessageIsLogged(" ", 2));
     }
 }

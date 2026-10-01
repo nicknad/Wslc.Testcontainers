@@ -164,6 +164,8 @@ await container.StartAsync();
 
 - `StopAsync()` stops processes and terminates the session but keeps storage (restart resets storage so `StartAsync` works again).
 - `DisposeAsync()` also deletes ephemeral storage (reuse storage is preserved by design).
+- Lifecycle calls are serialized; commands, copies and processes issued concurrently with
+  `DisposeAsync` can fail with an exception instead of corrupting state.
 - A process-exit hook performs best-effort cleanup if the test host crashes.
 - At startup, `WslResourceReaper.CleanupAsync()` deletes ephemeral storage left behind by dead
   owners (PID-recycling safe, 7-day grace for corrupt metadata); `WithReuse(true)` storage is never reaped automatically — use `CleanupIncludingReuseAsync()` or `PurgeReuseAsync()`. WSLC only ever touches

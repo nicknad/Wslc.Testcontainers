@@ -4,9 +4,24 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 
 ## Unreleased
 
+### Fixed
+
+- Log capture no longer splits lines quadratically: `LineAssembler` resumes scanning and compacts once per chunk instead of removing each line from a `StringBuilder`, and capture buffers are fixed-size rings that drop the oldest bytes in place.
+- Log snaphots are cached until the next publish, so readiness polls (`GetRecentLogs`) no longer allocate a full history copy every retry; subscriber channels are bounded (1k, DropOldest).
+- Long-running child processes are registered before they start and exited entries are pruned, so a concurrent `StopAsync`/`DisposeAsync` can no longer miss and leak one.
+- Lifecycle state is published safely; `DisposeAsync` always completes log streams, including when the process-exit hook already ran, and no longer races queued lifecycle callers with a disposed semaphore.
+- Container inspect host ports are parsed by JSON kind (string or number) with invariant culture instead of throwing on numeric values.
+- Reuse identity is hashed with a length-prefixed binary encoding; the previous delimiter-based text encoding was not injective (values containing newline/`\u001f` could collide and reuse the wrong instance). Existing reuse cache names change once.
+- Metadata writes use a unique temp file under a lock, so state transitions racing cleanup cannot clobber each other or leave `.tmp` litter.
+- Cached image matching canonicalizes references (implicit `docker.io`/`library`/`latest`), removing cross-registry false positives like `evil/team/postgres:15` matching `team/postgres:15`.
+- `CleanupIncludingReuseAsync` skips reusable instances another live process holds via `wslc.lock`; owner-liveness probes treat access-denied (`Win32Exception`) as alive.
+- Cleanup paths abort processes after a 2s grace period instead of stalling up to 10s per child; HTTP wait paths that cannot form a valid URI fail the check instead of throwing.
+- Constructing a reuse container defers configuration hashing (and `WithFile` content hashing) until the name is needed, and one metadata write per start was removed.
+
 ### Changed
 
 - Tests and examples now use xUnit.net v3 (`xunit.v3` 4.0.1) with the Microsoft Testing Platform: `global.json` opts into MTP, commands use `dotnet test --solution ...`, and test-app options are passed after `--`.
+- Lifecycle transitions on `WslContainer` are serialized; commands, copies and processes issued concurrently with `DisposeAsync` may fail with an exception rather than corrupting state.
 
 ### Removed
 

@@ -66,14 +66,26 @@ internal static class WslcProcessRunner
         return settings;
     }
 
-    public static ContainerProcess Start(
+    /// <summary>
+    /// Creates a process without starting it, so callers can register it before <see cref="ContainerProcess.Start"/>
+    /// and a concurrent stop cannot miss it.
+    /// </summary>
+    public static ContainerProcess Create(
         Microsoft.WSL.Containers.Container container,
         ProcessSettings settings,
         Action<LogLine>? observer)
     {
         var native = container.CreateProcess(settings);
         var capturesOutputEvents = settings.OutputMode == ProcessOutputMode.Event;
-        var process = new ContainerProcess(native, captureOutput: capturesOutputEvents, observer);
+        return new ContainerProcess(native, captureOutput: capturesOutputEvents, observer);
+    }
+
+    public static ContainerProcess Start(
+        Microsoft.WSL.Containers.Container container,
+        ProcessSettings settings,
+        Action<LogLine>? observer)
+    {
+        var process = Create(container, settings, observer);
         process.Start();
         return process;
     }

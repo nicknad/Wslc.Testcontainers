@@ -20,7 +20,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private readonly WslInstanceStore _store;
     private readonly LogBroadcaster _logs = new();
     private readonly SemaphoreSlim _lifecycle = new(1, 1);
-    private readonly List<ContainerProcess> _processes = new();
+    private readonly ProcessRegistry _processes = new();
     private readonly bool _reuse;
     private readonly string _ownerProcessId;
 
@@ -128,11 +128,19 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
         var settings = BuildProcessSettings(command, arguments, options, enableStandardInput: false);
 
-        var process = WslcProcessRunner.Start(container, settings, _logs.Publish);
-        lock (_processes)
+        // Register before starting: a concurrent Stop/Dispose snapshots this list and would
+        // otherwise miss (and leak) a process that was started but not yet added.
+        var process = WslcProcessRunner.Create(container, settings, _logs.Publish);
+        _processes.Add(process);
+        try
         {
-            PruneProcessesLocked();
-            _processes.Add(process);
+            process.Start();
+        }
+        catch
+        {
+            _processes.Remove(process);
+            process.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            throw;
         }
 
         return process;
@@ -707,7 +715,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         var failures = new List<Exception>(4);
 
-        foreach (var process in SnapshotProcesses())
+        foreach (var process in _processes.Snapshot())
         {
             try
             {
@@ -719,10 +727,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             }
         }
 
-        lock (_processes)
-        {
-            _processes.Clear();
-        }
+        _processes.Clear();
 
         await DisposeMainProcessAsync(failures).ConfigureAwait(false);
         StopAndDeleteContainer(failures);
@@ -865,35 +870,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
         catch
         {
-        }
-    }
-
-    private ContainerProcess[] SnapshotProcesses()
-    {
-        lock (_processes)
-        {
-            return _processes.ToArray();
-        }
-    }
-
-    private void PruneProcessesLocked()
-    {
-        // The container tracks live StartProcess handles so Stop/Dispose can kill them.
-        // Prune exited entries on every start so a chatty caller that forgets per-process
-        // Dispose cannot grow the list (and pin native handles) without bound.
-        for (var i = _processes.Count - 1; i >= 0; i--)
-        {
-            try
-            {
-                if (_processes[i].HasExited)
-                {
-                    _processes.RemoveAt(i);
-                }
-            }
-            catch
-            {
-                _processes.RemoveAt(i);
-            }
         }
     }
 

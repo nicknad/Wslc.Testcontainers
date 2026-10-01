@@ -22,7 +22,7 @@ internal static class LogHelpers
 
     public static string? JoinLast(IReadOnlyList<LogLine> logs, LogSource source, int maxLines)
     {
-        List<string>? selected = null;
+        Queue<string>? selected = null;
         for (var i = 0; i < logs.Count; i++)
         {
             if (logs[i].Source != source)
@@ -30,11 +30,11 @@ internal static class LogHelpers
                 continue;
             }
 
-            selected ??= new List<string>(maxLines + 1);
-            selected.Add(logs[i].Text);
+            selected ??= new Queue<string>(maxLines + 1);
+            selected.Enqueue(logs[i].Text);
             if (selected.Count > maxLines)
             {
-                selected.RemoveAt(0);
+                selected.Dequeue();
             }
         }
 

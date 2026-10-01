@@ -193,5 +193,9 @@ public sealed class WaitStrategyTests
         Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().WithRetryInterval(TimeSpan.Zero));
         Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().UntilTcpPortIsAvailable(0));
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists(" "));
+
+        // HTTP waits take a path-and-query, never a full URL or a relative path.
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("health", 8080));
     }
 }

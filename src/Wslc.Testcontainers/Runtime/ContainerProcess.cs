@@ -76,7 +76,15 @@ internal sealed class ContainerProcess : IWslProcess
     public async Task<int> WaitForExitAsync(CancellationToken cancellationToken = default) =>
         await _exit.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-    public async Task KillAsync(CancellationToken cancellationToken = default)
+    /// <summary>Grace period used when aborting a process from cleanup paths.</summary>
+    internal static readonly TimeSpan AbortGracePeriod = TimeSpan.FromSeconds(2);
+
+    private static readonly TimeSpan DefaultGracePeriod = TimeSpan.FromSeconds(5);
+
+    public Task KillAsync(CancellationToken cancellationToken = default) =>
+        KillAsync(DefaultGracePeriod, cancellationToken);
+
+    internal async Task KillAsync(TimeSpan gracePeriod, CancellationToken cancellationToken)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
         if (HasExited)
@@ -85,13 +93,13 @@ internal sealed class ContainerProcess : IWslProcess
         }
 
         TrySignal(Signal.SIGTERM);
-        if (await WaitForExitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false))
+        if (await WaitForExitAsync(gracePeriod, cancellationToken).ConfigureAwait(false))
         {
             return;
         }
 
         TrySignal(Signal.SIGKILL);
-        await WaitForExitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+        await WaitForExitAsync(gracePeriod, cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task WriteStandardInputAsync(byte[] data, CancellationToken cancellationToken)

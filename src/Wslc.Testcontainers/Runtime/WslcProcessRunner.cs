@@ -111,7 +111,7 @@ internal static class WslcProcessRunner
             {
                 if (!await process.WaitForExitAsync(timeoutValue, cancellationToken).ConfigureAwait(false))
                 {
-                    await process.KillAsync(CancellationToken.None).ConfigureAwait(false);
+                    await process.KillAsync(ContainerProcess.AbortGracePeriod, CancellationToken.None).ConfigureAwait(false);
                     throw new WslTimeoutException($"Command '{settings.CommandLine[0]}' timed out after {timeoutValue}.");
                 }
             }
@@ -128,7 +128,7 @@ internal static class WslcProcessRunner
         }
         catch
         {
-            await process.KillAsync(CancellationToken.None).ConfigureAwait(false);
+            await process.KillAsync(ContainerProcess.AbortGracePeriod, CancellationToken.None).ConfigureAwait(false);
             throw;
         }
         finally
@@ -244,7 +244,7 @@ internal static class WslcProcessRunner
         }
         catch
         {
-            await process.KillAsync(CancellationToken.None).ConfigureAwait(false);
+            await process.KillAsync(ContainerProcess.AbortGracePeriod, CancellationToken.None).ConfigureAwait(false);
             throw;
         }
         finally

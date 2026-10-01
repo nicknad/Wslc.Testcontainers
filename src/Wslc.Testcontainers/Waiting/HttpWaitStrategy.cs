@@ -12,7 +12,11 @@ internal sealed record HttpWaitStrategy(string Path, int Port) : PollingWaitStra
     protected override async Task<bool> CheckAsync(IWaitTarget target, CancellationToken cancellationToken)
     {
         var mappedPort = target.GetMappedPort(Port);
-        var uri = new Uri($"http://{target.Host}:{mappedPort}{_normalizedPath}");
+        if (!Uri.TryCreate($"http://{target.Host}:{mappedPort}{_normalizedPath}", UriKind.Absolute, out var uri))
+        {
+            // A path that cannot form a valid URI can never be satisfied.
+            return false;
+        }
 
         try
         {

@@ -30,6 +30,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private readonly ProcessRegistry _processes = new();
     private readonly bool _reuse;
     private readonly string _ownerProcessId;
+    private readonly Lazy<string> _name;
 
     // Mutable state is published with volatile so lock-free readers (Exec/Copy/GetMappedPort
     // and the process-exit hook) observe a consistent reference instead of a torn read.
@@ -54,14 +55,17 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         _configuration = configuration;
         _store = store;
         _reuse = (configuration.Reuse ?? WslcEnvironment.ReuseByDefault) && WslcEnvironment.ReuseAllowed;
-        Name = _reuse
+
+        // Lazy so constructing a reuse container does not synchronously SHA256 every WithFile
+        // source until the name is actually needed (start, metadata, diagnostics).
+        _name = new Lazy<string>(() => _reuse
             ? WslNaming.CreateReuseName(WslConfigHasher.Compute(configuration))
-            : WslNaming.CreateInstanceName(store.SessionId);
+            : WslNaming.CreateInstanceName(store.SessionId));
         _ownerProcessId = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <inheritdoc />
-    public string Name { get; }
+    public string Name => _name.Value;
 
     /// <inheritdoc />
     public string Host => IPAddress.Loopback.ToString();
@@ -503,8 +507,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         if (_metadata is not null)
         {
+            // In-memory only: the running/stopped state transition persists this with the
+            // next write, saving one metadata write per start.
             _metadata = _metadata with { Image = image };
-            _store.WriteMetadata(_metadata);
         }
     }
 

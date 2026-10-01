@@ -19,14 +19,17 @@ public static class WslResourceReaper
     private static readonly TimeSpan OrphanGracePeriod = TimeSpan.FromDays(7);
 
     /// <summary>Deletes storage of abandoned ephemeral instances. Reusable instances are preserved.</summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public static Task<IReadOnlyList<string>> CleanupAsync(CancellationToken cancellationToken = default) =>
-        CleanupAsync(includeReuse: false, cancellationToken);
+        Task.Run(() => CleanupCore(cancellationToken, includeReuse: false), cancellationToken);
 
     /// <summary>
     /// Deletes storage of abandoned instances. When <paramref name="includeReuse"/> is <c>true</c>,
     /// reusable instances whose owner is gone are also deleted.
     /// </summary>
-    public static Task<IReadOnlyList<string>> CleanupAsync(bool includeReuse, CancellationToken cancellationToken = default) =>
+    /// <param name="includeReuse">Whether to include reusable instances.</param>
+    /// <param name="cancellationToken">Cancellation token (required to avoid overload ambiguity).</param>
+    public static Task<IReadOnlyList<string>> CleanupAsync(bool includeReuse, CancellationToken cancellationToken) =>
         Task.Run(() => CleanupCore(cancellationToken, includeReuse), cancellationToken);
 
     /// <summary>

@@ -21,7 +21,7 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
     public PostgreSqlBuilder WithUsername(string username)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(username);
-        var clone = Clone();
+        var clone = (PostgreSqlBuilder)MemberwiseClone();
         clone._username = username;
         return clone;
     }
@@ -29,7 +29,7 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
     public PostgreSqlBuilder WithPassword(string password)
     {
         ArgumentNullException.ThrowIfNull(password);
-        var clone = Clone();
+        var clone = (PostgreSqlBuilder)MemberwiseClone();
         clone._password = password;
         return clone;
     }
@@ -37,7 +37,7 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
     public PostgreSqlBuilder WithDatabase(string database)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(database);
-        var clone = Clone();
+        var clone = (PostgreSqlBuilder)MemberwiseClone();
         clone._database = database;
         return clone;
     }

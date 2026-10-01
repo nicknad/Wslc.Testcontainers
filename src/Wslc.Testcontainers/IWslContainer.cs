@@ -53,7 +53,7 @@ public interface IWslContainer : IAsyncDisposable
     /// </summary>
     /// <remarks>
     /// <see cref="ExecOptions.StandardInput"/> and <see cref="ExecOptions.Timeout"/> apply only to
-    /// <see cref="ExecAsync"/> and must be
+    /// <c>ExecAsync</c> and must be
     /// <c>null</c> here; passing them throws <see cref="ArgumentException"/>.
     /// </remarks>
     IWslProcess StartProcess(string command, params string[] arguments);

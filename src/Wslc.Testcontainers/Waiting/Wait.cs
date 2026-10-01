@@ -39,10 +39,12 @@ public sealed class WslWaitBuilder
 
     /// <summary>Waits until an HTTP GET against the given Linux port succeeds (2xx-4xx; 5xx retries).</summary>
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health?ready=1</c>). Not a full URL.</param>
+    /// <param name="port">Linux container port to probe via its mapped host port.</param>
     public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery, int port) =>
         Configure(new HttpWaitStrategy(RequirePath(pathAndQuery, nameof(pathAndQuery)), ValidatePort(port)));
 
     /// <summary>Waits until an HTTP GET against Linux port 80 succeeds.</summary>
+    /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health</c>). Not a full URL.</param>
     public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery) =>
         UntilHttpRequestIsSucceeded(pathAndQuery, 80);
 

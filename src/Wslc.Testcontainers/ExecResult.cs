@@ -35,6 +35,6 @@ public sealed record ExecResult(int ExitCode, string Stdout, string Stderr)
             return value;
         }
 
-        return value.Substring(0, maxChars) + $"{Environment.NewLine}... (truncated, {value.Length - maxChars} chars omitted)";
+        return string.Concat(value.AsSpan(0, maxChars), $"{Environment.NewLine}... (truncated, {value.Length - maxChars} chars omitted)");
     }
 }

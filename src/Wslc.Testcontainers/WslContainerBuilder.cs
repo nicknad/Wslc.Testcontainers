@@ -142,6 +142,15 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>
+    /// Mounts a Windows directory into the container as read-write. Follows <c>host, container</c>
+    /// order like <c>docker run -v</c>; both are validated so a swapped call fails fast.
+    /// </summary>
+    /// <param name="hostPath">Existing Windows directory.</param>
+    /// <param name="containerPath">Absolute Linux destination (e.g. <c>/workspace</c>).</param>
+    public WslContainerBuilder WithVolume(string hostPath, string containerPath) =>
+        WithVolume(hostPath, containerPath, VolumeAccess.ReadWrite);
+
+    /// <summary>
     /// Mounts a Windows directory into the container. Follows <c>host, container</c> order
     /// like <c>docker run -v</c>; both are validated so a swapped call fails fast.
     /// Prefer the <see cref="VolumeAccess"/> overload or <see cref="WithReadOnlyVolume"/>
@@ -150,7 +159,7 @@ public sealed class WslContainerBuilder
     /// <param name="hostPath">Existing Windows directory.</param>
     /// <param name="containerPath">Absolute Linux destination (e.g. <c>/workspace</c>).</param>
     /// <param name="readOnly">When <c>true</c>, mounts read-only. Prefer <see cref="WithReadOnlyVolume"/>.</param>
-    public WslContainerBuilder WithVolume(string hostPath, string containerPath, bool readOnly = false) =>
+    public WslContainerBuilder WithVolume(string hostPath, string containerPath, bool readOnly) =>
         WithVolume(hostPath, containerPath, readOnly ? VolumeAccess.ReadOnly : VolumeAccess.ReadWrite);
 
     /// <summary>Mounts a Windows directory into the container with an explicit access mode.</summary>

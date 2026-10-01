@@ -33,7 +33,7 @@ public abstract class WslModuleBuilder<TBuilder>
     public TBuilder WithImage(string image)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(image);
-        var clone = Clone();
+        var clone = (TBuilder)MemberwiseClone();
         clone._image = image;
         return clone;
     }
@@ -46,7 +46,7 @@ public abstract class WslModuleBuilder<TBuilder>
     public TBuilder WithStartupTimeout(TimeSpan timeout)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
-        var clone = Clone();
+        var clone = (TBuilder)MemberwiseClone();
         clone._timeout = timeout;
         return clone;
     }
@@ -54,7 +54,7 @@ public abstract class WslModuleBuilder<TBuilder>
     /// <summary>Enables reuse for the built module (see core <c>WithReuse</c> for CI semantics).</summary>
     public TBuilder WithReuse(bool reuse = true)
     {
-        var clone = Clone();
+        var clone = (TBuilder)MemberwiseClone();
         clone._reuse = reuse;
         return clone;
     }
@@ -66,7 +66,7 @@ public abstract class WslModuleBuilder<TBuilder>
     public TBuilder WithContainerConfiguration(Func<WslContainerBuilder, WslContainerBuilder> customize)
     {
         ArgumentNullException.ThrowIfNull(customize);
-        var clone = Clone();
+        var clone = (TBuilder)MemberwiseClone();
         var previous = clone._customizer;
         clone._customizer = previous is null ? customize : builder => customize(previous(builder));
         return clone;
@@ -75,8 +75,7 @@ public abstract class WslModuleBuilder<TBuilder>
     /// <summary>Builds the core container with the module readiness waits applied.</summary>
     protected IWslContainer BuildContainer()
     {
-        var startupTimeout = ComputeStartupTimeout(_timeout);
-        var builder = new WslContainerBuilder()
+        var startupTimeout = ComputeStartupTimeout(_timeout);        var builder = new WslContainerBuilder()
             .FromImage(_image)
             .WithPort(_port)
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsAvailable(_port))
@@ -95,9 +94,6 @@ public abstract class WslModuleBuilder<TBuilder>
 
         return builder.Build();
     }
-
-    /// <summary>Creates an independent copy of this builder (immutable fluent pattern).</summary>
-    protected TBuilder Clone() => (TBuilder)MemberwiseClone();
 
     internal static TimeSpan ComputeStartupTimeout(TimeSpan perWaitTimeout)
     {

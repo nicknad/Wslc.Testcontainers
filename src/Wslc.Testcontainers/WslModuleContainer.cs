@@ -77,7 +77,11 @@ public abstract class WslModuleContainer : IAsyncDisposable
         _inner.LogsAsync(cancellationToken);
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync() => _inner.DisposeAsync();
+    public ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        return _inner.DisposeAsync();
+    }
 
     /// <summary>Gets the Windows loopback port mapped to a Linux service port.</summary>
     public int GetMappedPort(int containerPort) => _inner.GetMappedPort(containerPort);

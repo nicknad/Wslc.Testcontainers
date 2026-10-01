@@ -14,6 +14,13 @@ namespace Wslc.Testcontainers;
 /// <see cref="Microsoft.WSL.Containers"/> API. Create instances through
 /// <see cref="WslContainerBuilder"/>, then call <see cref="StartAsync"/>.
 /// </summary>
+/// <remarks>
+/// Lifecycle transitions (<see cref="StartAsync"/>, <see cref="StopAsync"/>, <see cref="DisposeAsync"/>)
+/// are serialized. Commands, copies and long-running processes are intentionally not gated:
+/// starting one while the container stops aborts that operation with an exception instead of
+/// corrupting state. Don't expect operations issued concurrently with <see cref="DisposeAsync"/>
+/// to succeed.
+/// </remarks>
 public sealed class WslContainer : IWslContainer, IWaitTarget
 {
     private readonly WslContainerConfiguration _configuration;
@@ -24,16 +31,18 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private readonly bool _reuse;
     private readonly string _ownerProcessId;
 
-    private Session? _session;
-    private Microsoft.WSL.Containers.Container? _container;
-    private WslcPortMapping? _network;
-    private ContainerProcess? _mainProcess;
-    private WslInstanceMetadata? _metadata;
-    private bool _storageCreated;
-    private bool _started;
-    private bool _disposed;
+    // Mutable state is published with volatile so lock-free readers (Exec/Copy/GetMappedPort
+    // and the process-exit hook) observe a consistent reference instead of a torn read.
+    private volatile Session? _session;
+    private volatile Microsoft.WSL.Containers.Container? _container;
+    private volatile WslcPortMapping? _network;
+    private volatile ContainerProcess? _mainProcess;
+    private volatile WslInstanceMetadata? _metadata;
+    private volatile bool _storageCreated;
+    private volatile bool _started;
+    private volatile bool _disposed;
     private int _disposeRequested;
-    private FileStream? _reuseLock;
+    private volatile FileStream? _reuseLock;
 
     internal WslContainer(WslContainerConfiguration configuration)
         : this(configuration, WslInstanceStore.Default)
@@ -209,6 +218,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         if (Interlocked.Exchange(ref _disposeRequested, 1) != 0)
         {
+            // Cleanup already ran (or is running) from another path, e.g. the process-exit
+            // hook. Completing is idempotent and still terminates LogsAsync consumers.
+            _logs.Complete();
             return;
         }
 
@@ -220,8 +232,12 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         finally
         {
             _logs.Complete();
-            _lifecycle.Dispose();
         }
+
+        // Deliberately not disposing _lifecycle: a caller may be queued on WaitAsync, and
+        // disposing the semaphore under it would replace the container's ObjectDisposedException
+        // with a SemaphoreSlim one (or fault Release). SemaphoreSlim holds no unmanaged
+        // resources unless AvailableWaitHandle is used, which this type never does.
     }
 
     private async Task RunExclusiveAsync(Func<Task> operation, CancellationToken cancellationToken = default)
@@ -322,6 +338,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
 
         WslContainerHost.Unregister(Name);
+        _logs.Complete();
     }
 
     private static void Ignore(Action action)

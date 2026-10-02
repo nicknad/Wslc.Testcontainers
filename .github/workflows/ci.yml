@@ -16,8 +16,8 @@ jobs:
           - net9.0-windows10.0.19041.0
           - net10.0-windows10.0.19041.0
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
@@ -31,8 +31,8 @@ jobs:
     # the rest of the suite is Windows-only by design (Build() throws PlatformNotSupported).
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
@@ -40,8 +40,8 @@ jobs:
   unit-arm64:
     runs-on: windows-11-arm
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
@@ -51,15 +51,15 @@ jobs:
     needs: [unit-windows, guard-linux]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
       - run: dotnet pack src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: artifacts/packages

@@ -6,8 +6,27 @@ const Wslc.Testcontainers.WslcEnvironment.ReuseInCiVariable = "WSLC_REUSE_IN_CI"
 const Wslc.Testcontainers.WslcEnvironment.ReuseVariable = "WSLC_REUSE" -> string!
 const Wslc.Testcontainers.WslcEnvironment.SessionIdVariable = "WSLC_SESSION_ID" -> string!
 const Wslc.Testcontainers.WslcEnvironment.TimeoutVariable = "WSLC_TIMEOUT" -> string!
+override Wslc.Testcontainers.EgressAllowlistOptions.Equals(object? obj) -> bool
+override Wslc.Testcontainers.EgressAllowlistOptions.GetHashCode() -> int
+override Wslc.Testcontainers.EgressAllowlistOptions.ToString() -> string!
+override Wslc.Testcontainers.ExecOptions.Equals(object? obj) -> bool
+override Wslc.Testcontainers.ExecOptions.GetHashCode() -> int
+override Wslc.Testcontainers.ExecOptions.ToString() -> string!
+override Wslc.Testcontainers.ExecResult.Equals(object? obj) -> bool
+override Wslc.Testcontainers.ExecResult.GetHashCode() -> int
+override Wslc.Testcontainers.ExecResult.ToString() -> string!
+override Wslc.Testcontainers.LogLine.Equals(object? obj) -> bool
+override Wslc.Testcontainers.LogLine.GetHashCode() -> int
 override Wslc.Testcontainers.LogLine.ToString() -> string!
+static Wslc.Testcontainers.EgressAllowlistOptions.operator !=(Wslc.Testcontainers.EgressAllowlistOptions? left, Wslc.Testcontainers.EgressAllowlistOptions? right) -> bool
+static Wslc.Testcontainers.EgressAllowlistOptions.operator ==(Wslc.Testcontainers.EgressAllowlistOptions? left, Wslc.Testcontainers.EgressAllowlistOptions? right) -> bool
+static Wslc.Testcontainers.ExecOptions.operator !=(Wslc.Testcontainers.ExecOptions? left, Wslc.Testcontainers.ExecOptions? right) -> bool
+static Wslc.Testcontainers.ExecOptions.operator ==(Wslc.Testcontainers.ExecOptions? left, Wslc.Testcontainers.ExecOptions? right) -> bool
+static Wslc.Testcontainers.ExecResult.operator !=(Wslc.Testcontainers.ExecResult? left, Wslc.Testcontainers.ExecResult? right) -> bool
+static Wslc.Testcontainers.ExecResult.operator ==(Wslc.Testcontainers.ExecResult? left, Wslc.Testcontainers.ExecResult? right) -> bool
 static Wslc.Testcontainers.LogLine.Diagnostic(string! text) -> Wslc.Testcontainers.LogLine!
+static Wslc.Testcontainers.LogLine.operator !=(Wslc.Testcontainers.LogLine? left, Wslc.Testcontainers.LogLine? right) -> bool
+static Wslc.Testcontainers.LogLine.operator ==(Wslc.Testcontainers.LogLine? left, Wslc.Testcontainers.LogLine? right) -> bool
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.CleanupAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.CleanupIncludingReuseAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.PurgeReuseAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
@@ -19,9 +38,15 @@ static Wslc.Testcontainers.WslcEnvironment.DefaultImage.get -> string?
 static Wslc.Testcontainers.WslcEnvironment.ReuseByDefault.get -> bool
 static Wslc.Testcontainers.WslcEnvironment.SessionId.get -> string!
 virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.Configure(Wslc.Testcontainers.WslContainerBuilder! builder) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.EgressAllowlistOptions.<Clone>$() -> Wslc.Testcontainers.EgressAllowlistOptions!
+Wslc.Testcontainers.EgressAllowlistOptions.EgressAllowlistOptions() -> void
+Wslc.Testcontainers.EgressAllowlistOptions.Equals(Wslc.Testcontainers.EgressAllowlistOptions? other) -> bool
 Wslc.Testcontainers.ExecOptions
+Wslc.Testcontainers.ExecOptions.<Clone>$() -> Wslc.Testcontainers.ExecOptions!
 Wslc.Testcontainers.ExecOptions.Environment.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
 Wslc.Testcontainers.ExecOptions.Environment.init -> void
+Wslc.Testcontainers.ExecOptions.Equals(Wslc.Testcontainers.ExecOptions? other) -> bool
+Wslc.Testcontainers.ExecOptions.ExecOptions() -> void
 Wslc.Testcontainers.ExecOptions.StandardInput.get -> string?
 Wslc.Testcontainers.ExecOptions.StandardInput.init -> void
 Wslc.Testcontainers.ExecOptions.Timeout.get -> System.TimeSpan?
@@ -29,7 +54,10 @@ Wslc.Testcontainers.ExecOptions.Timeout.init -> void
 Wslc.Testcontainers.ExecOptions.WorkingDirectory.get -> string?
 Wslc.Testcontainers.ExecOptions.WorkingDirectory.init -> void
 Wslc.Testcontainers.ExecResult
+Wslc.Testcontainers.ExecResult.<Clone>$() -> Wslc.Testcontainers.ExecResult!
+Wslc.Testcontainers.ExecResult.Deconstruct(out int ExitCode, out string! Stdout, out string! Stderr) -> void
 Wslc.Testcontainers.ExecResult.EnsureSuccess() -> Wslc.Testcontainers.ExecResult!
+Wslc.Testcontainers.ExecResult.Equals(Wslc.Testcontainers.ExecResult? other) -> bool
 Wslc.Testcontainers.ExecResult.ExecResult(int ExitCode, string! Stdout, string! Stderr) -> void
 Wslc.Testcontainers.ExecResult.ExitCode.get -> int
 Wslc.Testcontainers.ExecResult.ExitCode.init -> void
@@ -62,6 +90,9 @@ Wslc.Testcontainers.IWslProcess.Id.get -> int?
 Wslc.Testcontainers.IWslProcess.KillAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.IWslProcess.WaitForExitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 Wslc.Testcontainers.LogLine
+Wslc.Testcontainers.LogLine.<Clone>$() -> Wslc.Testcontainers.LogLine!
+Wslc.Testcontainers.LogLine.Deconstruct(out Wslc.Testcontainers.LogSource Source, out string! Text, out System.DateTimeOffset Timestamp) -> void
+Wslc.Testcontainers.LogLine.Equals(Wslc.Testcontainers.LogLine? other) -> bool
 Wslc.Testcontainers.LogLine.LogLine(Wslc.Testcontainers.LogSource Source, string! Text, System.DateTimeOffset Timestamp) -> void
 Wslc.Testcontainers.LogLine.Source.get -> Wslc.Testcontainers.LogSource
 Wslc.Testcontainers.LogLine.Source.init -> void

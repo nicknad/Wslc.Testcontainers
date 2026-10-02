@@ -65,12 +65,34 @@ public sealed class EgressIsolationTests
     }
 
     [Fact]
-    public void Script_gates_ip6tables_on_usable_tables()
+    public void Script_requires_ip6tables_before_applying_anything()
     {
         var script = EgressIsolation.BuildScript(new EgressAllowlistOptions());
 
-        Assert.Contains("ip6tables -L OUTPUT >/dev/null 2>&1", script);
+        var iptablesCheck = script.IndexOf("command -v iptables", StringComparison.Ordinal);
+        var ip6tablesCheck = script.IndexOf("command -v ip6tables", StringComparison.Ordinal);
+        var ip6tablesProbe = script.IndexOf("ip6tables -L OUTPUT >/dev/null 2>&1", StringComparison.Ordinal);
+        var v4Policy = script.IndexOf("iptables -P OUTPUT DROP", StringComparison.Ordinal);
+        var v6Policy = script.IndexOf("ip6tables -P OUTPUT DROP", StringComparison.Ordinal);
+
+        Assert.True(iptablesCheck >= 0, "iptables presence must be checked");
+        Assert.True(ip6tablesCheck > iptablesCheck, "ip6tables presence must be checked");
+        Assert.True(ip6tablesProbe > ip6tablesCheck, "ip6tables tables must be probed");
+        Assert.True(v4Policy > ip6tablesProbe, "IPv6 must be verified before IPv4 is modified so a v6 failure applies nothing");
+        Assert.True(v6Policy > v4Policy, "IPv6 drop must be applied");
+        Assert.Contains("exit 4", script);
         Assert.Contains("ip6tables -F OUTPUT", script);
+        Assert.Contains("ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT", script);
+    }
+
+    [Fact]
+    public void Script_drops_ipv6_unconditionally_once_validated()
+    {
+        var strict = EgressIsolation.BuildScript(new EgressAllowlistOptions { AllowLoopback = false });
+
+        Assert.Contains("ip6tables -P OUTPUT DROP", strict);
+        Assert.DoesNotContain("ip6tables -A OUTPUT -o lo -j ACCEPT", strict);
+        Assert.DoesNotContain("if command -v ip6tables", strict);
     }
 
     [Fact]
@@ -83,11 +105,34 @@ public sealed class EgressIsolationTests
         });
 
         Assert.DoesNotContain("10.1.2.3", script);
-        Assert.Equal(4, CountOccurrences(script, "iptables -A OUTPUT -p tcp -d "));
-        Assert.Equal(2, CountOccurrences(script, "10.0.0.0/8 --dport"));
-        Assert.Equal(2, CountOccurrences(script, "10.0.0.5 --dport"));
-        Assert.Equal(2, CountOccurrences(script, "--dport 80 -j ACCEPT"));
-        Assert.Equal(2, CountOccurrences(script, "--dport 443 -j ACCEPT"));
+        Assert.Equal(2, CountOccurrences(script, "iptables -A OUTPUT -p tcp -d "));
+        Assert.Equal(1, CountOccurrences(script, "10.0.0.0/8 -m multiport --dports 80,443 -j ACCEPT"));
+        Assert.Equal(1, CountOccurrences(script, "10.0.0.5 -m multiport --dports 80,443 -j ACCEPT"));
+    }
+
+    [Fact]
+    public void Script_batches_ports_into_multiport_rules()
+    {
+        var script = EgressIsolation.BuildScript(new EgressAllowlistOptions
+        {
+            AllowedHosts = new[] { "10.0.0.5" },
+            AllowedTcpPorts = Enumerable.Range(1, 16).ToArray(),
+        });
+
+        Assert.Equal(2, CountOccurrences(script, "iptables -A OUTPUT -p tcp -d 10.0.0.5 -m multiport --dports "));
+        Assert.Contains("--dports 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15 -j ACCEPT", script);
+        Assert.Contains("--dports 16 -j ACCEPT", script);
+    }
+
+    [Fact]
+    public void Normalize_rejects_allowlists_that_exceed_the_rule_limit()
+    {
+        var hosts = Enumerable.Range(1, 300).Select(index => $"10.0.{index / 256}.{index % 256}").ToArray();
+
+        Assert.Throws<ArgumentException>(() => EgressIsolation.Normalize(new EgressAllowlistOptions
+        {
+            AllowedHosts = hosts,
+        }));
     }
 
     [Fact]

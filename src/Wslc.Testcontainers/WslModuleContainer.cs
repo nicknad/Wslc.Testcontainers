@@ -1,7 +1,5 @@
 namespace Wslc.Testcontainers;
 
-using Microsoft.WSL.Containers;
-
 /// <summary>
 /// Base class for typed module containers wrapping an underlying <see cref="IWslContainer"/>.
 /// Forwards lifecycle, exec, copy and log operations so module users are not blocked when they

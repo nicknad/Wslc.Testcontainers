@@ -2,7 +2,6 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
-using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Waiting;
 
 namespace Wslc.Testcontainers.Provisioning;
@@ -32,10 +31,10 @@ internal sealed record WslContainerConfiguration
 
     public IReadOnlyList<WslVolumeMount> Volumes { get; init; } = Array.Empty<WslVolumeMount>();
 
-    public IReadOnlyList<WslNamedVolume> NamedVolumes { get; init; } = Array.Empty<WslNamedVolume>();
+    public IReadOnlyList<WslSessionVolume> SessionVolumes { get; init; } = Array.Empty<WslSessionVolume>();
 
     /// <summary>Container network mode. Null means the runtime default (bridged).</summary>
-    public ContainerNetworkingMode? NetworkingMode { get; init; }
+    public ContainerNetworkMode? NetworkingMode { get; init; }
 
     /// <summary>Session CPU count cap. Null leaves the runtime default.</summary>
     public uint? CpuCount { get; init; }
@@ -63,7 +62,7 @@ internal sealed record WslPortMapping(int ContainerPort, PortProtocol Protocol, 
 {
     /// <summary>Formats a port/protocol pair as <c>port</c> (TCP) or <c>port/udp</c>.</summary>
     public static string Format(int port, PortProtocol protocol) =>
-        protocol == PortProtocol.UDP
+        protocol == PortProtocol.Udp
             ? string.Concat(port.ToString(CultureInfo.InvariantCulture), "/udp")
             : port.ToString(CultureInfo.InvariantCulture);
 
@@ -76,7 +75,7 @@ internal sealed record WslPortMapping(int ContainerPort, PortProtocol Protocol, 
 /// <param name="ReadOnly">Mount read-only.</param>
 /// <param name="SizeBytes">VHD size in bytes (must be positive).</param>
 /// <param name="Type">Dynamic (default) or fixed allocation.</param>
-internal sealed record WslNamedVolume(string Name, string ContainerPath, bool ReadOnly, ulong SizeBytes, VhdType Type);
+internal sealed record WslSessionVolume(string Name, string ContainerPath, bool ReadOnly, ulong SizeBytes, VhdAllocationType Type);
 
 /// <summary>Generates collision-free session names and recognizes WSLC-owned resources.</summary>
 internal static class WslNaming
@@ -208,14 +207,14 @@ internal static class WslConfigHasher
             hash.AppendData(readOnlyMarker);
         }
 
-        var namedVolumes = configuration.NamedVolumes.ToArray();
-        Array.Sort(namedVolumes, static (a, b) =>
+        var sessionVolumes = configuration.SessionVolumes.ToArray();
+        Array.Sort(sessionVolumes, static (a, b) =>
         {
             var c = string.CompareOrdinal(a.ContainerPath, b.ContainerPath);
             return c != 0 ? c : string.CompareOrdinal(a.Name, b.Name);
         });
-        WriteInt32(hash, namedVolumes.Length);
-        foreach (var volume in namedVolumes)
+        WriteInt32(hash, sessionVolumes.Length);
+        foreach (var volume in sessionVolumes)
         {
             WriteString(hash, volume.Name);
             WriteString(hash, volume.ContainerPath);

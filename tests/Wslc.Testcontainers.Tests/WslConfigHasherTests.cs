@@ -15,12 +15,12 @@ public sealed class WslConfigHasherTests
             Command = "sleep",
             CommandArguments = new[] { "infinity" },
             Environment = new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" },
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.TCP, null), new WslPortMapping(5432, PortProtocol.TCP, null) },
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Tcp, null), new WslPortMapping(5432, PortProtocol.Tcp, null) },
         };
         var second = first with
         {
             Environment = new Dictionary<string, string> { ["B"] = "2", ["A"] = "1" },
-            PortMappings = new[] { new WslPortMapping(5432, PortProtocol.TCP, null), new WslPortMapping(8080, PortProtocol.TCP, null) },
+            PortMappings = new[] { new WslPortMapping(5432, PortProtocol.Tcp, null), new WslPortMapping(8080, PortProtocol.Tcp, null) },
         };
 
         Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
@@ -52,15 +52,15 @@ public sealed class WslConfigHasherTests
         var first = new WslContainerConfiguration
         {
             Image = "alpine",
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.TCP, null) },
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Tcp, null) },
         };
         var udp = first with
         {
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.UDP, null) },
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Udp, null) },
         };
         var bound = first with
         {
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.TCP, "127.0.0.1") },
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Tcp, "127.0.0.1") },
         };
 
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(udp));
@@ -73,10 +73,10 @@ public sealed class WslConfigHasherTests
         var first = new WslContainerConfiguration { Image = "alpine" };
         var cpu = first with { CpuCount = 2u };
         var memory = first with { MemorySizeInMB = 2048u };
-        var netmode = first with { NetworkingMode = ContainerNetworkingMode.None };
+        var netmode = first with { NetworkingMode = ContainerNetworkMode.None };
         var named = first with
         {
-            NamedVolumes = new[] { new WslNamedVolume("data", "/data", ReadOnly: false, SizeBytes: 100, Type: VhdType.Dynamic) },
+            SessionVolumes = new[] { new WslSessionVolume("data", "/data", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic) },
         };
         var egress = first with
         {

@@ -15,6 +15,13 @@ public interface IWaitTarget
     /// <summary>Gets the mapped host port for a Linux port.</summary>
     int GetMappedPort(int containerPort);
 
+    /// <summary>
+    /// Gets the host address a probe should connect to for a mapped Linux TCP port. This is
+    /// the mapping's bind address when one was configured, so readiness probes reach ports
+    /// bound to a non-loopback Windows address; it falls back to <see cref="Host"/>.
+    /// </summary>
+    string GetProbeHost(int containerPort);
+
     /// <summary>Executes a command inside the environment.</summary>
     Task<ExecResult> ExecAsync(string command, string[] arguments, CancellationToken cancellationToken);
 

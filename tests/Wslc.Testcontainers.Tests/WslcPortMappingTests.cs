@@ -9,7 +9,7 @@ namespace Wslc.Testcontainers.Tests;
 
 public sealed class WslcPortMappingTests
 {
-    private static WslPortMapping Tcp(int port, string? bindAddress = null) => new(port, PortProtocol.TCP, bindAddress);
+    private static WslPortMapping Tcp(int port, string? bindAddress = null) => new(port, PortProtocol.Tcp, bindAddress);
 
     [Fact]
     public void Mappings_are_dynamic_until_resolved()
@@ -21,7 +21,7 @@ public sealed class WslcPortMappingTests
         var containerMappings = mapping.ToContainerPortMappings();
         Assert.Equal(2, containerMappings.Count);
         Assert.All(containerMappings, item => Assert.Equal((ushort)0, item.WindowsPort));
-        Assert.All(containerMappings, item => Assert.Equal(PortProtocol.TCP, item.Protocol));
+        Assert.All(containerMappings, item => Assert.Equal(Microsoft.WSL.Containers.PortProtocol.TCP, item.Protocol));
         Assert.Equal(new[] { 5432, 8080 }, containerMappings.Select(item => (int)item.ContainerPort).OrderBy(port => port));
     }
 
@@ -39,12 +39,26 @@ public sealed class WslcPortMappingTests
         Assert.Null(unbound.WindowsAddress);
     }
 
+    [Theory]
+    [InlineData(null, "127.0.0.1")]
+    [InlineData("0.0.0.0", "127.0.0.1")]
+    [InlineData("127.0.0.1", "127.0.0.1")]
+    [InlineData("192.168.1.10", "192.168.1.10")]
+    [InlineData("::", "::1")]
+    [InlineData("::1", "::1")]
+    public void Probe_host_follows_the_bind_address(string? bindAddress, string expected)
+    {
+        var mapping = WslcPortMapping.Create(new[] { Tcp(8080, bindAddress) });
+
+        Assert.Equal(expected, mapping.GetProbeHost(8080));
+    }
+
     [Fact]
     public void Udp_missing_port_hint_suggests_WithUdpPort()
     {
         var mapping = WslcPortMapping.Create(Array.Empty<WslPortMapping>());
 
-        var exception = Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(53, PortProtocol.UDP));
+        var exception = Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(53, PortProtocol.Udp));
 
         Assert.Contains("WithUdpPort(53)", exception.Message);
     }
@@ -52,13 +66,13 @@ public sealed class WslcPortMappingTests
     [Fact]
     public void Same_port_with_tcp_and_udp_maps_independently()
     {
-        var mapping = WslcPortMapping.Create(new[] { new WslPortMapping(8080, PortProtocol.TCP, null), new WslPortMapping(8080, PortProtocol.UDP, null) });
+        var mapping = WslcPortMapping.Create(new[] { new WslPortMapping(8080, PortProtocol.Tcp, null), new WslPortMapping(8080, PortProtocol.Udp, null) });
 
         mapping.ResolveFromInspect(
             """{"Ports":{"8080/tcp":[{"HostIp":"127.0.0.1","HostPort":"4514"}],"8080/udp":[{"HostIp":"127.0.0.1","HostPort":"4515"}]}}""");
 
-        Assert.Equal(4514, mapping.GetMappedPort(8080, PortProtocol.TCP));
-        Assert.Equal(4515, mapping.GetMappedPort(8080, PortProtocol.UDP));
+        Assert.Equal(4514, mapping.GetMappedPort(8080, PortProtocol.Tcp));
+        Assert.Equal(4515, mapping.GetMappedPort(8080, PortProtocol.Udp));
         Assert.Equal(4514, mapping.GetMappedPort(8080));
     }
 
@@ -101,7 +115,7 @@ public sealed class WslcPortMappingTests
         var mapping = WslcPortMapping.Create(new[] { Tcp(8080) });
 
         Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(9090));
-        Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(8080, PortProtocol.UDP));
+        Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(8080, PortProtocol.Udp));
     }
 
     [Fact]

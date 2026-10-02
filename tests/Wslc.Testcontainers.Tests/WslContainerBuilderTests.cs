@@ -73,7 +73,7 @@ public sealed class WslContainerBuilderTests
         var builder = new WslContainerBuilder().FromImage("alpine").WithPort(8080).WithPort(8080).WithPort(5432);
 
         Assert.Equal(
-            new[] { new WslPortMapping(8080, PortProtocol.TCP, null), new WslPortMapping(5432, PortProtocol.TCP, null) },
+            new[] { new WslPortMapping(8080, PortProtocol.Tcp, null), new WslPortMapping(5432, PortProtocol.Tcp, null) },
             builder.Build().Configuration.PortMappings);
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(70000));
@@ -86,15 +86,15 @@ public sealed class WslContainerBuilderTests
             .FromImage("alpine")
             .WithPort(8080)
             .WithUdpPort(53)
-            .WithPort(9090, PortProtocol.TCP, "127.0.0.1")
+            .WithPort(9090, PortProtocol.Tcp, "127.0.0.1")
             .Build();
 
         Assert.Equal(
             new[]
             {
-                new WslPortMapping(8080, PortProtocol.TCP, null),
-                new WslPortMapping(53, PortProtocol.UDP, null),
-                new WslPortMapping(9090, PortProtocol.TCP, "127.0.0.1"),
+                new WslPortMapping(8080, PortProtocol.Tcp, null),
+                new WslPortMapping(53, PortProtocol.Udp, null),
+                new WslPortMapping(9090, PortProtocol.Tcp, "127.0.0.1"),
             },
             container.Configuration.PortMappings);
     }
@@ -104,8 +104,8 @@ public sealed class WslContainerBuilderTests
     {
         var container = new WslContainerBuilder()
             .FromImage("alpine")
-            .WithPort(8080, PortProtocol.TCP)
-            .WithPort(8080, PortProtocol.UDP)
+            .WithPort(8080, PortProtocol.Tcp)
+            .WithPort(8080, PortProtocol.Udp)
             .Build();
 
         Assert.Equal(2, container.Configuration.PortMappings.Count);
@@ -115,11 +115,11 @@ public sealed class WslContainerBuilderTests
     public void WithPort_rejects_invalid_bind_addresses_and_conflicts()
     {
         var builder = new WslContainerBuilder().FromImage("alpine");
-        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, PortProtocol.TCP, "not-an-ip"));
-        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, PortProtocol.TCP, ""));
+        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, PortProtocol.Tcp, "not-an-ip"));
+        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, PortProtocol.Tcp, ""));
 
-        var bound = builder.WithPort(8080, PortProtocol.TCP, "127.0.0.1");
-        Assert.Throws<WslcException>(() => bound.WithPort(8080, PortProtocol.TCP, "0.0.0.0"));
+        var bound = builder.WithPort(8080, PortProtocol.Tcp, "127.0.0.1");
+        Assert.Throws<WslcException>(() => bound.WithPort(8080, PortProtocol.Tcp, "0.0.0.0"));
     }
 
     [Fact]
@@ -136,7 +136,7 @@ public sealed class WslContainerBuilderTests
     {
         var container = new WslContainerBuilder()
             .FromImage("alpine")
-            .WithPort(8080, PortProtocol.TCP, "0:0:0:0:0:0:0:1")
+            .WithPort(8080, PortProtocol.Tcp, "0:0:0:0:0:0:0:1")
             .Build();
 
         Assert.Equal("::1", Assert.Single(container.Configuration.PortMappings).BindAddress);
@@ -160,61 +160,61 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void WithNetworkingMode_None_rejects_ports_egress_and_network_waits()
     {
-        var ports = new WslContainerBuilder().FromImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkingMode.None);
+        var ports = new WslContainerBuilder().FromImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode.None);
         Assert.Throws<WslcException>(() => ports.Build());
 
         var egress = new WslContainerBuilder().FromImage("alpine")
             .WithEgressAllowlist(new EgressAllowlistOptions())
-            .WithNetworkingMode(ContainerNetworkingMode.None);
+            .WithNetworkingMode(ContainerNetworkMode.None);
         Assert.Throws<WslcException>(() => egress.Build());
 
         var waits = new WslContainerBuilder().FromImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(80))
-            .WithNetworkingMode(ContainerNetworkingMode.None);
+            .WithNetworkingMode(ContainerNetworkMode.None);
         Assert.Throws<WslcException>(() => waits.Build());
 
         var composite = new WslContainerBuilder().FromImage("alpine")
             .WithWaitStrategy(
                 Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilMessageIsLogged("ready")
                     .And(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080)))
-            .WithNetworkingMode(ContainerNetworkingMode.None);
+            .WithNetworkingMode(ContainerNetworkMode.None);
         Assert.Throws<WslcException>(() => composite.Build());
 
         // Non-network waits are fine without networking.
         var offline = new WslContainerBuilder().FromImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilFileExists("/tmp/ready"))
-            .WithNetworkingMode(ContainerNetworkingMode.None)
+            .WithNetworkingMode(ContainerNetworkMode.None)
             .Build();
-        Assert.Equal(ContainerNetworkingMode.None, offline.Configuration.NetworkingMode);
+        Assert.Equal(ContainerNetworkMode.None, offline.Configuration.NetworkingMode);
     }
 
     [Fact]
     public void WithNetworkingMode_rejects_unknown_values()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithNetworkingMode((ContainerNetworkingMode)99));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithNetworkingMode((ContainerNetworkMode)99));
     }
 
     [Fact]
-    public void WithNamedVolume_records_and_validates()
+    public void WithSessionVolume_records_and_validates()
     {
         var container = new WslContainerBuilder()
             .FromImage("alpine")
-            .WithNamedVolume("data", "/data", 10UL * 1024 * 1024 * 1024)
+            .WithSessionVolume("data", "/data", 10UL * 1024 * 1024 * 1024)
             .Build();
 
-        var volume = Assert.Single(container.Configuration.NamedVolumes);
+        var volume = Assert.Single(container.Configuration.SessionVolumes);
         Assert.Equal("data", volume.Name);
         Assert.Equal("/data", volume.ContainerPath);
         Assert.False(volume.ReadOnly);
         Assert.Equal(10UL * 1024 * 1024 * 1024, volume.SizeBytes);
-        Assert.Equal(VhdType.Dynamic, volume.Type);
+        Assert.Equal(VhdAllocationType.Dynamic, volume.Type);
 
         var builder = new WslContainerBuilder().FromImage("alpine");
-        Assert.Throws<ArgumentException>(() => builder.WithNamedVolume("", "/data", 100));
-        Assert.Throws<ArgumentException>(() => builder.WithNamedVolume("a/b", "/data", 100));
-        Assert.Throws<ArgumentException>(() => builder.WithNamedVolume("data", "relative", 100));
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithNamedVolume("data", "/data", 0));
-        Assert.Throws<WslcException>(() => builder.WithNamedVolume("data", "/a", 100).WithNamedVolume("data", "/b", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("", "/data", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("a/b", "/data", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "relative", 100));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithSessionVolume("data", "/data", 0));
+        Assert.Throws<WslcException>(() => builder.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100));
     }
 
     [Fact]
@@ -299,5 +299,21 @@ public sealed class WslContainerBuilderTests
             .Build();
 
         Assert.Equal(2, container.Configuration.WaitStrategies.Count);
+    }
+
+    [Fact]
+    public void Network_waits_accept_non_loopback_bind_addresses()
+    {
+        // Readiness probes honor the configured bind address, so non-loopback bindings
+        // are valid with TCP and HTTP waits (no build-time rejection, no guaranteed timeout).
+        var container = new WslContainerBuilder()
+            .FromImage("alpine")
+            .WithPort(8080, PortProtocol.Tcp, "192.168.1.10")
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(8080))
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
+            .Build();
+
+        Assert.Equal(2, container.Configuration.WaitStrategies.Count);
+        Assert.Equal("192.168.1.10", Assert.Single(container.Configuration.PortMappings).BindAddress);
     }
 }

@@ -96,16 +96,18 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     /// <summary>
     /// Applies an egress allowlist inside the running container (iptables default-deny
-    /// <c>OUTPUT</c> with the listed TCP destinations kept). The image must provide
-    /// <c>iptables</c>. Builder-configured allowlists are applied automatically by
-    /// <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
+    /// <c>OUTPUT</c> with the listed TCP destinations kept, plus IPv6 default-deny via
+    /// <c>ip6tables</c>). The image must provide <c>iptables</c> and a usable
+    /// <c>ip6tables</c>; applying fails closed when either is unavailable instead of
+    /// leaving IPv6 egress open. Builder-configured allowlists are applied automatically
+    /// by <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
     /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
     /// container can remove them, so this is not a tamper-proof boundary.
     /// </summary>
     public Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default)
     {
         var normalized = EgressIsolation.Normalize(options);
-        if (_configuration.NetworkingMode == ContainerNetworkingMode.None)
+        if (_configuration.NetworkingMode == ContainerNetworkMode.None)
         {
             throw new WslcException($"Container '{Name}' has no networking (NetworkingMode.None), so an egress allowlist does not apply.");
         }
@@ -252,6 +254,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         _network is { } network
             ? network.IsPortOpenAsync(containerPort, cancellationToken)
             : Task.FromResult(false);
+
+    string IWaitTarget.GetProbeHost(int containerPort) =>
+        _network is { } network ? network.GetProbeHost(containerPort) : Host;
 
     Task<bool> IWaitTarget.IsProcessRunningAsync(string processName, CancellationToken cancellationToken) =>
         IsProcessRunningAsync(processName, cancellationToken);
@@ -443,7 +448,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         await AcquireReuseLockAsync(cancellationToken).ConfigureAwait(false);
         var storagePath = EnsureStorageAndMetadata();
         StartSession(storagePath);
-        CreateNamedVolumes();
+        CreateSessionVolumes();
 
         var resolver = new WslImageResolver(_session!, _configuration, _logs.Publish);
         var image = await resolver.ResolveAsync($"{Name}:local", cancellationToken).ConfigureAwait(false);
@@ -561,18 +566,18 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
     }
 
-    private void CreateNamedVolumes()
+    private void CreateSessionVolumes()
     {
-        if (_configuration.NamedVolumes.Count == 0)
+        if (_configuration.SessionVolumes.Count == 0)
         {
             return;
         }
 
-        foreach (var volume in _configuration.NamedVolumes)
+        foreach (var volume in _configuration.SessionVolumes)
         {
             try
             {
-                _session!.CreateVhdVolume(new VhdOptions(volume.Name, volume.SizeBytes, volume.Type));
+                _session!.CreateVhdVolume(new VhdOptions(volume.Name, volume.SizeBytes, ToSdkVhdType(volume.Type)));
                 _logs.Publish(LogLine.Diagnostic($"created session volume '{volume.Name}' ({volume.SizeBytes} bytes)"));
             }
             catch (Exception exception)
@@ -581,6 +586,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             }
         }
     }
+
+    private static VhdType ToSdkVhdType(VhdAllocationType type) =>
+        type == VhdAllocationType.Fixed ? VhdType.Fixed : VhdType.Dynamic;
 
     private void UpdateImageMetadata(string image)
     {
@@ -627,7 +635,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             Name = Name,
             InitProcess = BuildInitProcessSettings(),
             EnableAutoRemove = false,
-            NetworkingMode = _configuration.NetworkingMode ?? ContainerNetworkingMode.Bridged,
+            NetworkingMode = ToSdkNetworkingMode(_configuration.NetworkingMode),
         };
 
         foreach (var mapping in _network!.ToContainerPortMappings())
@@ -640,13 +648,16 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             settings.Volumes.Add(new ContainerVolume(volume.HostPath, volume.ContainerPath, volume.ReadOnly));
         }
 
-        foreach (var volume in _configuration.NamedVolumes)
+        foreach (var volume in _configuration.SessionVolumes)
         {
             settings.NamedVolumes.Add(new ContainerNamedVolume(volume.Name, volume.ContainerPath, volume.ReadOnly));
         }
 
         return settings;
     }
+
+    private static ContainerNetworkingMode ToSdkNetworkingMode(ContainerNetworkMode? mode) =>
+        mode == ContainerNetworkMode.None ? ContainerNetworkingMode.None : ContainerNetworkingMode.Bridged;
 
     private async Task ResolveMappedPortsIfNeededAsync(CancellationToken cancellationToken)
     {

@@ -6,7 +6,9 @@ namespace Wslc.Testcontainers;
 /// egress is dropped via <c>iptables</c>.
 /// </summary>
 /// <remarks>
-/// The image must provide <c>iptables</c>. Ingress (host-to-container port mappings
+/// The image must provide <c>iptables</c> and a usable <c>ip6tables</c>; applying
+/// fails closed (without installing any rule) when either is unavailable, so IPv6
+/// egress can never be silently left open. Ingress (host-to-container port mappings
 /// and readiness probes) is unaffected. Applying replaces the container's whole
 /// <c>OUTPUT</c> chain, so re-applying narrows or widens deterministically. Matching
 /// is the cartesian product of hosts and ports: each allowed host may be reached on
@@ -15,8 +17,10 @@ namespace Wslc.Testcontainers;
 /// <see cref="AllowDns"/>, <see cref="AllowLoopback"/>). Hosts must be IPv4 literals
 /// or IPv4 CIDRs (no DNS names — they would be resolved by the very network path
 /// being restricted, and would widen the rule); they are normalized and de-duplicated
-/// when the container is built. Root inside the container can remove the rules, so
-/// this is egress hygiene, not a tamper-proof security boundary.
+/// when the container is built. Ports are grouped into <c>multiport</c> rules, and an
+/// allowlist that would generate more than 256 rules is rejected. Root inside the
+/// container can remove the rules, so this is egress hygiene, not a tamper-proof
+/// security boundary.
 /// </remarks>
 public sealed record EgressAllowlistOptions
 {

@@ -1,5 +1,4 @@
 using System.Net;
-using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Networking;
 using Wslc.Testcontainers.Provisioning;
 using Wslc.Testcontainers.Waiting;
@@ -96,7 +95,7 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>Declares a Linux TCP service port that will be exposed on a dynamic Windows port.</summary>
-    public WslContainerBuilder WithPort(int port) => WithPort(port, PortProtocol.TCP);
+    public WslContainerBuilder WithPort(int port) => WithPort(port, PortProtocol.Tcp);
 
     /// <summary>Declares a Linux service port with an explicit protocol, exposed on a dynamic Windows port.</summary>
     public WslContainerBuilder WithPort(int port, PortProtocol protocol)
@@ -107,7 +106,7 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>Declares a Linux UDP service port that will be exposed on a dynamic Windows port.</summary>
-    public WslContainerBuilder WithUdpPort(int port) => WithPort(port, PortProtocol.UDP);
+    public WslContainerBuilder WithUdpPort(int port) => WithPort(port, PortProtocol.Udp);
 
     /// <summary>
     /// Declares a Linux service port bound to a specific Windows address (e.g.
@@ -241,47 +240,48 @@ public sealed class WslContainerBuilder
 
     /// <summary>
     /// Mounts a session VHD volume (native Linux filesystem, ext4) into the container.
-    /// The volume is created when the container starts and is recreated empty on every
-    /// start — it is size-limited scratch space, not persistence. Prefer over bind mounts
-    /// when the data must not be exposed as Windows host files; the backing VHD still
-    /// lives inside the session storage directory under <c>%LOCALAPPDATA%</c>.
+    /// The volume is created when the container starts and is <b>recreated empty on every
+    /// start</b> — it is size-limited scratch space, not persistence, and does not follow
+    /// Docker's named-volume semantics. Prefer over bind mounts when the data must not be
+    /// exposed as Windows host files; the backing VHD still lives inside the session
+    /// storage directory under <c>%LOCALAPPDATA%</c>.
     /// </summary>
     /// <param name="name">Session volume name (non-empty, no path separators).</param>
     /// <param name="containerPath">Absolute Linux destination (e.g. <c>/data</c>).</param>
     /// <param name="sizeBytes">VHD size in bytes (must be positive).</param>
     /// <param name="access">Read-write (default) or read-only mount.</param>
     /// <param name="type">Dynamic (default) or fixed VHD allocation.</param>
-    public WslContainerBuilder WithNamedVolume(
+    public WslContainerBuilder WithSessionVolume(
         string name,
         string containerPath,
         ulong sizeBytes,
         VolumeAccess access = VolumeAccess.ReadWrite,
-        VhdType type = VhdType.Dynamic)
+        VhdAllocationType type = VhdAllocationType.Dynamic)
     {
         RequireVolumeName(name, nameof(name));
         RequireContainerPath(containerPath, nameof(containerPath));
         if (sizeBytes == 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Named volume size must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Session volume size must be positive.");
         }
 
-        if (_configuration.NamedVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
+        if (_configuration.SessionVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new WslcException($"A named volume '{name}' is already configured. Volume names must be unique per container.");
+            throw new WslcException($"A session volume '{name}' is already configured. Volume names must be unique per container.");
         }
 
         return new WslContainerBuilder(_configuration with
         {
-            NamedVolumes = Append(_configuration.NamedVolumes, new WslNamedVolume(name, containerPath, access == VolumeAccess.ReadOnly, sizeBytes, type)),
+            SessionVolumes = Append(_configuration.SessionVolumes, new WslSessionVolume(name, containerPath, access == VolumeAccess.ReadOnly, sizeBytes, type)),
         });
     }
 
     /// <summary>
-    /// Sets the container networking mode. The default is <see cref="ContainerNetworkingMode.Bridged"/>.
-    /// <see cref="ContainerNetworkingMode.None"/> fully isolates the container (no NIC):
+    /// Sets the container networking mode. The default is <see cref="ContainerNetworkMode.Bridged"/>.
+    /// <see cref="ContainerNetworkMode.None"/> fully isolates the container (no NIC):
     /// no <c>WithPort</c>, no network wait strategies and no egress allowlist may be combined with it.
     /// </summary>
-    public WslContainerBuilder WithNetworkingMode(ContainerNetworkingMode mode)
+    public WslContainerBuilder WithNetworkingMode(ContainerNetworkMode mode)
     {
         if (!Enum.IsDefined(mode))
         {
@@ -315,14 +315,16 @@ public sealed class WslContainerBuilder
 
     /// <summary>
     /// Restricts container egress to the listed destinations via an in-container
-    /// <c>iptables</c> default-deny <c>OUTPUT</c> policy, applied after start and before
-    /// readiness waits. The image must provide <c>iptables</c>. Cannot be combined with
-    /// <see cref="ContainerNetworkingMode.None"/> (already fully isolated).
+    /// <c>iptables</c> default-deny <c>OUTPUT</c> policy (plus IPv6 default-deny via
+    /// <c>ip6tables</c>), applied after start and before readiness waits. The image must
+    /// provide <c>iptables</c> and a usable <c>ip6tables</c>; applying fails closed when
+    /// either is unavailable so IPv6 egress is never left open silently. Cannot be
+    /// combined with <see cref="ContainerNetworkMode.None"/> (already fully isolated).
     /// Re-applying replaces the previous <c>OUTPUT</c> chain (including image-installed
     /// rules). A process running as root inside the container can remove these rules, so
     /// treat this as egress hygiene, not a tamper-proof boundary.
     /// </summary>
-    /// <remarks>Hosts are normalized to IPv4/CIDR and duplicates removed.</remarks>
+    /// <remarks>Hosts are normalized to IPv4/CIDR and duplicates removed; ports are grouped into multiport rules, and allowlists above the generated-rule limit are rejected.</remarks>
     public WslContainerBuilder WithEgressAllowlist(EgressAllowlistOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -388,7 +390,7 @@ public sealed class WslContainerBuilder
             throw new WslcException($"Tarball '{tarball}' does not exist.");
         }
 
-        if (configuration.NetworkingMode == ContainerNetworkingMode.None)
+        if (configuration.NetworkingMode == ContainerNetworkMode.None)
         {
             if (configuration.PortMappings.Count > 0)
             {

@@ -136,7 +136,7 @@ public sealed class IntegrationTests
     {
         await using var container = new WslContainerBuilder()
             .FromImage(TestImage)
-            .WithNetworkingMode(ContainerNetworkingMode.None)
+            .WithNetworkingMode(ContainerNetworkMode.None)
             .Build();
 
         await container.StartAsync();

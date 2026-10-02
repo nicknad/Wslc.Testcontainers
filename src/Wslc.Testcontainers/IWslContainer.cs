@@ -1,7 +1,5 @@
 namespace Wslc.Testcontainers;
 
-using Microsoft.WSL.Containers;
-
 /// <summary>
 /// A disposable, isolated WSL container managed by WSLC on top of the official
 /// <c>Microsoft.WSL.Containers</c> API.
@@ -32,9 +30,11 @@ public interface IWslContainer : IAsyncDisposable
 
     /// <summary>
     /// Applies an egress allowlist inside the running container (iptables default-deny
-    /// <c>OUTPUT</c> with the listed TCP destinations kept). The image must provide
-    /// <c>iptables</c>. Builder-configured allowlists are applied automatically by
-    /// <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
+    /// <c>OUTPUT</c> with the listed TCP destinations kept, plus IPv6 default-deny via
+    /// <c>ip6tables</c>). The image must provide <c>iptables</c> and a usable
+    /// <c>ip6tables</c>; applying fails closed when either is unavailable instead of
+    /// leaving IPv6 egress open. Builder-configured allowlists are applied automatically
+    /// by <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
     /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
     /// container can remove them, so this is not a tamper-proof boundary.
     /// </summary>

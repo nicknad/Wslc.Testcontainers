@@ -12,6 +12,7 @@ namespace Wslc.Testcontainers.Networking;
 /// using the official <see cref="ContainerPortMapping"/> mechanism. A Windows port of 0 asks
 /// the WSL runtime to assign a free dynamic port, which is then discovered from the container
 /// inspect payload. Entries are keyed by (container port, protocol); the single-port API is TCP.
+/// TCP probes honor the configured bind address (any-address bindings probe loopback).
 /// </summary>
 internal sealed class WslcPortMapping
 {
@@ -83,7 +84,7 @@ internal sealed class WslcPortMapping
         var mappings = new List<ContainerPortMapping>(_entries.Count);
         foreach (var pair in _entries)
         {
-            var mapping = new ContainerPortMapping(0, (ushort)pair.Key.Port, pair.Key.Protocol);
+            var mapping = new ContainerPortMapping(0, (ushort)pair.Key.Port, ToSdkProtocol(pair.Key.Protocol));
             if (pair.Value.BindAddress is { } bindAddress)
             {
                 mapping.WindowsAddress = new Windows.Networking.HostName(bindAddress);
@@ -95,7 +96,7 @@ internal sealed class WslcPortMapping
         return mappings;
     }
 
-    public int GetMappedPort(int containerPort) => GetMappedPort(containerPort, PortProtocol.TCP);
+    public int GetMappedPort(int containerPort) => GetMappedPort(containerPort, PortProtocol.Tcp);
 
     public int GetMappedPort(int containerPort, PortProtocol protocol)
     {
@@ -150,7 +151,7 @@ internal sealed class WslcPortMapping
     private static bool TryParseInspectKey(string key, out int containerPort, out PortProtocol protocol)
     {
         containerPort = 0;
-        protocol = PortProtocol.TCP;
+        protocol = PortProtocol.Tcp;
 
         var separator = key.IndexOf('/');
         if (separator <= 0 ||
@@ -167,13 +168,13 @@ internal sealed class WslcPortMapping
 
         if (suffix.Equals("tcp", StringComparison.OrdinalIgnoreCase))
         {
-            protocol = PortProtocol.TCP;
+            protocol = PortProtocol.Tcp;
             return true;
         }
 
         if (suffix.Equals("udp", StringComparison.OrdinalIgnoreCase))
         {
-            protocol = PortProtocol.UDP;
+            protocol = PortProtocol.Udp;
             return true;
         }
 
@@ -181,9 +182,14 @@ internal sealed class WslcPortMapping
     }
 
     private static string DescribeDeclaration(int containerPort, PortProtocol protocol) =>
-        protocol == PortProtocol.UDP
+        protocol == PortProtocol.Udp
             ? $"WithUdpPort({containerPort})"
             : $"WithPort({containerPort})";
+
+    private static Microsoft.WSL.Containers.PortProtocol ToSdkProtocol(PortProtocol protocol) =>
+        protocol == PortProtocol.Udp
+            ? Microsoft.WSL.Containers.PortProtocol.UDP
+            : Microsoft.WSL.Containers.PortProtocol.TCP;
 
     private static bool TryReadMappedPort(JsonElement element, out int port)
     {
@@ -200,14 +206,15 @@ internal sealed class WslcPortMapping
 
     public async Task<bool> IsPortOpenAsync(int containerPort, CancellationToken cancellationToken = default)
     {
-        var mappedPort = GetMappedPort(containerPort, PortProtocol.TCP);
+        var mappedPort = GetMappedPort(containerPort, PortProtocol.Tcp);
+        var probeAddress = ResolveProbeAddress(containerPort);
         using var client = new TcpClient();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(2));
 
         try
         {
-            await client.ConnectAsync(IPAddress.Loopback, mappedPort, timeout.Token).ConfigureAwait(false);
+            await client.ConnectAsync(probeAddress, mappedPort, timeout.Token).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -218,5 +225,35 @@ internal sealed class WslcPortMapping
         {
             return false;
         }
+    }
+
+    /// <summary>Gets the host a readiness probe should connect to for a mapped TCP port.</summary>
+    public string GetProbeHost(int containerPort) => ResolveProbeAddress(containerPort).ToString();
+
+    /// <summary>
+    /// Connects to the address the mapping is actually bound to. Wildcard bindings
+    /// (<c>0.0.0.0</c>/<c>::</c>) accept loopback; an unbound or unparsable entry falls
+    /// back to the SDK default (IPv4 loopback).
+    /// </summary>
+    private IPAddress ResolveProbeAddress(int containerPort)
+    {
+        if (!_entries.TryGetValue((containerPort, PortProtocol.Tcp), out var entry) ||
+            entry.BindAddress is not { } bindAddress ||
+            !IPAddress.TryParse(bindAddress, out var address))
+        {
+            return IPAddress.Loopback;
+        }
+
+        if (address.Equals(IPAddress.Any))
+        {
+            return IPAddress.Loopback;
+        }
+
+        if (address.Equals(IPAddress.IPv6Any))
+        {
+            return IPAddress.IPv6Loopback;
+        }
+
+        return address;
     }
 }

@@ -205,6 +205,26 @@ public sealed class WaitStrategyTests
     }
 
     [Fact]
+    public async Task Http_strategy_probes_the_mapped_ports_host()
+    {
+        using var server = new TinyHttpServer(statusCode: 200);
+        // Host is unreachable; only ProbeHost (the mapping's bind address) leads to the server.
+        var target = new FakeWaitTarget
+        {
+            Host = "192.0.2.1",
+            ProbeHost = "127.0.0.1",
+            MappedPort = server.Port,
+        };
+
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromSeconds(5))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(50))
+            .UntilHttpRequestIsSucceeded("/health", 8080);
+
+        await strategy.WaitAsync(target, CancellationToken.None);
+    }
+
+    [Fact]
     public async Task Http_strategy_times_out_for_server_errors()
     {
         using var server = new TinyHttpServer(statusCode: 500);

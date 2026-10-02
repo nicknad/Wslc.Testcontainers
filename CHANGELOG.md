@@ -4,6 +4,20 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 
 ## Unreleased
 
+### Added
+
+- Resource caps: `WslContainerBuilder.WithCpuCount(uint)` and `WithMemoryMB(uint)` bound the session VM (`SessionSettings.CpuCount`/`MemorySizeInMB`) and participate in the reuse hash.
+- Network isolation: `WithNetworkingMode(Bridged | None)`. `None` removes the NIC entirely (no ports, TCP/HTTP waits or egress rules — rejected at `Build()`); offline containers are driven via `Exec`/`Copy`/`Logs`.
+- Port control: `WithPort(port, protocol)`, `WithUdpPort(port)`, `WithPort(port, protocol, bindAddress)` (bind defaults to loopback; pass `"0.0.0.0"` to expose on the LAN) and `GetMappedPort(port, protocol)`. Inspect payloads now resolve `port/tcp` vs `port/udp` independently.
+- Session VHD volumes: `WithNamedVolume(name, containerPath, sizeBytes, access, type)` provisions native ext4 scratch inside the session VM (recreated empty every start, never exposed as Windows host files) instead of a Windows bind mount.
+- Egress hygiene: `WithEgressAllowlist(EgressAllowlistOptions)` installs an in-container iptables default-deny `OUTPUT` policy after start (IPv4 literals/CIDRs only, normalized/de-duplicated, optional DNS/loopback, best-effort `ip6tables` drop); `IWslContainer.ApplyEgressAllowlistAsync` (re-)applies a dynamic rule on a running container by replacing the `OUTPUT` chain. Images must provide `iptables`. Root inside the container can remove the rules, so this is not a tamper-proof boundary.
+- `docs/usage.md`: testing guide (builder, waits, ports, volumes, xUnit fixture patterns) with networking-modes/resources/egress sections and an agent-containment checklist.
+
+### Changed
+
+- `IWslContainer` gained `GetMappedPort(int, PortProtocol)` and `ApplyEgressAllowlistAsync(...)`; external implementations must add these members (package is still `0.1.0-preview`).
+- Egress allowlists are normalized and copied when configured, so mutating the `EgressAllowlistOptions` instance after `Build()` no longer affects the container or its reuse identity.
+
 ### Fixed
 
 - Postgres module now waits for the second "database system is ready to accept connections" log line. The image entrypoint starts a temporary server for initialization, logs readiness, then restarts; accepting the first occurrence let tests connect and get dropped mid-initialization (`UntilMessageIsLogged(message, occurrences)` added).

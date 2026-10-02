@@ -87,6 +87,47 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     /// <inheritdoc />
+    public int GetMappedPort(int port, PortProtocol protocol)
+    {
+        var network = _network
+            ?? throw new WslNetworkException($"Container '{Name}' has not been started, so port {port} is not mapped yet.");
+        return network.GetMappedPort(port, protocol);
+    }
+
+    /// <summary>
+    /// Applies an egress allowlist inside the running container (iptables default-deny
+    /// <c>OUTPUT</c> with the listed TCP destinations kept). The image must provide
+    /// <c>iptables</c>. Builder-configured allowlists are applied automatically by
+    /// <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
+    /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
+    /// container can remove them, so this is not a tamper-proof boundary.
+    /// </summary>
+    public Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default)
+    {
+        var normalized = EgressIsolation.Normalize(options);
+        if (_configuration.NetworkingMode == ContainerNetworkingMode.None)
+        {
+            throw new WslcException($"Container '{Name}' has no networking (NetworkingMode.None), so an egress allowlist does not apply.");
+        }
+
+        // ExecInternalAsync requires a started container and throws otherwise.
+        return ApplyEgressAllowlistCoreAsync(normalized, cancellationToken);
+    }
+
+    private async Task ApplyEgressAllowlistCoreAsync(EgressAllowlistOptions options, CancellationToken cancellationToken)
+    {
+        var script = EgressIsolation.BuildScript(options);
+        var result = await ExecInternalAsync("sh", new[] { "-c", script }, null, cancellationToken).ConfigureAwait(false);
+        if (result.ExitCode != 0)
+        {
+            throw new WslProvisioningException(
+                $"Failed to apply the egress allowlist in container '{Name}' (exit {result.ExitCode}): {result.Stderr.Trim()}".Trim());
+        }
+
+        _logs.Publish(LogLine.Diagnostic($"applied egress allowlist ({options.AllowedHosts.Count} host(s), {options.AllowedTcpPorts.Count} port(s))"));
+    }
+
+    /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         WslPlatform.ThrowIfUnsupported();
@@ -376,6 +417,11 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             _logs.Publish(LogLine.Diagnostic($"creating WSL container '{Name}' (runtime {WslcHost.GetVersion()})"));
             var image = await CreateSessionAndContainerAsync(token).ConfigureAwait(false);
 
+            if (_configuration.EgressAllowlist is { } egress)
+            {
+                await ApplyEgressAllowlistCoreAsync(egress, token).ConfigureAwait(false);
+            }
+
             await CopyConfiguredFilesAsync(token).ConfigureAwait(false);
             await WaitForReadinessAsync(token).ConfigureAwait(false);
 
@@ -397,6 +443,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         await AcquireReuseLockAsync(cancellationToken).ConfigureAwait(false);
         var storagePath = EnsureStorageAndMetadata();
         StartSession(storagePath);
+        CreateNamedVolumes();
 
         var resolver = new WslImageResolver(_session!, _configuration, _logs.Publish);
         var image = await resolver.ResolveAsync($"{Name}:local", cancellationToken).ConfigureAwait(false);
@@ -484,7 +531,18 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         try
         {
-            _session = new Session(new SessionSettings(Name, storagePath));
+            var settings = new SessionSettings(Name, storagePath);
+            if (_configuration.CpuCount is { } cpuCount)
+            {
+                settings.CpuCount = cpuCount;
+            }
+
+            if (_configuration.MemorySizeInMB is { } memoryMb)
+            {
+                settings.MemorySizeInMB = memoryMb;
+            }
+
+            _session = new Session(settings);
         }
         catch (Exception exception)
         {
@@ -503,6 +561,27 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
     }
 
+    private void CreateNamedVolumes()
+    {
+        if (_configuration.NamedVolumes.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var volume in _configuration.NamedVolumes)
+        {
+            try
+            {
+                _session!.CreateVhdVolume(new VhdOptions(volume.Name, volume.SizeBytes, volume.Type));
+                _logs.Publish(LogLine.Diagnostic($"created session volume '{volume.Name}' ({volume.SizeBytes} bytes)"));
+            }
+            catch (Exception exception)
+            {
+                throw new WslProvisioningException($"Failed to create session volume '{volume.Name}': {exception.Message}", exception);
+            }
+        }
+    }
+
     private void UpdateImageMetadata(string image)
     {
         if (_metadata is not null)
@@ -515,7 +594,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     private void CreateAndStartContainer(string image)
     {
-        _network = WslcPortMapping.Create(_configuration.Ports);
+        _network = WslcPortMapping.Create(_configuration.PortMappings);
         var settings = BuildContainerSettings(image);
 
         try
@@ -548,7 +627,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             Name = Name,
             InitProcess = BuildInitProcessSettings(),
             EnableAutoRemove = false,
-            NetworkingMode = ContainerNetworkingMode.Bridged,
+            NetworkingMode = _configuration.NetworkingMode ?? ContainerNetworkingMode.Bridged,
         };
 
         foreach (var mapping in _network!.ToContainerPortMappings())
@@ -561,12 +640,17 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             settings.Volumes.Add(new ContainerVolume(volume.HostPath, volume.ContainerPath, volume.ReadOnly));
         }
 
+        foreach (var volume in _configuration.NamedVolumes)
+        {
+            settings.NamedVolumes.Add(new ContainerNamedVolume(volume.Name, volume.ContainerPath, volume.ReadOnly));
+        }
+
         return settings;
     }
 
     private async Task ResolveMappedPortsIfNeededAsync(CancellationToken cancellationToken)
     {
-        if (_network!.Ports.Count == 0)
+        if (_configuration.PortMappings.Count == 0)
         {
             return;
         }
@@ -575,8 +659,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         _logs.Publish(LogLine.Diagnostic($"mapped ports: {FormatMappedPorts()}"));
     }
 
-    private string FormatMappedPorts() =>
-        string.Join(", ", _configuration.Ports.Select(port => $"{port}->{_network!.GetMappedPort(port)}"));
+    private string FormatMappedPorts() => string.Join(
+        ", ",
+        _configuration.PortMappings.Select(mapping => $"{mapping}->{_network!.GetMappedPort(mapping.ContainerPort, mapping.Protocol)}"));
 
     private async Task ResolveMappedPortsAsync(CancellationToken cancellationToken)
     {

@@ -1,0 +1,476 @@
+# Usage — containers for testing
+
+This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
+It covers the core container, the Postgres/Redis modules, and the xUnit patterns
+used in `examples/`. For failure triage see `troubleshooting.md`; for caching
+semantics see `reuse.md`.
+
+> Scope: hermetic **test dependencies** (databases, HTTP stubs, CLI tools).
+> Running **untrusted agent code** inside a container is a different threat model —
+> see [Agent containment](#agent-containment-note) at the end.
+
+## Security model (read this first)
+
+The defaults in this guide are for **trusted testcontainers only**. Neither this
+library nor the underlying WSL container runtime offers an out-of-the-box security
+boundary against hostile code running inside a container:
+
+- **Full egress by default.** Bridged containers can reach the internet, the LAN and
+  the Windows host. Nothing filters outbound traffic unless you add it.
+- **Root by default, no syscall filtering.** Processes run as the image default user
+  (usually root). WSLC exposes no seccomp profiles, capability drops, user namespaces
+  or read-only rootfs.
+- **Mounts are host write paths.** Every writable `WithVolume` lets the container
+  create/modify/delete files on the Windows host. The container cannot see host files
+  it was not explicitly given — but anything mounted writable is fully exposed.
+- **No image trust.** Images are pulled without signature verification; pin digests
+  and prefer minimal images for anything sensitive.
+- **Shared-host resources.** Without `WithCpuCount`/`WithMemoryMB` a container can
+  consume unbounded CPU/memory.
+
+Per-container WSL sessions do isolate test dependencies from *each other* (own VM,
+own storage VHD, own network namespace), which is what makes parallel trusted tests
+safe. That is **test isolation, not a hostile-code sandbox**. To contain untrusted or
+agent-generated code so it can only interact with the API that invoked it, you must
+opt into the hardening primitives (`WithNetworkingMode(None)`, `WithEgressAllowlist`,
+`WithNamedVolume`, loopback bind addresses, resource caps, short-lived tokens) —
+see [Agent containment](#agent-containment-note).
+
+## Requirements
+
+- Windows 10 build 19041+ (x64/ARM64), WSL **2.9.3+** with container support.
+  Verify with `wsl --status` / `wsl --version`; in code `StartAsync()` fails fast
+  with `WslRuntimeException` when components are missing.
+- .NET 8, 9 or 10 on Windows. Building the repo needs the .NET 10 SDK
+  (`global.json`); test options are passed after `--` (Microsoft Testing Platform).
+
+```powershell
+dotnet build Wslc.Testcontainers.slnx
+dotnet test --solution Wslc.Testcontainers.slnx
+
+# Real-runtime tests (pull public images, require WSL container support)
+$env:WSLC_RUN_INTEGRATION = "1"
+dotnet test --solution Wslc.Testcontainers.slnx
+```
+
+Install the packages you need:
+
+```powershell
+dotnet add package Wslc.Testcontainers
+dotnet add package Wslc.Testcontainers.Modules.PostgreSql
+dotnet add package Wslc.Testcontainers.Modules.Redis
+```
+
+## Quickstart
+
+Minimal round-trip (`examples/Quickstart/Program.cs`):
+
+```csharp
+using Wslc.Testcontainers;
+
+await using var container = new WslContainerBuilder()
+    .FromImage("docker.io/library/alpine:latest")
+    .WithCommand("/bin/sh", "-c", "while true; do sleep 3600; done")
+    .WithEnvironment("HELLO", "wslc")
+    .WithStartupTimeout(TimeSpan.FromMinutes(2))
+    .Build();
+
+await container.StartAsync();
+
+var whoami = await container.ExecAsync(
+    "sh", new[] { "-c", "echo $HELLO && uname -a" }, null, CancellationToken.None);
+whoami.EnsureSuccess();
+Console.WriteLine($"exit={whoami.ExitCode} stdout={whoami.Stdout.Trim()}");
+```
+
+Postgres with the typed module (declarative, no manual waits):
+
+```csharp
+using Wslc.Testcontainers.Modules.PostgreSql;
+
+await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
+await postgres.StartAsync();
+var connectionString = postgres.GetConnectionString(); // Host=127.0.0.1;Port=<dynamic>;...
+```
+
+Redis:
+
+```csharp
+using Wslc.Testcontainers.Modules.Redis;
+
+await using var redis = new RedisBuilder().Build();
+await redis.StartAsync();
+var endpoint = redis.GetConnectionString(); // host:port for StackExchange.Redis
+```
+
+## Core concepts
+
+| Concept | Description |
+| --- | --- |
+| `WslContainerBuilder` | Immutable builder. Every `With...`/`From...` returns a new configuration. |
+| `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
+| `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
+| `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`) | Versioned presets: image + port + waits + `GetConnectionString()`. Prefer over hand-rolled builder chains. |
+
+Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
+storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do
+not share files, ports, or processes. Instances are named `wslc-{session}-{random}`
+(ephemeral) or `wslc-reuse-<hash>` (reuse). See Architecture below.
+
+## Image sources
+
+```csharp
+.FromImage("docker.io/library/redis:7")            // pulled on first use, cached in session storage
+.FromTarball(@"C:\images\rootfs.tar", "app:test")  // import a rootfs tarball as an image
+```
+
+- If `WSLC_DEFAULT_IMAGE` is set it is used when no source is configured.
+- `Build()` throws `WslcException` when no source is configured or the tarball
+  is missing. Pin tags/digests in tests; avoid `:latest` for reproducibility.
+
+## Builder reference
+
+| Method | Purpose / notes |
+| --- | --- |
+| `FromImage(image)` / `FromTarball(path, imageName?)` | Mutually exclusive source. |
+| `WithCommand(cmd, params args)` | Init process. Default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules override this with the image entrypoint (e.g. `docker-entrypoint.sh postgres`) — do not override it for modules. |
+| `WithWorkingDirectory(path)` | Working dir for init + execs. |
+| `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
+| `WithPort(containerPort)` / `WithPort(port, protocol)` / `WithUdpPort(port)` / `WithPort(port, protocol, bindAddress)` | Declare each Linux TCP/UDP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve with `GetMappedPort()`. The Windows side binds loopback (`127.0.0.1`) by default; pass `bindAddress` (e.g. `0.0.0.0`) to override. |
+| `WithNetworkingMode(mode)` | `Bridged` (default) or `None` (no NIC — full isolation; no ports, network waits or egress rules allowed). |
+| `WithCpuCount(n)` / `WithMemoryMB(n)` | Caps for the session VM (megabytes). Null (default) leaves the runtime default. |
+| `WithNamedVolume(name, containerPath, sizeBytes, ...)` | Session VHD volume (native ext4, recreated empty every start). Prefer over bind mounts when data must not be exposed as Windows host files (the VHD still lives under the session storage directory). |
+| `WithEgressAllowlist(options)` | In-container iptables default-deny `OUTPUT` with listed TCP destinations kept; applied after start, before readiness. Image must provide `iptables`. |
+| `WithWaitStrategy(s)` | Add a readiness condition. All must pass, run sequentially. |
+| `WithFile(hostPath, containerPath)` | Copy one Windows **file** (≤1 GiB, must exist) to an absolute Linux dest at startup. |
+| `WithVolume(host, container)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mount an existing Windows **directory** (host, container order, like `docker run -v`). Prefer read-only unless the test must write back. |
+| `WithReuse(true)` | Keep session storage between runs; name is a config hash. Disabled under CI unless `WSLC_REUSE_IN_CI=1`. See `reuse.md`. |
+| `WithStartupTimeout(t)` | Whole-`StartAsync` budget. Must be ≥ sum of wait timeouts (validated at `Build()`). Default 120 s; modules use `2*timeout+30 s`. |
+
+## Lifecycle and cleanup
+
+```csharp
+await using var container = new WslContainerBuilder()
+    .FromImage("docker.io/library/alpine:latest")
+    .Build();
+
+await container.StartAsync();
+// ... tests ...
+await container.StopAsync();  // optional: stop but keep storage (restart resets storage)
+ // DisposeAsync: stop + terminate session + delete ephemeral storage
+```
+
+- `StartAsync()` may be called again after `StopAsync()` (same instance name, clean storage).
+- Lifecycle calls are serialized; `Exec`/`Copy`/`StartProcess` issued concurrently
+  with `DisposeAsync` fail fast instead of corrupting state.
+- A process-exit hook does best-effort cleanup on crash; next `StartAsync()` reaps
+  orphaned ephemeral storage from dead owners (PID-recycling safe, 7-day grace for
+  corrupt metadata). Reuse storage is never auto-reaped — see `reuse.md` and
+  `WslResourceReaper.CleanupAsync()` / `PurgeReuseAsync()` /
+  `CleanupIncludingReuseAsync()`.
+- Storage root is `%LOCALAPPDATA%\Wslc` (`WSLC_DATA_DIRECTORY` overrides). Only
+  `wslc-*` directories are ever touched.
+
+## Readiness (`Wait`)
+
+`StartAsync()` throws `WslReadinessException` when a strategy never passes. Call
+`ex.Describe()` and dump `LogsAsync()` — see `troubleshooting.md`.
+
+```csharp
+using Wslc.Testcontainers.Waiting;
+
+.WithWaitStrategy(Wait.ForWsl().UntilTcpPortIsAvailable(5432))
+.WithWaitStrategy(Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
+.WithWaitStrategy(Wait.ForWsl().UntilProcessIsRunning("postgres"))
+.WithWaitStrategy(Wait.ForWsl().UntilProcessExits("migration"))
+.WithWaitStrategy(Wait.ForWsl().UntilMessageIsLogged("database system is ready"))
+.WithWaitStrategy(Wait.ForWsl().UntilFileExists("/tmp/ready"))
+```
+
+Options and composition:
+
+```csharp
+var strategy = Wait.ForWsl()
+    .WithTimeout(TimeSpan.FromSeconds(60))           // per-strategy (default from WSLC_TIMEOUT or 60 s)
+    .WithRetryInterval(TimeSpan.FromMilliseconds(200))
+    .UntilTcpPortIsAvailable(5432)
+    .And(Wait.ForWsl().UntilMessageIsLogged("ready to accept connections"));
+```
+
+Rules that bite:
+
+- `WithPort(n)` every port you probe — `GetMappedPort(n)` throws `WslNetworkException`
+  otherwise, and before `StartAsync()`.
+- `WithStartupTimeout` ≥ sum of wait timeouts. A 5 s strategy inside a 120 s startup
+  still fails at 5 s.
+- `UntilMessageIsLogged` is ordinal substring, case-sensitive, ignores `LogSource.System`
+  diagnostics (no regex). Postgres needs `occurrences: 2` — the entrypoint logs readiness
+  once from a temp init server before the real one (handled by `PostgreSqlBuilder`).
+- `UntilHttpRequestIsSucceeded(pathAndQuery, port)` needs an absolute path (`/health`),
+  not a URL; 2xx–4xx succeed, 5xx retry.
+- File/container paths must be absolute Linux paths (`/tmp/ready`).
+
+## Ports and connecting
+
+Host ports are dynamic. Never hardcode them:
+
+```csharp
+var connectionString =
+    $"Host={postgres.Host};Port={postgres.GetMappedPort(5432)};Username=postgres;Password=secret";
+// Host is always a Windows loopback address (127.0.0.1).
+```
+
+- `Host` is `127.0.0.1` and works for loopback-bound ports (the default);
+  `GetMappedPort(containerPort)` resolves the runtime-assigned port
+  (`GetMappedPort(port, protocol)` for UDP). If you bound a port to another address,
+  connect to that address instead.
+- Only declared ports are mapped; each `WslContainer` gets its own mapping so
+  parallel tests never collide. The same Linux port may be mapped for TCP and UDP.
+- The Windows side binds loopback (`127.0.0.1`) by default. Override it only when you
+  need LAN exposure, e.g. `WithPort(8080, PortProtocol.TCP, "0.0.0.0")`.
+- Published ports are reachable via loopback from Windows. Treat them as test-only
+  listeners, not public endpoints.
+
+## Networking modes, resources, named volumes
+
+```csharp
+// Fully offline container: no NIC, no ports, no egress. Drive it via Exec/Copy.
+await using var offline = new WslContainerBuilder()
+    .FromImage("docker.io/library/alpine:latest")
+    .WithNetworkingMode(ContainerNetworkingMode.None)
+    .Build();
+
+// Bounded session VM + loopback-only port + native-Linux scratch disk.
+await using var agent = new WslContainerBuilder()
+    .FromImage("my-registry/agent:latest")
+    .WithCpuCount(2)
+    .WithMemoryMB(2048)
+    .WithPort(8080, PortProtocol.TCP, "127.0.0.1")
+    .WithNamedVolume("scratch", "/scratch", sizeBytes: 10UL * 1024 * 1024 * 1024)
+    .Build();
+```
+
+- `None` rejects `WithPort`, TCP/HTTP waits and egress rules at `Build()` time —
+  use process/log/file waits instead.
+- Named VHD volumes are ext4 inside the session VM (no VirtioFS/Windows round-trip)
+  and are recreated empty on every start: size-limited scratch, not persistence.
+  They are never exposed as Windows host files, but the backing VHD does live under
+  the session storage directory. Volume names must be unique per container.
+- `WithCpuCount`/`WithMemoryMB` cap the session VM; they are part of the reuse hash.
+
+## Egress allowlist (agent containment)
+
+Bridged containers have full egress by default. `WithEgressAllowlist` installs an
+in-container iptables default-deny `OUTPUT` policy after start (before readiness),
+keeping only the listed destinations. Ingress (port mappings, readiness probes)
+is unaffected. Applying replaces the container's whole `OUTPUT` chain — including any
+rules the image installed — so re-applying is deterministic. This is egress hygiene,
+**not a security boundary**: the workload runs as root and can remove the rules.
+
+```csharp
+var api = new EgressAllowlistOptions
+{
+    AllowedHosts = new[] { "10.0.0.5" },  // IPv4 literals/CIDRs only — no DNS names
+    AllowedTcpPorts = new[] { 443 },      // empty = any TCP port to those hosts
+    AllowDns = false,                     // strict IP-only mode (default true)
+};
+
+await using var container = new WslContainerBuilder()
+    .FromImage("my-registry/agent:latest") // image must provide iptables
+    .WithEgressAllowlist(api)
+    .Build();
+await container.StartAsync();
+
+// Or apply a dynamically computed rule to a running container:
+await container.ApplyEgressAllowlistAsync(api);
+```
+
+Rules: `ESTABLISHED` return traffic, loopback/`127.0.0.0/8` (unless `AllowLoopback`
+is off) and UDP+TCP 53 (unless `AllowDns` is off) stay open; IPv6 egress is dropped
+when `ip6tables` exists. Hosts must be IPv4 literals/CIDRs — DNS names are rejected
+(they would be resolved over the path being restricted) and IPv6 is rejected (only
+`NetworkingMode.None` fully removes v6). Only TCP destinations can be allowlisted
+(DNS excepted); callbacks from the agent to the calling API must use TCP.
+
+## Exec, processes, files, logs
+
+```csharp
+// One-shot command; captures exit code + stdout/stderr (each capped ~1 MiB).
+ExecResult r = await container.ExecAsync("ps", "aux");
+r.EnsureSuccess(); // throws WslProcessException with truncated output on failure
+
+// With options (env, cwd, stdin, timeout). Pass null for defaults.
+var r2 = await container.ExecAsync("psql", new[] { "-c", "SELECT 1" }, new ExecOptions
+{
+    Environment = new Dictionary<string, string> { ["PGPASSWORD"] = "secret" },
+    WorkingDirectory = "/tmp",
+    StandardInput = "optional stdin text",
+    Timeout = TimeSpan.FromSeconds(30),
+}, CancellationToken.None);
+
+// Long-running process. StandardInput/Timeout are Exec-only and throw here.
+IWslProcess proc = container.StartProcess("sleep", "3600");
+Console.WriteLine(proc.Id);
+await proc.KillAsync();          // SIGTERM → SIGKILL
+await proc.DisposeAsync();       // must dispose; container also kills leftovers on Stop/Dispose
+
+// Files (≤1 GiB each way; container paths must be absolute Linux paths)
+await container.CopyToAsync(@".\fixtures\app.conf", "/etc/app/app.conf");
+await container.CopyFromAsync("/var/log/app.log", @".\artifacts\app.log");
+
+// Logs: infinite stream — always bound it (CTS or LogDumper).
+using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+await foreach (var line in container.LogsAsync(cts.Token))
+    Console.WriteLine(line.ToString());
+
+// One-liner without an xUnit dependency:
+using Wslc.Testcontainers.Testing;
+await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 100, ct);
+```
+
+Notes:
+
+- `ExecAsync` timeout throws `WslTimeoutException` and kills the process.
+- `StartProcess` with `StandardInput`/`Timeout` throws `ArgumentException` by design.
+- `CopyToAsync` requires the host file to exist; `CopyFromAsync` creates parent dirs.
+- Init-process output, exec output and `StartProcess` output all flow through `LogsAsync()`.
+
+## Volumes — prefer copy over mount
+
+```csharp
+// Seed config at startup (no host write-back):
+.WithFile(@"./fixtures/app.conf", "/etc/app/app.conf")
+
+// Share a directory only when the test needs live file exchange:
+.WithVolume(@"C:\data\in", "/workspace/in")                       // read-write
+.WithVolume(@"C:\data\in", "/workspace/in", VolumeAccess.ReadOnly)
+.WithReadOnlyVolume(@"C:\data\seed", "/seed")                     // preferred for fixtures
+```
+
+Under the hood mounts use VirtioFS (`/mnt` → bind mount into the container).
+For databases prefer named data to stay inside the VM; for fixtures prefer
+`WithFile`/`CopyToAsync` over a writable mount so the container cannot mutate the
+repo. Mounts are the main host-escape surface — never mount `C:\` or a repo root
+writable in agent scenarios (see below).
+
+## xUnit patterns
+
+`examples/Postgres.Tests/` is the reference: one shared container per collection,
+reset state per test.
+
+```csharp
+// Fixture: share one Postgres for the whole collection (~60–120 s cold start).
+public sealed class PostgresFixture : IAsyncLifetime
+{
+    private readonly PostgreSqlContainer _postgres = new PostgreSqlBuilder()
+        .WithImage("docker.io/library/postgres:15-alpine")
+        .Build();
+
+    public string ConnectionString => _postgres.GetConnectionString();
+    public DbConnectionProvider Provider => new(ConnectionString);
+
+    public ValueTask InitializeAsync() => new(_postgres.StartAsync());
+    public ValueTask DisposeAsync() => _postgres.DisposeAsync();
+}
+
+[CollectionDefinition(Name)] public sealed class PostgresCollection : ICollectionFixture<PostgresFixture> { }
+```
+
+```csharp
+[Collection(PostgresCollection.Name)]
+public sealed class CustomerServiceTest
+{
+    [Fact] // or [IntegrationFact] when gating on WSLC_RUN_INTEGRATION=1
+    public async Task ShouldReturnTwoCustomers()
+    {
+        await new CustomerService(_fixture.Provider)
+            .ResetAsync(TestContext.Current.CancellationToken); // DROP/CREATE per test
+        // ... arrange/act/assert ...
+    }
+}
+```
+
+Guidance:
+
+- Share one container per `[Collection]`, reset with `TRUNCATE`/`DROP TABLE` per test
+  (see `CustomerService.ResetAsync`). One container per test class is too slow for
+  Postgres; reuse (`WithReuse(true)`) is only safe locally with a reset, never as a
+  substitute for the reset.
+- Gate real-runtime tests with `[IntegrationFact]` (`WSLC_RUN_INTEGRATION=1`) so unit
+  runs stay green on machines without WSL. See `IntegrationFactAttribute` and
+  `troubleshooting.md`.
+- On failure dump `ex.Describe()` + last ~100 log lines (`LogDumper`) + builder chain.
+- `WithContainerConfiguration(b => b.WithReuse(true).WithStartupTimeout(...))` is the
+  escape hatch for core settings a module does not expose (extra ports/waits/volumes).
+
+## Configuration
+
+| Variable | Meaning (code-level builder wins) |
+| --- | --- |
+| `WSLC_TIMEOUT` | Default wait timeout (seconds or `TimeSpan`). Default 60 s. |
+| `WSLC_DATA_DIRECTORY` | Storage root. Default `%LOCALAPPDATA%\Wslc`. Snapshotted on first use. |
+| `WSLC_DEFAULT_IMAGE` | Image used when none is configured. |
+| `WSLC_REUSE` | `1`/`true` enables reuse by default. |
+| `WSLC_CLEANUP` | `0`/`false` disables automatic cleanup + orphan reaper. |
+| `WSLC_REUSE_IN_CI` | `1`/`true` allows reuse under CI (otherwise forced off). |
+| `WSLC_SESSION_ID` | Overrides session id in `wslc-{session}-{random}` names. Snapshotted per process. |
+
+Truthy = `1/true/yes/on`; falsy = `0/false/no/off` (case-insensitive). Anything else
+is treated as unset.
+
+## Architecture (why tests are isolated)
+
+From the [WSLC architecture deep dive](https://devblogs.microsoft.com/commandline/wslc-architecture-deep-dive/)
+(`Microsoft.WSL.Containers` 3.0.1, `wslcsdk.h`):
+
+- **Session model.** `wslservice.exe` (privileged) spawns one `wslcsession.exe` per
+  session running as the calling user. WSLC creates **one session per container**
+  (`SessionSettings(Name, storagePath)`), so sessions live in different processes
+  with a reduced-privilege boundary. A kernel/container exploit is scoped to that
+  session's VM, not to all test containers.
+- **Storage.** Each session has its own storage VHD (`.../instances/<name>/storage`).
+  Windows-path volumes are VirtioFS shares (mounted under `/mnt` in the VM, then bind-
+  mounted into the container — ~2× plan9). `WithNamedVolume` provisions a session VHD
+  volume instead: native ext4 inside the VM, recreated empty every start.
+- **Networking ("Consommé").** VM traffic goes as Ethernet frames over a virtio queue
+  to a user-mode Windows process that provides DNS, TCP/UDP routing and port mapping.
+  Egress leaves Windows **as the session owner**, so VPNs/firewalls see it as a normal
+  user process. WSLC defaults to `ContainerNetworkingMode.Bridged` with dynamic TCP/UDP
+  port mappings onto Windows loopback (optionally pinned with a bind address);
+  `WithNetworkingMode(None)` removes the NIC, and `WithEgressAllowlist` adds an
+  in-container iptables default-deny `OUTPUT` policy.
+
+## Agent containment note
+
+The defaults above are for **trusted test dependencies**, not untrusted agents.
+Bridged networking gives the container full egress (internet, LAN and host-side
+services); any `WithVolume` gives it a write path onto Windows; processes run as the
+container's default user (root in most images) with no seccomp/capability/user-namespace
+controls exposed by WSLC.
+
+If you run agent-generated code, contain it so it can only interact with the API
+that invoked it:
+
+1. **Strongest: no network.** `WithNetworkingMode(None)` removes the NIC entirely —
+   drive the agent via `ExecAsync`/`StartProcess`/`CopyTo`/`CopyFrom`/`LogsAsync`.
+2. **Callback pattern.** Keep `Bridged` and allowlist the API address *as the container
+   sees it* (`AllowedTcpPorts` = the API port, `AllowDns = false`, IP literal). For a
+   host-side API that address is the host gateway on the container network — discover
+   it at runtime rather than assuming `127.0.0.1`; `AllowLoopback` only covers the
+   container's own loopback. If the address is not statically knowable, prefer
+   `NetworkingMode.None` and drive the exchange from the outside via `Exec`.
+3. **No mounts by default.** Seed with `WithFile`/`CopyToAsync`, extract with
+   `CopyFromAsync`; for scratch that must not be exposed as Windows host files use
+   `WithNamedVolume`; if a bind mount is unavoidable use `WithReadOnlyVolume` on the
+   narrowest directory. Never mount a repo root or `C:\` writable.
+4. **Bound the blast radius.** `WithCpuCount`/`WithMemoryMB`, minimal pinned-digest
+   image, minimal `WithCommand`, per-run short-lived tokens (never host credentials
+   in `WithEnvironment`).
+5. **Observe.** `LogsAsync` + `Exec` audit trail is your record; `DisposeAsync`
+   destroys the session VHD/scratch on completion.
+
+Not yet exposed by the SDK surface in WSLC: custom bind defaults beyond per-port
+`bindAddress`, non-root users, seccomp/capability controls, read-only rootfs, image
+signing. Until those exist, treat `None` + allowlist + mount/port hygiene as layered
+defenses, and re-evaluate before trusting agents with production-adjacent access.

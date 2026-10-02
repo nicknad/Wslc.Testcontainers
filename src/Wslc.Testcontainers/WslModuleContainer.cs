@@ -1,5 +1,7 @@
 namespace Wslc.Testcontainers;
 
+using Microsoft.WSL.Containers;
+
 /// <summary>
 /// Base class for typed module containers wrapping an underlying <see cref="IWslContainer"/>.
 /// Forwards lifecycle, exec, copy and log operations so module users are not blocked when they
@@ -83,6 +85,13 @@ public abstract class WslModuleContainer : IAsyncDisposable
         return _inner.DisposeAsync();
     }
 
-    /// <summary>Gets the Windows loopback port mapped to a Linux service port.</summary>
+    /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
     public int GetMappedPort(int containerPort) => _inner.GetMappedPort(containerPort);
+
+    /// <summary>Gets the Windows port mapped to a Linux service port with an explicit protocol.</summary>
+    public int GetMappedPort(int containerPort, PortProtocol protocol) => _inner.GetMappedPort(containerPort, protocol);
+
+    /// <summary>Applies an egress allowlist inside the running container (see <see cref="IWslContainer"/>).</summary>
+    public Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default) =>
+        _inner.ApplyEgressAllowlistAsync(options, cancellationToken);
 }

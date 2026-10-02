@@ -1,5 +1,7 @@
 namespace Wslc.Testcontainers;
 
+using Microsoft.WSL.Containers;
+
 /// <summary>
 /// A disposable, isolated WSL container managed by WSLC on top of the official
 /// <c>Microsoft.WSL.Containers</c> API.
@@ -15,11 +17,28 @@ public interface IWslContainer : IAsyncDisposable
     /// <summary>Gets a value indicating whether the container has been started.</summary>
     bool IsStarted { get; }
 
-    /// <summary>Gets the host address that exposes mapped ports (always a Windows loopback address).</summary>
+    /// <summary>
+    /// Gets the Windows loopback address (<c>127.0.0.1</c>) for mapped ports. Ports bound
+    /// to a different address (see <c>WithPort(port, protocol, bindAddress)</c>) must be
+    /// reached via that address instead.
+    /// </summary>
     string Host { get; }
 
-    /// <summary>Gets the Windows loopback port mapped to a Linux service port.</summary>
+    /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
     int GetMappedPort(int port);
+
+    /// <summary>Gets the Windows port mapped to a Linux service port with an explicit protocol.</summary>
+    int GetMappedPort(int port, PortProtocol protocol);
+
+    /// <summary>
+    /// Applies an egress allowlist inside the running container (iptables default-deny
+    /// <c>OUTPUT</c> with the listed TCP destinations kept). The image must provide
+    /// <c>iptables</c>. Builder-configured allowlists are applied automatically by
+    /// <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
+    /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
+    /// container can remove them, so this is not a tamper-proof boundary.
+    /// </summary>
+    Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default);
 
     /// <summary>Creates and provisions the environment, then waits until all readiness strategies pass.</summary>
     /// <remarks>

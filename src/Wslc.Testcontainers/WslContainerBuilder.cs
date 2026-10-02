@@ -1,3 +1,6 @@
+using System.Net;
+using Microsoft.WSL.Containers;
+using Wslc.Testcontainers.Networking;
 using Wslc.Testcontainers.Provisioning;
 using Wslc.Testcontainers.Waiting;
 
@@ -92,15 +95,69 @@ public sealed class WslContainerBuilder
         return new WslContainerBuilder(_configuration with { Environment = environment });
     }
 
-    /// <summary>Declares a Linux service port that will be exposed on a dynamic Windows port.</summary>
-    public WslContainerBuilder WithPort(int port)
+    /// <summary>Declares a Linux TCP service port that will be exposed on a dynamic Windows port.</summary>
+    public WslContainerBuilder WithPort(int port) => WithPort(port, PortProtocol.TCP);
+
+    /// <summary>Declares a Linux service port with an explicit protocol, exposed on a dynamic Windows port.</summary>
+    public WslContainerBuilder WithPort(int port, PortProtocol protocol)
+    {
+        ValidatePort(port);
+        ValidateProtocol(protocol);
+        return AddPortMapping(port, protocol, bindAddress: null);
+    }
+
+    /// <summary>Declares a Linux UDP service port that will be exposed on a dynamic Windows port.</summary>
+    public WslContainerBuilder WithUdpPort(int port) => WithPort(port, PortProtocol.UDP);
+
+    /// <summary>
+    /// Declares a Linux service port bound to a specific Windows address (e.g.
+    /// <c>0.0.0.0</c> to expose it on the LAN). The Windows port stays dynamic.
+    /// When omitted the SDK default (loopback, <c>127.0.0.1</c>) is used.
+    /// </summary>
+    public WslContainerBuilder WithPort(int port, PortProtocol protocol, string bindAddress)
+    {
+        ValidatePort(port);
+        ValidateProtocol(protocol);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bindAddress);
+        if (!IPAddress.TryParse(bindAddress, out var address))
+        {
+            throw new ArgumentException($"Bind address '{bindAddress}' is not a valid IP address.", nameof(bindAddress));
+        }
+
+        return AddPortMapping(port, protocol, address.ToString());
+    }
+
+    private WslContainerBuilder AddPortMapping(int port, PortProtocol protocol, string? bindAddress)
+    {
+        foreach (var existing in _configuration.PortMappings)
+        {
+            if (existing.ContainerPort == port && existing.Protocol == protocol)
+            {
+                if (!string.Equals(existing.BindAddress, bindAddress, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new WslcException(
+                        $"Port {port}/{protocol.ToString().ToLowerInvariant()} is already mapped with a different bind address. Declare each port/protocol once.");
+                }
+
+                return this;
+            }
+        }
+
+        return new WslContainerBuilder(_configuration with { PortMappings = Append(_configuration.PortMappings, new WslPortMapping(port, protocol, bindAddress)) });
+    }
+
+    private static void ValidatePort(int port)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
+    }
 
-        return _configuration.Ports.Contains(port)
-            ? this
-            : new WslContainerBuilder(_configuration with { Ports = Append(_configuration.Ports, port) });
+    private static void ValidateProtocol(PortProtocol protocol)
+    {
+        if (!Enum.IsDefined(protocol))
+        {
+            throw new ArgumentOutOfRangeException(nameof(protocol), protocol, "Unknown port protocol.");
+        }
     }
 
     /// <summary>Adds a readiness strategy. All configured strategies must pass before startup completes.</summary>
@@ -183,6 +240,96 @@ public sealed class WslContainerBuilder
         WithVolume(hostPath, containerPath, VolumeAccess.ReadOnly);
 
     /// <summary>
+    /// Mounts a session VHD volume (native Linux filesystem, ext4) into the container.
+    /// The volume is created when the container starts and is recreated empty on every
+    /// start — it is size-limited scratch space, not persistence. Prefer over bind mounts
+    /// when the data must not be exposed as Windows host files; the backing VHD still
+    /// lives inside the session storage directory under <c>%LOCALAPPDATA%</c>.
+    /// </summary>
+    /// <param name="name">Session volume name (non-empty, no path separators).</param>
+    /// <param name="containerPath">Absolute Linux destination (e.g. <c>/data</c>).</param>
+    /// <param name="sizeBytes">VHD size in bytes (must be positive).</param>
+    /// <param name="access">Read-write (default) or read-only mount.</param>
+    /// <param name="type">Dynamic (default) or fixed VHD allocation.</param>
+    public WslContainerBuilder WithNamedVolume(
+        string name,
+        string containerPath,
+        ulong sizeBytes,
+        VolumeAccess access = VolumeAccess.ReadWrite,
+        VhdType type = VhdType.Dynamic)
+    {
+        RequireVolumeName(name, nameof(name));
+        RequireContainerPath(containerPath, nameof(containerPath));
+        if (sizeBytes == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Named volume size must be positive.");
+        }
+
+        if (_configuration.NamedVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            throw new WslcException($"A named volume '{name}' is already configured. Volume names must be unique per container.");
+        }
+
+        return new WslContainerBuilder(_configuration with
+        {
+            NamedVolumes = Append(_configuration.NamedVolumes, new WslNamedVolume(name, containerPath, access == VolumeAccess.ReadOnly, sizeBytes, type)),
+        });
+    }
+
+    /// <summary>
+    /// Sets the container networking mode. The default is <see cref="ContainerNetworkingMode.Bridged"/>.
+    /// <see cref="ContainerNetworkingMode.None"/> fully isolates the container (no NIC):
+    /// no <c>WithPort</c>, no network wait strategies and no egress allowlist may be combined with it.
+    /// </summary>
+    public WslContainerBuilder WithNetworkingMode(ContainerNetworkingMode mode)
+    {
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown networking mode.");
+        }
+
+        return new WslContainerBuilder(_configuration with { NetworkingMode = mode });
+    }
+
+    /// <summary>Caps the session CPU count. Null (default) leaves the runtime default.</summary>
+    public WslContainerBuilder WithCpuCount(uint cpuCount)
+    {
+        if (cpuCount == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(cpuCount), cpuCount, "CPU count must be positive.");
+        }
+
+        return new WslContainerBuilder(_configuration with { CpuCount = cpuCount });
+    }
+
+    /// <summary>Caps the session memory in megabytes. Null (default) leaves the runtime default.</summary>
+    public WslContainerBuilder WithMemoryMB(uint megabytes)
+    {
+        if (megabytes == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(megabytes), megabytes, "Memory limit must be positive.");
+        }
+
+        return new WslContainerBuilder(_configuration with { MemorySizeInMB = megabytes });
+    }
+
+    /// <summary>
+    /// Restricts container egress to the listed destinations via an in-container
+    /// <c>iptables</c> default-deny <c>OUTPUT</c> policy, applied after start and before
+    /// readiness waits. The image must provide <c>iptables</c>. Cannot be combined with
+    /// <see cref="ContainerNetworkingMode.None"/> (already fully isolated).
+    /// Re-applying replaces the previous <c>OUTPUT</c> chain (including image-installed
+    /// rules). A process running as root inside the container can remove these rules, so
+    /// treat this as egress hygiene, not a tamper-proof boundary.
+    /// </summary>
+    /// <remarks>Hosts are normalized to IPv4/CIDR and duplicates removed.</remarks>
+    public WslContainerBuilder WithEgressAllowlist(EgressAllowlistOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return new WslContainerBuilder(_configuration with { EgressAllowlist = EgressIsolation.Normalize(options) });
+    }
+
+    /// <summary>
     /// Enables reuse across test runs. The instance name is derived from the configuration hash.
     /// Reuse requires <c>WSLC_REUSE</c> truthy (or explicit <c>true</c> here) <i>and</i> is still
     /// disabled under CI unless <c>WSLC_REUSE_IN_CI</c> is truthy. When disabled, startup logs a
@@ -241,6 +388,28 @@ public sealed class WslContainerBuilder
             throw new WslcException($"Tarball '{tarball}' does not exist.");
         }
 
+        if (configuration.NetworkingMode == ContainerNetworkingMode.None)
+        {
+            if (configuration.PortMappings.Count > 0)
+            {
+                throw new WslcException(
+                    "NetworkingMode.None provides no network: remove WithPort(...) declarations or use Bridged networking.");
+            }
+
+            if (configuration.EgressAllowlist is not null)
+            {
+                throw new WslcException(
+                    "NetworkingMode.None is already fully isolated: WithEgressAllowlist(...) does not apply without networking.");
+            }
+
+            var networkWait = FindNetworkWaitStrategy(configuration.WaitStrategies);
+            if (networkWait is not null)
+            {
+                throw new WslcException(
+                    $"NetworkingMode.None provides no network: wait strategy '{networkWait}' can never succeed. Remove it or use Bridged networking.");
+            }
+        }
+
         if (configuration.WaitStrategies.Count > 0)
         {
             var totalWaits = TimeSpan.Zero;
@@ -269,6 +438,43 @@ public sealed class WslContainerBuilder
         }
 
         return copy;
+    }
+
+    private static string? FindNetworkWaitStrategy(IReadOnlyList<IWaitStrategy> strategies)
+    {
+        foreach (var strategy in strategies)
+        {
+            if (strategy is CompositeWaitStrategy composite)
+            {
+                var nested = FindNetworkWaitStrategy(composite.Strategies);
+                if (nested is not null)
+                {
+                    return nested;
+                }
+            }
+            else if (strategy is TcpPortWaitStrategy or HttpWaitStrategy)
+            {
+                return strategy.Name;
+            }
+        }
+
+        return null;
+    }
+
+    private static void RequireVolumeName(string value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("Volume name must not be empty.", parameterName);
+        }
+
+        foreach (var character in value)
+        {
+            if (character is '/' or '\\' || char.IsWhiteSpace(character))
+            {
+                throw new ArgumentException($"Volume name '{value}' must not contain path separators or whitespace.", parameterName);
+            }
+        }
     }
 
     private static void RequireText(string value, string parameterName)

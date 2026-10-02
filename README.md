@@ -24,6 +24,18 @@ var connectionString =
     $"Host={postgres.Host};Port={postgres.GetMappedPort(5432)};Username=postgres;Password=secret";
 ```
 
+> **Security: defaults are for *trusted* test dependencies, not hostile code.**
+> Out of the box this library (and the underlying WSL container runtime) provides
+> **no security boundary**: containers run bridged with full egress, processes run as
+> the image default user (usually root) with no seccomp/capability/user-namespace
+> controls, and every `WithVolume` is a write path onto the Windows host. Do **not**
+> run untrusted or agent-generated code with default settings. If you need containment
+> (e.g. an agent that may only talk to the API that invoked it), see
+> [Agent containment](docs/usage.md#agent-containment-note). Only
+> `WithNetworkingMode(None)` is a hard boundary; `WithEgressAllowlist` is egress hygiene
+> (root inside the container can remove it), and `WithNamedVolume` avoids exposing a
+> Windows directory rather than avoiding Windows storage entirely.
+
 ## Requirements
 
 - Windows 10 2004+ or Windows 11 (x64 / ARM64)
@@ -76,7 +88,12 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithCommand(command, params args)`                               | Init process. Defaults to a keep-alive shell so `ExecAsync` works. |
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
-| `WithPort(containerPort)`                                         | Exposes a Linux port on a dynamic Windows port.                    |
+| `WithPort(containerPort)`                                         | Exposes a Linux TCP port on a dynamic Windows port.                                         |
+| `WithPort(port, protocol)` / `WithUdpPort(port)` / `WithPort(port, protocol, bindAddress)` | UDP support and per-port Windows bind address (defaults to loopback; pass `0.0.0.0` to expose on the LAN). |
+| `WithNetworkingMode(mode)`                                      | `Bridged` (default) or `None` (no NIC — no ports/waits/egress allowed).                     |
+| `WithCpuCount(n)` / `WithMemoryMB(n)`                           | Caps for the session VM.                                                                    |
+| `WithNamedVolume(name, containerPath, sizeBytes, ...)`          | Session VHD volume (ext4, recreated empty every start) instead of a bind mount.             |
+| `WithEgressAllowlist(options)`                                  | iptables default-deny `OUTPUT` with listed TCP destinations kept (image needs iptables).    |
 | `WithWaitStrategy(strategy)`                                      | Adds a readiness condition. All must pass.                         |
 | `WithFile(hostPath, containerPath)`                               | Copies a Windows file (≤1 GiB) into the container. Absolute Linux dest. |
 | `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mounts a Windows directory. Order is host, container. |
@@ -147,6 +164,8 @@ var strategy = Wait.ForWsl()
 
 Mapped ports are dynamic (`WindowsPort = 0`): the WSL runtime assigns a free host port and WSLC
 resolves it after start, so `GetMappedPort(5432)` never collides between parallel tests.
+`GetMappedPort(port, protocol)` covers UDP. The Windows side binds loopback by default;
+pass a bind address (e.g. `"0.0.0.0"`) to override.
 
 ## Lifecycle and cleanup
 

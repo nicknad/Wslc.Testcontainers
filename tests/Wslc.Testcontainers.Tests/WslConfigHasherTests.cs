@@ -1,3 +1,4 @@
+using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Provisioning;
 using Xunit;
 
@@ -14,12 +15,12 @@ public sealed class WslConfigHasherTests
             Command = "sleep",
             CommandArguments = new[] { "infinity" },
             Environment = new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" },
-            Ports = new[] { 8080, 5432 },
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.TCP, null), new WslPortMapping(5432, PortProtocol.TCP, null) },
         };
         var second = first with
         {
             Environment = new Dictionary<string, string> { ["B"] = "2", ["A"] = "1" },
-            Ports = new[] { 5432, 8080 },
+            PortMappings = new[] { new WslPortMapping(5432, PortProtocol.TCP, null), new WslPortMapping(8080, PortProtocol.TCP, null) },
         };
 
         Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
@@ -43,6 +44,50 @@ public sealed class WslConfigHasherTests
         var second = first with { CommandArguments = new[] { "one", "-c" } };
 
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
+    }
+
+    [Fact]
+    public void Port_protocol_and_bind_address_change_the_hash()
+    {
+        var first = new WslContainerConfiguration
+        {
+            Image = "alpine",
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.TCP, null) },
+        };
+        var udp = first with
+        {
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.UDP, null) },
+        };
+        var bound = first with
+        {
+            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.TCP, "127.0.0.1") },
+        };
+
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(udp));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(bound));
+    }
+
+    [Fact]
+    public void Resource_networking_volume_and_egress_settings_change_the_hash()
+    {
+        var first = new WslContainerConfiguration { Image = "alpine" };
+        var cpu = first with { CpuCount = 2u };
+        var memory = first with { MemorySizeInMB = 2048u };
+        var netmode = first with { NetworkingMode = ContainerNetworkingMode.None };
+        var named = first with
+        {
+            NamedVolumes = new[] { new WslNamedVolume("data", "/data", ReadOnly: false, SizeBytes: 100, Type: VhdType.Dynamic) },
+        };
+        var egress = first with
+        {
+            EgressAllowlist = new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } },
+        };
+
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(cpu));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(memory));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(netmode));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(named));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(egress));
     }
 
     [Fact]

@@ -132,6 +132,38 @@ public sealed class IntegrationTests
     }
 
     [IntegrationFact]
+    public async Task Isolated_networking_runs_commands_without_ports()
+    {
+        await using var container = new WslContainerBuilder()
+            .FromImage(TestImage)
+            .WithNetworkingMode(ContainerNetworkingMode.None)
+            .Build();
+
+        await container.StartAsync();
+
+        var result = await container.ExecAsync("/bin/sh", "-c", "echo offline-ok");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("offline-ok", result.Stdout);
+        Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080));
+    }
+
+    [IntegrationFact]
+    public async Task Egress_allowlist_requires_iptables_in_the_image()
+    {
+        // docker.io/library/alpine has no iptables: applying must fail with guidance,
+        // not silently leave egress open.
+        await using var container = new WslContainerBuilder()
+            .FromImage(TestImage)
+            .Build();
+
+        await container.StartAsync();
+
+        var options = new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } };
+        await Assert.ThrowsAsync<WslProvisioningException>(() => container.ApplyEgressAllowlistAsync(options));
+    }
+
+    [IntegrationFact]
     public async Task Mounts_windows_directories_as_volumes()
     {
         var hostDirectory = Path.Combine(Path.GetTempPath(), $"wslc-volume-{Guid.NewGuid():N}");

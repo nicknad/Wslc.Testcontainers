@@ -30,8 +30,13 @@ Step 'Host checks'
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
   throw 'Verify-Package requires Windows 10 build 19041+ (x64/ARM64).'
 }
-$arch = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
-if ($arch -notin @('X64', 'Arm64')) { throw "Unsupported architecture: $arch. Requires x64/ARM64." }
+# Use the environment variables rather than RuntimeInformation.ProcessArchitecture:
+# that API returns null in some PowerShell hosts (limited/constrained runspaces, older
+# .NET Framework) and reports the *process* arch (X86 under WOW64). PROCESSOR_ARCHITEW6432
+# carries the real OS arch when this shell is 32-bit; both are AMD64/ARM64 names.
+$arch = $env:PROCESSOR_ARCHITEW6432
+if ([string]::IsNullOrEmpty($arch)) { $arch = $env:PROCESSOR_ARCHITECTURE }
+if ($arch -notin @('AMD64', 'ARM64')) { throw "Unsupported architecture: $arch. Requires x64/ARM64." }
 dotnet --version | Write-Output
 try { wsl --version | Write-Output } catch { Write-Warning "wsl --version failed: $_" }
 
@@ -50,8 +55,11 @@ Invoke-Native 'build' { dotnet build Wslc.Testcontainers.slnx -c Release --nolog
 Step 'Unit tests (net8/9/10, no integration)'
 foreach ($tfm in @('net8.0-windows10.0.19041.0', 'net9.0-windows10.0.19041.0', 'net10.0-windows10.0.19041.0')) {
   Invoke-Native "unit ($tfm)" {
+    # Do not pass --nologo to dotnet test under the Microsoft Testing Platform:
+    # it makes the test app discover zero tests and exit 5. Options for the test
+    # app go after --; -v is a dotnet test option.
     dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj `
-      -c Release -f $tfm --no-build --filter 'FullyQualifiedName!~Integration' --nologo -v minimal
+      -c Release -f $tfm --no-build -v minimal -- --filter 'FullyQualifiedName!~Integration'
   }
 }
 
@@ -92,11 +100,12 @@ if ($RunIntegration) {
   wsl --version
   $env:WSLC_RUN_INTEGRATION = '1'
   Invoke-Native 'core integration' {
+    # No --nologo: see the unit test step comment.
     dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj `
-      -c Release -f net10.0-windows10.0.19041.0 --no-build --filter 'FullyQualifiedName~Integration' --nologo -v minimal
+      -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter 'FullyQualifiedName~Integration'
   }
   Invoke-Native 'Postgres module' {
-    dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release --nologo -v minimal
+    dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal
   }
 }
 

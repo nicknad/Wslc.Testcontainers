@@ -201,3 +201,26 @@ Wslc.Testcontainers.WslRuntimeException
 Wslc.Testcontainers.WslRuntimeException.WslRuntimeException(string! message, System.Exception? innerException = null) -> void
 Wslc.Testcontainers.WslTimeoutException
 Wslc.Testcontainers.WslTimeoutException.WslTimeoutException(string! message, System.Exception? innerException = null) -> void
+Wslc.Testcontainers.EgressAllowlistOptions
+Wslc.Testcontainers.EgressAllowlistOptions.AllowDns.get -> bool
+Wslc.Testcontainers.EgressAllowlistOptions.AllowDns.init -> void
+Wslc.Testcontainers.EgressAllowlistOptions.AllowedHosts.get -> System.Collections.Generic.IReadOnlyList<string!>!
+Wslc.Testcontainers.EgressAllowlistOptions.AllowedHosts.init -> void
+Wslc.Testcontainers.EgressAllowlistOptions.AllowedTcpPorts.get -> System.Collections.Generic.IReadOnlyList<int>!
+Wslc.Testcontainers.EgressAllowlistOptions.AllowedTcpPorts.init -> void
+Wslc.Testcontainers.EgressAllowlistOptions.AllowLoopback.get -> bool
+Wslc.Testcontainers.EgressAllowlistOptions.AllowLoopback.init -> void
+Wslc.Testcontainers.IWslContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Wslc.Testcontainers.IWslContainer.GetMappedPort(int port, Microsoft.WSL.Containers.PortProtocol protocol) -> int
+Wslc.Testcontainers.WslContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Wslc.Testcontainers.WslContainer.GetMappedPort(int port, Microsoft.WSL.Containers.PortProtocol protocol) -> int
+Wslc.Testcontainers.WslContainerBuilder.WithCpuCount(uint cpuCount) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithEgressAllowlist(Wslc.Testcontainers.EgressAllowlistOptions! options) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithMemoryMB(uint megabytes) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithNamedVolume(string! name, string! containerPath, ulong sizeBytes, Wslc.Testcontainers.VolumeAccess access = Wslc.Testcontainers.VolumeAccess.ReadWrite, Microsoft.WSL.Containers.VhdType type = Microsoft.WSL.Containers.VhdType.Dynamic) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithNetworkingMode(Microsoft.WSL.Containers.ContainerNetworkingMode mode) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, Microsoft.WSL.Containers.PortProtocol protocol) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, Microsoft.WSL.Containers.PortProtocol protocol, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithUdpPort(int port) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslModuleContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+Wslc.Testcontainers.WslModuleContainer.GetMappedPort(int containerPort, Microsoft.WSL.Containers.PortProtocol protocol) -> int

@@ -3,32 +3,40 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 using Microsoft.WSL.Containers;
+using Wslc.Testcontainers.Provisioning;
 
 namespace Wslc.Testcontainers.Networking;
 
 /// <summary>
-/// Maps Linux container ports to Windows loopback ports using the official
-/// <see cref="ContainerPortMapping"/> mechanism. A Windows port of 0 asks the WSL runtime
-/// to assign a free dynamic port, which is then discovered from the container inspect payload.
+/// Maps Linux container ports to Windows ports (loopback by default, overridable per port)
+/// using the official <see cref="ContainerPortMapping"/> mechanism. A Windows port of 0 asks
+/// the WSL runtime to assign a free dynamic port, which is then discovered from the container
+/// inspect payload. Entries are keyed by (container port, protocol); the single-port API is TCP.
 /// </summary>
 internal sealed class WslcPortMapping
 {
     private const string InspectPortsProperty = "Ports";
 
-    private readonly Dictionary<int, int> _ports;
+    private readonly Dictionary<(int Port, PortProtocol Protocol), Entry> _entries;
 
-    private WslcPortMapping(Dictionary<int, int> ports) => _ports = ports;
+    private sealed class Entry
+    {
+        public string? BindAddress { get; }
+        public int MappedPort { get; set; }
 
-    public IReadOnlyCollection<int> Ports => _ports.Keys;
+        public Entry(string? bindAddress) => BindAddress = bindAddress;
+    }
+
+    private WslcPortMapping(Dictionary<(int Port, PortProtocol Protocol), Entry> entries) => _entries = entries;
 
     public int UnresolvedCount
     {
         get
         {
             var count = 0;
-            foreach (var pair in _ports)
+            foreach (var entry in _entries.Values)
             {
-                if (pair.Value == 0)
+                if (entry.MappedPort == 0)
                 {
                     count++;
                 }
@@ -38,22 +46,16 @@ internal sealed class WslcPortMapping
         }
     }
 
-    public IReadOnlyList<int> UnresolvedPorts
+    public IReadOnlyList<string> UnresolvedPorts
     {
         get
         {
-            var count = UnresolvedCount;
-            if (count == 0)
+            var result = new List<string>(_entries.Count);
+            foreach (var pair in _entries)
             {
-                return Array.Empty<int>();
-            }
-
-            var result = new List<int>(count);
-            foreach (var pair in _ports)
-            {
-                if (pair.Value == 0)
+                if (pair.Value.MappedPort == 0)
                 {
-                    result.Add(pair.Key);
+                    result.Add(WslPortMapping.Format(pair.Key.Port, pair.Key.Protocol));
                 }
             }
 
@@ -61,43 +63,55 @@ internal sealed class WslcPortMapping
         }
     }
 
-    public static WslcPortMapping Create(IReadOnlyCollection<int> containerPorts)
+    public static WslcPortMapping Create(IEnumerable<WslPortMapping> mappings)
     {
-        var ports = new Dictionary<int, int>(containerPorts.Count);
-        foreach (var port in containerPorts)
+        var entries = new Dictionary<(int Port, PortProtocol Protocol), Entry>();
+        foreach (var mapping in mappings)
         {
-            ports[port] = 0;
+            var key = (mapping.ContainerPort, mapping.Protocol);
+            if (!entries.ContainsKey(key))
+            {
+                entries[key] = new Entry(mapping.BindAddress);
+            }
         }
 
-        return new WslcPortMapping(ports);
+        return new WslcPortMapping(entries);
     }
 
     public IReadOnlyList<ContainerPortMapping> ToContainerPortMappings()
     {
-        var mappings = new List<ContainerPortMapping>(_ports.Count);
-        foreach (var containerPort in _ports.Keys)
+        var mappings = new List<ContainerPortMapping>(_entries.Count);
+        foreach (var pair in _entries)
         {
-            mappings.Add(new ContainerPortMapping(0, (ushort)containerPort, PortProtocol.TCP));
+            var mapping = new ContainerPortMapping(0, (ushort)pair.Key.Port, pair.Key.Protocol);
+            if (pair.Value.BindAddress is { } bindAddress)
+            {
+                mapping.WindowsAddress = new Windows.Networking.HostName(bindAddress);
+            }
+
+            mappings.Add(mapping);
         }
 
         return mappings;
     }
 
-    public int GetMappedPort(int containerPort)
+    public int GetMappedPort(int containerPort) => GetMappedPort(containerPort, PortProtocol.TCP);
+
+    public int GetMappedPort(int containerPort, PortProtocol protocol)
     {
-        if (!_ports.TryGetValue(containerPort, out var mappedPort))
+        if (!_entries.TryGetValue((containerPort, protocol), out var entry))
         {
             throw new WslNetworkException(
-                $"Port {containerPort} is not mapped. Declare it with WithPort({containerPort}) before starting the container.");
+                $"Port {WslPortMapping.Format(containerPort, protocol)} is not mapped. Declare it with {DescribeDeclaration(containerPort, protocol)} before starting the container.");
         }
 
-        if (mappedPort == 0)
+        if (entry.MappedPort == 0)
         {
             throw new WslNetworkException(
-                $"Port {containerPort} has no host mapping yet. The WSL runtime assigns the port when the container starts.");
+                $"Port {WslPortMapping.Format(containerPort, protocol)} has no host mapping yet. The WSL runtime assigns the port when the container starts.");
         }
 
-        return mappedPort;
+        return entry.MappedPort;
     }
 
     /// <summary>Reads the dynamically assigned host ports from <c>Container.Inspect()</c>.</summary>
@@ -111,29 +125,65 @@ internal sealed class WslcPortMapping
 
         foreach (var property in ports.EnumerateObject())
         {
-            var separator = property.Name.IndexOf('/');
-            if (separator <= 0 ||
-                !int.TryParse(property.Name.AsSpan(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out var containerPort))
+            if (!TryParseInspectKey(property.Name, out var containerPort, out var protocol))
             {
                 continue;
             }
 
-            if (!_ports.ContainsKey(containerPort) || property.Value.ValueKind != JsonValueKind.Array)
+            if (!_entries.TryGetValue((containerPort, protocol), out var entry) || property.Value.ValueKind != JsonValueKind.Array)
             {
                 continue;
             }
 
-            foreach (var entry in property.Value.EnumerateArray())
+            foreach (var item in property.Value.EnumerateArray())
             {
-                if (entry.TryGetProperty("HostPort", out var hostPortElement) &&
+                if (item.TryGetProperty("HostPort", out var hostPortElement) &&
                     TryReadMappedPort(hostPortElement, out var hostPort))
                 {
-                    _ports[containerPort] = hostPort;
+                    entry.MappedPort = hostPort;
                     break;
                 }
             }
         }
     }
+
+    private static bool TryParseInspectKey(string key, out int containerPort, out PortProtocol protocol)
+    {
+        containerPort = 0;
+        protocol = PortProtocol.TCP;
+
+        var separator = key.IndexOf('/');
+        if (separator <= 0 ||
+            !int.TryParse(key.AsSpan(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out containerPort))
+        {
+            return false;
+        }
+
+        var suffix = key.Substring(separator + 1);
+        if (suffix.Length == 0)
+        {
+            return true;
+        }
+
+        if (suffix.Equals("tcp", StringComparison.OrdinalIgnoreCase))
+        {
+            protocol = PortProtocol.TCP;
+            return true;
+        }
+
+        if (suffix.Equals("udp", StringComparison.OrdinalIgnoreCase))
+        {
+            protocol = PortProtocol.UDP;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string DescribeDeclaration(int containerPort, PortProtocol protocol) =>
+        protocol == PortProtocol.UDP
+            ? $"WithUdpPort({containerPort})"
+            : $"WithPort({containerPort})";
 
     private static bool TryReadMappedPort(JsonElement element, out int port)
     {
@@ -150,7 +200,7 @@ internal sealed class WslcPortMapping
 
     public async Task<bool> IsPortOpenAsync(int containerPort, CancellationToken cancellationToken = default)
     {
-        var mappedPort = GetMappedPort(containerPort);
+        var mappedPort = GetMappedPort(containerPort, PortProtocol.TCP);
         using var client = new TcpClient();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(2));

@@ -44,6 +44,9 @@ jobs:
   unit:
     needs: resolve-version
     runs-on: windows-latest
+    env:
+      NUGET_PACKAGES: D:\a\.nuget\packages
+      NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
     strategy:
       fail-fast: false
       matrix:
@@ -80,6 +83,8 @@ jobs:
     runs-on: windows-latest
     env:
       VERSION: ${{ needs.resolve-version.outputs.version }}
+      NUGET_PACKAGES: D:\a\.nuget\packages
+      NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6

@@ -8,6 +8,9 @@ on:
 jobs:
   unit-windows:
     runs-on: windows-latest
+    env:
+      NUGET_PACKAGES: D:\a\.nuget\packages
+      NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
     strategy:
       fail-fast: false
       matrix:
@@ -50,6 +53,9 @@ jobs:
   packages:
     needs: [unit-windows, guard-linux]
     runs-on: windows-latest
+    env:
+      NUGET_PACKAGES: D:\a\.nuget\packages
+      NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6

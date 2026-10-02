@@ -10,6 +10,9 @@ jobs:
   integration:
     runs-on: windows-latest
     timeout-minutes: 60
+    env:
+      NUGET_PACKAGES: D:\a\.nuget\packages
+      NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6

@@ -253,7 +253,6 @@ Wslc.Testcontainers.WslContainerBuilder.WithSessionVolume(string! name, string! 
 Wslc.Testcontainers.WslContainerBuilder.WithNetworkingMode(Wslc.Testcontainers.ContainerNetworkMode mode) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, Wslc.Testcontainers.PortProtocol protocol) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, Wslc.Testcontainers.PortProtocol protocol, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithUdpPort(int port) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslModuleContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.GetMappedPort(int containerPort, Wslc.Testcontainers.PortProtocol protocol) -> int
 Wslc.Testcontainers.ContainerNetworkMode

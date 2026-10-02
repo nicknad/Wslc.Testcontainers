@@ -6,14 +6,18 @@ namespace Wslc.Testcontainers;
 /// egress is dropped via <c>iptables</c>.
 /// </summary>
 /// <remarks>
-/// The image must provide <c>iptables</c> and a usable <c>ip6tables</c>; applying
-/// fails closed (without installing any rule) when either is unavailable, so IPv6
-/// egress can never be silently left open. Ingress (host-to-container port mappings
-/// and readiness probes) is unaffected. Applying replaces the container's whole
-/// <c>OUTPUT</c> chain, so re-applying narrows or widens deterministically. Matching
-/// is the cartesian product of hosts and ports: each allowed host may be reached on
-/// each allowed port. Empty hosts with non-empty ports allows those ports anywhere;
-/// both empty isolates the container except for DNS/loopback (see
+/// The image must provide <c>iptables</c>, and a usable <c>ip6tables</c> whenever the
+/// container has IPv6 addresses, and the container needs <c>CAP_NET_ADMIN</c>; applying
+/// fails closed (without installing any rule) when a required tool is unavailable or
+/// cannot manage rules, so egress can never be silently left open. Containers without
+/// IPv6 addresses (empty/absent <c>/proc/net/if_inet6</c>) skip the v6 rules. WSL 3.0.1
+/// containers are not granted <c>CAP_NET_ADMIN</c>, so on that runtime applying
+/// consistently fails with guidance. Ingress (host-to-container port mappings and
+/// readiness probes) is unaffected. Applying replaces the container's whole
+/// <c>OUTPUT</c> chain, so re-applying narrows or widens deterministically.
+/// Matching is the cartesian product of hosts and ports: each allowed host may be
+/// reached on each allowed port. Empty hosts with non-empty ports allows those ports
+/// anywhere; both empty isolates the container except for DNS/loopback (see
 /// <see cref="AllowDns"/>, <see cref="AllowLoopback"/>). Hosts must be IPv4 literals
 /// or IPv4 CIDRs (no DNS names — they would be resolved by the very network path
 /// being restricted, and would widen the rule); they are normalized and de-duplicated

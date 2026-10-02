@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http;
 using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Provisioning;
@@ -14,6 +15,9 @@ namespace Wslc.Testcontainers.Tests;
 public sealed class IntegrationTests
 {
     private const string TestImage = "docker.io/library/alpine:latest";
+
+    // Ships iptables/ip6tables, python3 and curl, so egress rules can be installed and probed.
+    private const string IptablesImage = "docker.io/nicolaka/netshoot:latest";
 
     [IntegrationFact]
     public void Runtime_components_are_available()
@@ -149,18 +153,102 @@ public sealed class IntegrationTests
     }
 
     [IntegrationFact]
-    public async Task Egress_allowlist_requires_iptables_in_the_image()
+    public async Task Egress_allowlist_startup_failure_reports_guidance_and_cleans_up()
     {
-        // docker.io/library/alpine has no iptables: applying must fail with guidance,
-        // not silently leave egress open.
+        // docker.io/library/alpine has no iptables: startup must fail with guidance,
+        // not silently leave egress open, and must not leak the ephemeral instance.
+        var container = new WslContainerBuilder()
+            .FromImage(TestImage)
+            .WithEgressAllowlist(new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } })
+            .Build();
+        var name = container.Name;
+
+        var exception = await Assert.ThrowsAsync<WslProvisioningException>(() => container.StartAsync());
+
+        Assert.Contains("iptables", exception.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(container.IsStarted);
+        Assert.False(Directory.Exists(WslInstanceStore.Default.GetInstanceDirectory(name)));
+
+        await container.DisposeAsync();
+    }
+
+    [IntegrationFact]
+    public async Task Egress_allowlist_fails_closed_when_iptables_cannot_manage_rules()
+    {
+        // The WSLC runtime does not grant CAP_NET_ADMIN, so even an image with iptables
+        // (netshoot) cannot install the policy. Startup must fail with guidance and must
+        // not leave a partially applied or silently open policy behind.
+        var container = new WslContainerBuilder()
+            .FromImage(IptablesImage)
+            .WithEgressAllowlist(new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } })
+            .Build();
+        var name = container.Name;
+
+        var exception = await Assert.ThrowsAsync<WslProvisioningException>(() => container.StartAsync());
+
+        Assert.Contains("CAP_NET_ADMIN", exception.Message);
+        Assert.False(container.IsStarted);
+        Assert.False(Directory.Exists(WslInstanceStore.Default.GetInstanceDirectory(name)));
+
+        await container.DisposeAsync();
+    }
+
+    [IntegrationFact]
+    public async Task Session_volumes_mount_and_are_recreated_on_restart()
+    {
         await using var container = new WslContainerBuilder()
             .FromImage(TestImage)
+            .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024)
             .Build();
 
         await container.StartAsync();
 
-        var options = new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } };
-        await Assert.ThrowsAsync<WslProvisioningException>(() => container.ApplyEgressAllowlistAsync(options));
+        var write = await container.ExecAsync("/bin/sh", "-c", "echo persisted > /scratch/data.txt && cat /scratch/data.txt");
+        Assert.Equal(0, write.ExitCode);
+        Assert.Equal("persisted", write.Stdout.Trim());
+
+        await container.StopAsync();
+        await container.StartAsync();
+
+        var exists = await container.ExecAsync("/bin/sh", "-c", "test -e /scratch/data.txt");
+        Assert.NotEqual(0, exists.ExitCode);
+    }
+
+    [IntegrationFact]
+    public async Task Read_only_session_volumes_reject_writes()
+    {
+        await using var container = new WslContainerBuilder()
+            .FromImage(TestImage)
+            .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
+            .Build();
+
+        await container.StartAsync();
+
+        var mount = await container.ExecAsync("/bin/sh", "-c", "test -d /scratch");
+        Assert.Equal(0, mount.ExitCode);
+
+        var write = await container.ExecAsync("/bin/sh", "-c", "echo nope > /scratch/data.txt");
+        Assert.NotEqual(0, write.ExitCode);
+    }
+
+    [IntegrationFact]
+    public async Task Resource_caps_are_applied_to_the_session()
+    {
+        var cpuCount = (uint)Math.Min(2, Environment.ProcessorCount);
+        await using var container = new WslContainerBuilder()
+            .FromImage(TestImage)
+            .WithCpuCount(cpuCount)
+            .WithMemoryMB(1024)
+            .Build();
+
+        await container.StartAsync();
+
+        var cpus = await container.ExecAsync("nproc");
+        Assert.Equal(cpuCount, uint.Parse(cpus.Stdout.Trim(), CultureInfo.InvariantCulture));
+
+        var memory = await container.ExecAsync("/bin/sh", "-c", "awk '/MemTotal/ {print $2}' /proc/meminfo");
+        var memoryKb = long.Parse(memory.Stdout.Trim(), CultureInfo.InvariantCulture);
+        Assert.InRange(memoryKb, 300_000, 1_500_000);
     }
 
     [IntegrationFact]

@@ -80,12 +80,11 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
-    public void WithPort_supports_udp_and_bind_addresses()
+    public void WithPort_supports_bind_addresses()
     {
         var container = new WslContainerBuilder()
             .FromImage("alpine")
             .WithPort(8080)
-            .WithUdpPort(53)
             .WithPort(9090, PortProtocol.Tcp, "127.0.0.1")
             .Build();
 
@@ -93,22 +92,20 @@ public sealed class WslContainerBuilderTests
             new[]
             {
                 new WslPortMapping(8080, PortProtocol.Tcp, null),
-                new WslPortMapping(53, PortProtocol.Udp, null),
                 new WslPortMapping(9090, PortProtocol.Tcp, "127.0.0.1"),
             },
             container.Configuration.PortMappings);
     }
 
     [Fact]
-    public void Same_port_with_different_protocols_is_allowed()
+    public void Udp_ports_are_rejected_at_declaration_with_runtime_guidance()
     {
-        var container = new WslContainerBuilder()
-            .FromImage("alpine")
-            .WithPort(8080, PortProtocol.Tcp)
-            .WithPort(8080, PortProtocol.Udp)
-            .Build();
+        var builder = new WslContainerBuilder().FromImage("alpine");
 
-        Assert.Equal(2, container.Configuration.PortMappings.Count);
+        var exception = Assert.Throws<WslcException>(() => builder.WithPort(8080, PortProtocol.Udp));
+        Assert.Contains("E_NOTIMPL", exception.Message);
+
+        Assert.Throws<WslcException>(() => builder.WithPort(8080, PortProtocol.Udp, "127.0.0.1"));
     }
 
     [Fact]
@@ -212,9 +209,19 @@ public sealed class WslContainerBuilderTests
         var builder = new WslContainerBuilder().FromImage("alpine");
         Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("", "/data", 100));
         Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("a/b", "/data", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("a b", "/data", 100));
         Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "relative", 100));
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithSessionVolume("data", "/data", 0));
         Assert.Throws<WslcException>(() => builder.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100));
+        Assert.Throws<WslcException>(() => builder.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100));
+
+        var readOnlyFixed = new WslContainerBuilder()
+            .FromImage("alpine")
+            .WithSessionVolume("data", "/data", 100, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
+            .Build();
+        var configured = Assert.Single(readOnlyFixed.Configuration.SessionVolumes);
+        Assert.True(configured.ReadOnly);
+        Assert.Equal(VhdAllocationType.Fixed, configured.Type);
     }
 
     [Fact]
@@ -277,7 +284,23 @@ public sealed class WslContainerBuilderTests
 
         Assert.False(container.IsStarted);
         Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080));
+        Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080, PortProtocol.Udp));
         await Assert.ThrowsAsync<InvalidOperationException>(() => container.ExecAsync("echo"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => container.ApplyEgressAllowlistAsync(new EgressAllowlistOptions(), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ApplyEgressAllowlist_rejects_containers_without_networking()
+    {
+        var container = new WslContainerBuilder()
+            .FromImage("alpine")
+            .WithNetworkingMode(ContainerNetworkMode.None)
+            .Build();
+
+        var exception = await Assert.ThrowsAsync<WslcException>(
+            () => container.ApplyEgressAllowlistAsync(new EgressAllowlistOptions(), TestContext.Current.CancellationToken));
+
+        Assert.Contains("NetworkingMode.None", exception.Message);
     }
 
     [Fact]

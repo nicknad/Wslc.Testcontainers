@@ -34,7 +34,10 @@ var connectionString =
 > [Agent containment](docs/usage.md#agent-containment-note). Only
 > `WithNetworkingMode(None)` is a hard boundary; `WithEgressAllowlist` is egress hygiene
 > (root inside the container can remove it), and `WithSessionVolume` avoids exposing a
-> Windows directory rather than avoiding Windows storage entirely.
+> Windows directory rather than avoiding Windows storage entirely. On WSL 3.0.1 the
+> runtime does not grant containers `CAP_NET_ADMIN`, so `WithEgressAllowlist` fails
+> closed at startup with guidance — `WithNetworkingMode(None)` is the containment mode
+> that currently works.
 
 ## Requirements
 
@@ -89,11 +92,11 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
 | `WithPort(containerPort)`                                         | Exposes a Linux TCP port on a dynamic Windows port.                                         |
-| `WithPort(port, protocol)` / `WithUdpPort(port)` / `WithPort(port, protocol, bindAddress)` | UDP support and per-port Windows bind address (defaults to loopback; pass `0.0.0.0` to expose on the LAN). |
+| `WithPort(port, protocol)` / `WithPort(port, protocol, bindAddress)` | Per-port Windows bind address (defaults to loopback; pass `0.0.0.0` to expose on the LAN). Only `PortProtocol.Tcp` is supported; `PortProtocol.Udp` throws immediately because the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
 | `WithNetworkingMode(mode)`                                      | `Bridged` (default) or `None` (no NIC — no ports/waits/egress allowed).                     |
 | `WithCpuCount(n)` / `WithMemoryMB(n)`                           | Caps for the session VM.                                                                    |
 | `WithSessionVolume(name, containerPath, sizeBytes, ...)`          | Session VHD volume (ext4, recreated empty every start) instead of a bind mount.             |
-| `WithEgressAllowlist(options)`                                  | iptables default-deny `OUTPUT` for IPv4 and IPv6 with listed TCP destinations kept (image needs `iptables` + usable `ip6tables`; fails closed when either is missing). Ports are grouped into `multiport` rules and oversized allowlists are rejected. |
+| `WithEgressAllowlist(options)`                                  | iptables default-deny `OUTPUT` for IPv4 (and IPv6 when the container has IPv6 addresses) with listed TCP destinations kept (image needs `iptables`; fails closed when it cannot manage rules). Requires `CAP_NET_ADMIN`, which WSL 3.0.1 containers are not granted, so applying currently fails closed with guidance. Ports are grouped into `multiport` rules and oversized allowlists are rejected. |
 | `WithWaitStrategy(strategy)`                                      | Adds a readiness condition. All must pass.                         |
 | `WithFile(hostPath, containerPath)`                               | Copies a Windows file (≤1 GiB) into the container. Absolute Linux dest. |
 | `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mounts a Windows directory. Order is host, container. |
@@ -164,9 +167,10 @@ var strategy = Wait.ForWsl()
 
 Mapped ports are dynamic (`WindowsPort = 0`): the WSL runtime assigns a free host port and WSLC
 resolves it after start, so `GetMappedPort(5432)` never collides between parallel tests.
-`GetMappedPort(port, protocol)` covers UDP. The Windows side binds loopback by default;
-pass a bind address (e.g. `"0.0.0.0"`) to override. TCP/HTTP readiness probes honor the
-configured bind address.
+`GetMappedPort(port, protocol)` accepts `PortProtocol.Tcp`; UDP mappings cannot be created
+because the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback by
+default; pass a bind address (e.g. `"0.0.0.0"`) to override. TCP/HTTP readiness probes honor
+the configured bind address.
 
 ## Lifecycle and cleanup
 

@@ -54,13 +54,13 @@ public sealed class WslcPortMappingTests
     }
 
     [Fact]
-    public void Udp_missing_port_hint_suggests_WithUdpPort()
+    public void Udp_missing_port_hint_reports_runtime_limitation()
     {
         var mapping = WslcPortMapping.Create(Array.Empty<WslPortMapping>());
 
         var exception = Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(53, PortProtocol.Udp));
 
-        Assert.Contains("WithUdpPort(53)", exception.Message);
+        Assert.Contains("UDP mappings are not implemented", exception.Message);
     }
 
     [Fact]
@@ -119,6 +119,41 @@ public sealed class WslcPortMappingTests
     }
 
     [Fact]
+    public void Inspect_payload_handles_protocol_suffix_variants()
+    {
+        var mapping = WslcPortMapping.Create(new[]
+        {
+            Tcp(8080),
+            new WslPortMapping(8081, PortProtocol.Udp, null),
+            Tcp(8082),
+        });
+        mapping.ResolveFromInspect(
+            """{"Ports":{"8080/":[{"HostPort":"4514"}],"8081/UDP":[{"HostPort":"4515"}],"8082/sctp":[{"HostPort":"4516"}]}}""");
+
+        Assert.Equal(4514, mapping.GetMappedPort(8080));
+        Assert.Equal(4515, mapping.GetMappedPort(8081, PortProtocol.Udp));
+        Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(8082));
+    }
+
+    [Fact]
+    public void Unresolved_udp_ports_are_formatted_with_protocol()
+    {
+        var mapping = WslcPortMapping.Create(new[] { new WslPortMapping(53, PortProtocol.Udp, null) });
+
+        Assert.Equal(new[] { "53/udp" }, mapping.UnresolvedPorts);
+    }
+
+    [Fact]
+    public void Duplicate_mappings_keep_the_first_bind_address()
+    {
+        var mapping = WslcPortMapping.Create(new[] { Tcp(8080, "127.0.0.1"), Tcp(8080, "0.0.0.0") });
+
+        var entry = Assert.Single(mapping.ToContainerPortMappings());
+        Assert.NotNull(entry.WindowsAddress);
+        Assert.Equal("127.0.0.1", entry.WindowsAddress.RawName);
+    }
+
+    [Fact]
     public async Task Open_host_ports_are_detected_and_closed_ports_are_not()
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
@@ -137,9 +172,21 @@ public sealed class WslcPortMappingTests
             listener.Stop();
         }
 
-        var closedMapping = WslcPortMapping.Create(new[] { Tcp(8080) });
-        closedMapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"" + port + "\"}]}}");
+        // Hold an IPv6 listener open and probe its port over IPv4 loopback: the port is
+        // never freed for reuse, so the "closed" assertion cannot race another process.
+        var closedListener = new TcpListener(IPAddress.IPv6Loopback, 0);
+        closedListener.Start();
+        try
+        {
+            var closedPort = ((IPEndPoint)closedListener.LocalEndpoint).Port;
+            var closedMapping = WslcPortMapping.Create(new[] { Tcp(8080) });
+            closedMapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"" + closedPort + "\"}]}}");
 
-        Assert.False(await closedMapping.IsPortOpenAsync(8080, TestContext.Current.CancellationToken));
+            Assert.False(await closedMapping.IsPortOpenAsync(8080, TestContext.Current.CancellationToken));
+        }
+        finally
+        {
+            closedListener.Stop();
+        }
     }
 }

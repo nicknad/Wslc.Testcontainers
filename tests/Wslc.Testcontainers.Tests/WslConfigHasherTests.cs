@@ -91,6 +91,48 @@ public sealed class WslConfigHasherTests
     }
 
     [Fact]
+    public void Egress_order_and_flags_are_canonicalized_in_the_hash()
+    {
+        var first = new WslContainerConfiguration
+        {
+            Image = "alpine",
+            EgressAllowlist = new EgressAllowlistOptions
+            {
+                AllowedHosts = new[] { "10.0.0.5", "10.0.0.0/8" },
+                AllowedTcpPorts = new[] { 443, 80 },
+            },
+        };
+        var reordered = first with
+        {
+            EgressAllowlist = new EgressAllowlistOptions
+            {
+                AllowedHosts = new[] { "10.0.0.0/8", "10.0.0.5" },
+                AllowedTcpPorts = new[] { 80, 443 },
+            },
+        };
+        var noDns = first with { EgressAllowlist = first.EgressAllowlist! with { AllowDns = false } };
+        var noLoopback = first with { EgressAllowlist = first.EgressAllowlist! with { AllowLoopback = false } };
+
+        Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(reordered));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(noDns));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(noLoopback));
+    }
+
+    [Fact]
+    public void Session_volume_order_does_not_change_the_hash()
+    {
+        var volumes = new[]
+        {
+            new WslSessionVolume("a", "/a", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic),
+            new WslSessionVolume("b", "/b", ReadOnly: false, SizeBytes: 200, Type: VhdAllocationType.Dynamic),
+        };
+        var first = new WslContainerConfiguration { Image = "alpine", SessionVolumes = volumes };
+        var reordered = first with { SessionVolumes = new[] { volumes[1], volumes[0] } };
+
+        Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(reordered));
+    }
+
+    [Fact]
     public void Volume_read_only_flag_changes_the_hash()
     {
         var first = new WslContainerConfiguration

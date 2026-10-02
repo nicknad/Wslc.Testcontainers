@@ -102,8 +102,9 @@ internal sealed class WslcPortMapping
     {
         if (!_entries.TryGetValue((containerPort, protocol), out var entry))
         {
-            throw new WslNetworkException(
-                $"Port {WslPortMapping.Format(containerPort, protocol)} is not mapped. Declare it with {DescribeDeclaration(containerPort, protocol)} before starting the container.");
+            throw new WslNetworkException(protocol == PortProtocol.Udp
+                ? $"Port {WslPortMapping.Format(containerPort, protocol)} is not mapped. UDP mappings are not implemented by the WSLC runtime; declare TCP ports only."
+                : $"Port {WslPortMapping.Format(containerPort, protocol)} is not mapped. Declare it with WithPort({containerPort}) before starting the container.");
         }
 
         if (entry.MappedPort == 0)
@@ -180,11 +181,6 @@ internal sealed class WslcPortMapping
 
         return false;
     }
-
-    private static string DescribeDeclaration(int containerPort, PortProtocol protocol) =>
-        protocol == PortProtocol.Udp
-            ? $"WithUdpPort({containerPort})"
-            : $"WithPort({containerPort})";
 
     private static Microsoft.WSL.Containers.PortProtocol ToSdkProtocol(PortProtocol protocol) =>
         protocol == PortProtocol.Udp

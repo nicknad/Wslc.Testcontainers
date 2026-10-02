@@ -12,9 +12,11 @@ namespace Wslc.Testcontainers.Networking;
 /// validated IPv4 literals/CIDRs so rule text can never inject shell metacharacters.
 /// Applying the script replaces the whole <c>OUTPUT</c> chain: it is fail-closed
 /// (policy set first) and idempotent (re-applying narrows or widens deterministically
-/// instead of accumulating stale rules). IPv6 is fail-closed too: the script refuses
-/// to apply anything unless <c>ip6tables</c> is present and can manage its tables, so
-/// a container with an IPv6 route can never silently keep v6 egress open.
+/// instead of accumulating stale rules). IPv6 is fail-closed too: when the container
+/// has IPv6 addresses, the script refuses to apply anything unless <c>ip6tables</c> is
+/// usable, so a container with an IPv6 route can never silently keep v6 egress open.
+/// Containers without IPv6 addresses (empty/absent <c>/proc/net/if_inet6</c>) skip the
+/// v6 rules and apply normally.
 /// </summary>
 internal static class EgressIsolation
 {
@@ -99,11 +101,25 @@ internal static class EgressIsolation
         var script = new StringBuilder(1024);
         script.Append("set -eu\n");
         script.Append("command -v iptables >/dev/null 2>&1 || { echo 'wslc: iptables not found in container (image must provide iptables to use egress allowlisting)' >&2; exit 3; }\n");
-        // Fail closed on IPv6 before touching IPv4: without a usable ip6tables the
-        // container can still egress over v6, so refuse to apply a partial policy
-        // rather than leaving an unnoticed v6 hole. Probes are read-only.
-        script.Append("command -v ip6tables >/dev/null 2>&1 || { echo 'wslc: ip6tables not found in container (the image must provide ip6tables so IPv6 egress can be dropped; install it or use NetworkingMode.None)' >&2; exit 4; }\n");
-        script.Append("ip6tables -L OUTPUT >/dev/null 2>&1 || { echo 'wslc: ip6tables cannot manage IPv6 rules in this container (IPv6 egress cannot be dropped; use NetworkingMode.None)' >&2; exit 4; }\n");
+        // Fail closed before touching anything: iptables needs CAP_NET_ADMIN, which
+        // WSLC containers do not currently grant, so probe manageability up front and
+        // report the real cause instead of a misleading rule error mid-script.
+        script.Append("iptables -L OUTPUT >/dev/null 2>&1 || { echo 'wslc: iptables cannot manage rules in this container (CAP_NET_ADMIN is required and the WSLC runtime does not grant it; egress allowlisting is unavailable, remove the allowlist or use NetworkingMode.None)' >&2; exit 4; }\n");
+        // Decide IPv6 handling before touching IPv4 (probes are read-only):
+        //  - usable ip6tables: drop v6 after the v4 policy is installed;
+        //  - no ip6tables but IPv6 addresses exist: fail closed, v6 could leak;
+        //  - no IPv6 addresses at all: nothing to contain, skip v6 rules (a
+        //    container with disable_ipv6=1 or no ipv6 module has an empty or
+        //    absent /proc/net/if_inet6).
+        script.Append("if command -v ip6tables >/dev/null 2>&1 && ip6tables -L OUTPUT >/dev/null 2>&1; then\n");
+        script.Append("  ipv6_rules=1\n");
+        script.Append("elif [ -s /proc/net/if_inet6 ]; then\n");
+        script.Append("  echo 'wslc: IPv6 is configured in this container but ip6tables cannot manage rules (CAP_NET_ADMIN is required and the WSLC runtime does not grant it, so IPv6 egress cannot be dropped; remove the allowlist or use NetworkingMode.None)' >&2\n");
+        script.Append("  exit 4\n");
+        script.Append("else\n");
+        script.Append("  ipv6_rules=0\n");
+        script.Append("  echo 'wslc: no IPv6 addresses in this container; skipping IPv6 egress rules' >&2\n");
+        script.Append("fi\n");
         // Fail closed: drop the policy, clear the chain, then install the allowed rules.
         // Clearing makes re-application replace the previous policy instead of unioning
         // with it (including any ACCEPT rules the image installed in OUTPUT).
@@ -136,17 +152,18 @@ internal static class EgressIsolation
             }
         }
 
-        // ip6tables presence and table access were verified above. IPv6 has no host
-        // allowlist (hosts are IPv4-only), so only established traffic and loopback
-        // are kept, matching the v4 default-deny posture.
-        script.Append("ip6tables -P OUTPUT DROP\n");
-        script.Append("ip6tables -F OUTPUT\n");
-        script.Append("ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\n");
+        // IPv6 has no host allowlist (hosts are IPv4-only), so only established
+        // traffic and loopback are kept, matching the v4 default-deny posture.
+        script.Append("if [ \"$ipv6_rules\" = 1 ]; then\n");
+        script.Append("  ip6tables -P OUTPUT DROP\n");
+        script.Append("  ip6tables -F OUTPUT\n");
+        script.Append("  ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT\n");
         if (normalized.AllowLoopback)
         {
-            script.Append("ip6tables -A OUTPUT -o lo -j ACCEPT\n");
+            script.Append("  ip6tables -A OUTPUT -o lo -j ACCEPT\n");
         }
 
+        script.Append("fi\n");
         return script.ToString();
     }
 

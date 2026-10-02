@@ -65,34 +65,53 @@ public sealed class EgressIsolationTests
     }
 
     [Fact]
-    public void Script_requires_ip6tables_before_applying_anything()
+    public void Script_decides_ipv6_before_modifying_ipv4()
     {
         var script = EgressIsolation.BuildScript(new EgressAllowlistOptions());
 
-        var iptablesCheck = script.IndexOf("command -v iptables", StringComparison.Ordinal);
-        var ip6tablesCheck = script.IndexOf("command -v ip6tables", StringComparison.Ordinal);
         var ip6tablesProbe = script.IndexOf("ip6tables -L OUTPUT >/dev/null 2>&1", StringComparison.Ordinal);
+        var ipv6PresenceCheck = script.IndexOf("[ -s /proc/net/if_inet6 ]", StringComparison.Ordinal);
         var v4Policy = script.IndexOf("iptables -P OUTPUT DROP", StringComparison.Ordinal);
         var v6Policy = script.IndexOf("ip6tables -P OUTPUT DROP", StringComparison.Ordinal);
 
-        Assert.True(iptablesCheck >= 0, "iptables presence must be checked");
-        Assert.True(ip6tablesCheck > iptablesCheck, "ip6tables presence must be checked");
-        Assert.True(ip6tablesProbe > ip6tablesCheck, "ip6tables tables must be probed");
-        Assert.True(v4Policy > ip6tablesProbe, "IPv6 must be verified before IPv4 is modified so a v6 failure applies nothing");
-        Assert.True(v6Policy > v4Policy, "IPv6 drop must be applied");
+        Assert.True(ip6tablesProbe >= 0, "ip6tables tables must be probed");
+        Assert.True(ipv6PresenceCheck > ip6tablesProbe, "IPv6 presence must be checked when ip6tables is unusable");
+        Assert.True(v4Policy > ipv6PresenceCheck, "IPv6 handling must be decided before IPv4 is modified so a v6 failure applies nothing");
+        Assert.True(v6Policy > v4Policy, "IPv6 drop must be applied after the v4 policy");
         Assert.Contains("exit 4", script);
+    }
+
+    [Fact]
+    public void Script_guides_when_iptables_cannot_manage_rules()
+    {
+        var script = EgressIsolation.BuildScript(new EgressAllowlistOptions());
+
+        Assert.Contains("iptables -L OUTPUT >/dev/null 2>&1", script);
+        Assert.Contains("CAP_NET_ADMIN", script);
+    }
+
+    [Fact]
+    public void Script_drops_ipv6_only_when_the_container_has_ipv6()
+    {
+        var script = EgressIsolation.BuildScript(new EgressAllowlistOptions());
+
+        Assert.Contains("ipv6_rules=1", script);
+        Assert.Contains("ipv6_rules=0", script);
+        Assert.Contains("if [ \"$ipv6_rules\" = 1 ]; then", script);
+        Assert.Contains("[ -s /proc/net/if_inet6 ]", script);
+        Assert.Contains("no IPv6 addresses", script);
+        Assert.Contains("ip6tables -P OUTPUT DROP", script);
         Assert.Contains("ip6tables -F OUTPUT", script);
         Assert.Contains("ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT", script);
     }
 
     [Fact]
-    public void Script_drops_ipv6_unconditionally_once_validated()
+    public void Script_omits_ipv6_loopback_when_loopback_is_disabled()
     {
         var strict = EgressIsolation.BuildScript(new EgressAllowlistOptions { AllowLoopback = false });
 
         Assert.Contains("ip6tables -P OUTPUT DROP", strict);
         Assert.DoesNotContain("ip6tables -A OUTPUT -o lo -j ACCEPT", strict);
-        Assert.DoesNotContain("if command -v ip6tables", strict);
     }
 
     [Fact]
@@ -151,6 +170,24 @@ public sealed class EgressIsolationTests
         Assert.Equal(new[] { 80, 443 }, normalized.AllowedTcpPorts);
     }
 
+    [Fact]
+    public void Normalize_rejects_null_collections()
+    {
+        Assert.Throws<ArgumentNullException>(() => EgressIsolation.Normalize(new EgressAllowlistOptions { AllowedHosts = null! }));
+        Assert.Throws<ArgumentNullException>(() => EgressIsolation.Normalize(new EgressAllowlistOptions { AllowedTcpPorts = null! }));
+    }
+
+    [Theory]
+    [InlineData("0.0.0.0/0", "0.0.0.0/0")]
+    [InlineData("10.1.2.3/16", "10.1.0.0/16")]
+    [InlineData("10.0.0.5/32", "10.0.0.5/32")]
+    public void Cidr_hosts_are_masked_to_the_network_address(string host, string expected)
+    {
+        var script = EgressIsolation.BuildScript(new EgressAllowlistOptions { AllowedHosts = new[] { host } });
+
+        Assert.Contains($"iptables -A OUTPUT -p tcp -d {expected} -j ACCEPT", script);
+    }
+
     private static int CountOccurrences(string text, string value)
     {
         var count = 0;
@@ -172,6 +209,7 @@ public sealed class EgressIsolationTests
     [InlineData("10.0.0.0/33")]
     [InlineData("10.0.0.0/-1")]
     [InlineData("")]
+    [InlineData(" ")]
     [InlineData("10.0.0.5; rm -rf /")]
     public void Invalid_hosts_are_rejected(string host)
     {

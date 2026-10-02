@@ -31,9 +31,10 @@ public interface IWslContainer : IAsyncDisposable
     /// <summary>
     /// Applies an egress allowlist inside the running container (iptables default-deny
     /// <c>OUTPUT</c> with the listed TCP destinations kept, plus IPv6 default-deny via
-    /// <c>ip6tables</c>). The image must provide <c>iptables</c> and a usable
-    /// <c>ip6tables</c>; applying fails closed when either is unavailable instead of
-    /// leaving IPv6 egress open. Builder-configured allowlists are applied automatically
+    /// <c>ip6tables</c> when the container has IPv6 addresses). The image must provide
+    /// <c>iptables</c>, and the container needs <c>CAP_NET_ADMIN</c> — which WSL 3.0.1
+    /// containers are not granted — so applying fails closed with guidance instead of
+    /// leaving egress open. Builder-configured allowlists are applied automatically
     /// by <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
     /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
     /// container can remove them, so this is not a tamper-proof boundary.

@@ -1,9 +1,10 @@
 # Reuse and test isolation
 
-`WithReuse(true)` keeps session storage between runs and names the instance
-from the configuration hash (`wslc-reuse-<12 hex>`). Images stay cached, so
-the second run skips the pull. Ephemeral instances use `wslc-{session}-{random}`
-and are deleted by `DisposeAsync()`.
+`WithReuse(true)` keeps the session storage VHD between runs and names the
+instance from the configuration hash (`wslc-reuse-<12 hex>`). Pulled images
+stay cached in that VHD, so the second run skips the pull. Session volumes are
+still recreated empty on every start. Ephemeral instances use
+`wslc-{session}-{random}` and are deleted by `DisposeAsync()`.
 
 ## When to reuse
 
@@ -34,8 +35,10 @@ builder: the core stays generic, presets stay versioned with their image.
 
 ## Cleanup
 
-- `StopAsync()` stops processes but keeps storage (restart clears session storage so the runtime starts empty); `DisposeAsync()` deletes
-  ephemeral storage. The process-exit hook does best-effort cleanup on crash.
+- `StopAsync()` stops processes but keeps storage. Restarting reuses the session VHD for
+  reuse instances (image cache intact) and starts ephemeral instances with clean storage;
+  session volumes are recreated empty either way. `DisposeAsync()` deletes ephemeral
+  storage (reuse storage is preserved). The process-exit hook does best-effort cleanup on crash.
 - Orphans from dead owners are reaped on next `StartAsync()` (PID-recycling safe). To force it:
   `await WslResourceReaper.CleanupAsync()`. Corrupt/missing metadata is deleted only after 7 days.
 - Reusable instances are preserved by `DisposeAsync()` and by the reaper, even

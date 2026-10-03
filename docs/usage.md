@@ -147,7 +147,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithWaitStrategy(s)` | Add a readiness condition. All must pass, run sequentially. |
 | `WithFile(hostPath, containerPath)` | Copy one Windows **file** (≤1 GiB, must exist) to an absolute Linux dest at startup. |
 | `WithVolume(host, container)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mount an existing Windows **directory** (host, container order, like `docker run -v`). Prefer read-only unless the test must write back. |
-| `WithReuse(true)` | Keep session storage between runs; name is a config hash. Disabled under CI unless `WSLC_REUSE_IN_CI=1`. See `reuse.md`. |
+| `WithReuse(true)` | Keep session storage (and cached images) between runs; name is a config hash. Disabled under CI unless `WSLC_REUSE_IN_CI=1`. See `reuse.md`. |
 | `WithStartupTimeout(t)` | Whole-`StartAsync` budget. Must be ≥ sum of wait timeouts (validated at `Build()`). Default 120 s; modules use `2*timeout+30 s`. |
 
 ## Lifecycle and cleanup
@@ -159,11 +159,13 @@ await using var container = new WslContainerBuilder()
 
 await container.StartAsync();
 // ... tests ...
-await container.StopAsync();  // optional: stop but keep storage (restart resets storage)
+await container.StopAsync();  // optional: stop but keep storage
  // DisposeAsync: stop + terminate session + delete ephemeral storage
 ```
 
-- `StartAsync()` may be called again after `StopAsync()` (same instance name, clean storage).
+- `StartAsync()` may be called again after `StopAsync()`. Ephemeral instances restart with
+  clean storage; `WithReuse(true)` instances reuse the session VHD (cached images) and only
+  their session volumes are recreated empty.
 - Lifecycle calls are serialized; `Exec`/`Copy`/`StartProcess` issued concurrently
   with `DisposeAsync` fail fast instead of corrupting state.
 - A process-exit hook does best-effort cleanup on crash; next `StartAsync()` reaps

@@ -416,10 +416,11 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private string EnsureStorageAndMetadata()
     {
         var storagePath = _store.GetSessionStorageDirectory(Name);
-        // The runtime requires an empty storage directory. StopAsync preserves the instance
-        // directory (for restart by name), so reset storage here to make Start-after-Stop work
-        // instead of failing with an obscure "directory not empty" runtime error.
-        if (Directory.Exists(storagePath))
+        // The runtime creates its session VHD (storage.vhdx) inside this directory and reuses
+        // it — including the pulled image cache — when a session with the same name starts
+        // again. Reuse instances keep that VHD across runs; ephemeral instances start clean so
+        // scratch data never leaks between unrelated runs.
+        if (!_reuse && Directory.Exists(storagePath))
         {
             WslInstanceStore.BestEffortDeleteDirectory(storagePath);
         }
@@ -529,6 +530,14 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         {
             try
             {
+                if (_reuse)
+                {
+                    // The previous run's storage VHD survives for reuse, so its named volume
+                    // VHDs do too. CreateVhdVolume rejects an existing name, and session
+                    // volumes are documented as recreated empty on every start.
+                    DeleteVolumeIfPresent(volume.Name);
+                }
+
                 _session!.CreateVhdVolume(new VhdOptions(volume.Name, volume.SizeBytes, ToSdkVhdType(volume.Type)));
                 _logs.Publish(LogLine.Diagnostic($"created session volume '{volume.Name}' ({volume.SizeBytes} bytes)"));
             }
@@ -536,6 +545,19 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             {
                 throw new WslProvisioningException($"Failed to create session volume '{volume.Name}': {exception.Message}", exception);
             }
+        }
+    }
+
+    private void DeleteVolumeIfPresent(string name)
+    {
+        try
+        {
+            _session!.DeleteVhdVolume(name);
+            _logs.Publish(LogLine.Diagnostic($"recreated session volume '{name}': deleted the previous VHD"));
+        }
+        catch
+        {
+            // No previous volume (first reuse run) or it is already gone; CreateVhdVolume follows.
         }
     }
 

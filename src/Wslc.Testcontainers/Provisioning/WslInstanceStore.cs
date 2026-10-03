@@ -32,8 +32,8 @@ internal sealed class WslInstanceStore
         Path.Combine(InstancesDirectory, Sanitize(instanceName));
 
     /// <summary>
-    /// Session VM storage. The WSL container runtime requires this directory to be empty when
-    /// the session starts, so metadata lives in the parent instance directory.
+    /// Session VM storage. The runtime creates its session VHD (<c>storage.vhdx</c>) and its
+    /// named volumes inside this directory; metadata lives in the parent instance directory.
     /// </summary>
     public string GetSessionStorageDirectory(string instanceName) =>
         Path.Combine(GetInstanceDirectory(instanceName), "storage");

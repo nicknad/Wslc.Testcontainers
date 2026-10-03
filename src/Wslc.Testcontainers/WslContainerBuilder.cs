@@ -306,7 +306,9 @@ public sealed class WslContainerBuilder
     /// Reuse requires <c>WSLC_REUSE</c> truthy (or explicit <c>true</c> here) <i>and</i> is still
     /// disabled under CI unless <c>WSLC_REUSE_IN_CI</c> is truthy. When disabled, startup logs a
     /// diagnostic and falls back to an ephemeral instance — check logs if reuse seems ignored.
-    /// Reusable instances are never auto-deleted; run the reaper purge to reclaim disk.
+    /// The session VHD (including the pulled image cache) is kept between runs; session volumes
+    /// are still recreated empty on every start. Reusable instances are never auto-deleted; run
+    /// the reaper purge to reclaim disk.
     /// </summary>
     public WslContainerBuilder WithReuse(bool reuse = true) =>
         new(_configuration with { Reuse = reuse });

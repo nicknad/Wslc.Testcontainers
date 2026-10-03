@@ -102,7 +102,7 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithWaitStrategy(strategy)`                                      | Adds a readiness condition. All must pass.                         |
 | `WithFile(hostPath, containerPath)`                               | Copies a Windows file (≤1 GiB) into the container. Absolute Linux dest. |
 | `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mounts a Windows directory. Order is host, container. |
-| `WithReuse(true)`                                                 | Keeps session storage between runs (see Reuse).                    |
+| `WithReuse(true)`                                                 | Keeps session storage (and cached images) between runs (see Reuse). |
 | `WithStartupTimeout(timeout)`                                     | Overall startup budget (must be ≥ sum of wait timeouts). Default 120 s. |
 
 ## Working with the container
@@ -199,8 +199,10 @@ await container.StartAsync();
 ### Reuse
 
 `WithReuse(true)` makes the instance name a hash of the builder configuration and keeps the session
-storage between runs (images stay cached). Reuse is disabled under CI unless `WSLC_REUSE_IN_CI=1`.
-See [reuse](docs/reuse.md) for when reuse is safe and how modules encapsulate presets.
+storage between runs: the session VHD (and its pulled image cache) is reused, so the second run
+skips the pull. Session volumes are still recreated empty on every start. Reuse is disabled under
+CI unless `WSLC_REUSE_IN_CI=1`. See [reuse](docs/reuse.md) for when reuse is safe and how modules
+encapsulate presets.
 
 ## Modules
 

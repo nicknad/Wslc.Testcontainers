@@ -171,6 +171,98 @@ public sealed class IntegrationTests
     }
 
     [IntegrationFact]
+    public async Task Reuse_keeps_the_session_vhd_and_image_cache()
+    {
+        // Reuse is forced off under CI unless WSLC_REUSE_IN_CI is set; the integration
+        // pipeline runs with GITHUB_ACTIONS=1, so opt in for this test only.
+        var previous = Environment.GetEnvironmentVariable(WslcEnvironment.ReuseInCiVariable);
+        Environment.SetEnvironmentVariable(WslcEnvironment.ReuseInCiVariable, "1");
+        try
+        {
+            // A per-run environment value makes the configuration hash unique, so the first
+            // start is guaranteed to pull instead of hitting a leftover cache.
+            var runMarker = Guid.NewGuid().ToString("N");
+            var first = new WslContainerBuilder()
+                .FromImage(TestImage)
+                .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
+                .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024)
+                .WithReuse()
+                .Build();
+            var name = first.Name;
+            var storageDirectory = WslInstanceStore.Default.GetSessionStorageDirectory(name);
+            try
+            {
+                await first.StartAsync();
+                Assert.True(first.IsStarted);
+                Assert.Contains(
+                    await ReadLogHistoryAsync(first),
+                    line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
+
+                var write = await first.ExecAsync("/bin/sh", "-c", "echo persisted > /scratch/data.txt");
+                Assert.Equal(0, write.ExitCode);
+
+                await first.DisposeAsync();
+
+                // Dispose keeps reuse storage, so the session VHD (image cache) must survive.
+                Assert.True(
+                    File.Exists(Path.Combine(storageDirectory, "storage.vhdx")),
+                    "reuse storage VHD must survive DisposeAsync");
+
+                var second = new WslContainerBuilder()
+                    .FromImage(TestImage)
+                    .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
+                    .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024)
+                    .WithReuse()
+                    .Build();
+                Assert.Equal(name, second.Name);
+                await second.StartAsync();
+                try
+                {
+                    Assert.True(second.IsStarted);
+                    Assert.DoesNotContain(
+                        await ReadLogHistoryAsync(second),
+                        line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
+
+                    // The session volume is scratch: recreated empty even though the session VHD persists.
+                    var exists = await second.ExecAsync("/bin/sh", "-c", "test -e /scratch/data.txt");
+                    Assert.NotEqual(0, exists.ExitCode);
+                }
+                finally
+                {
+                    await second.DisposeAsync();
+                }
+            }
+            finally
+            {
+                await WslResourceReaper.PurgeReuseAsync();
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(WslcEnvironment.ReuseInCiVariable, previous);
+        }
+    }
+
+    /// <summary>Reads the replayed log history; a short window is enough because it is buffered.</summary>
+    private static async Task<List<LogLine>> ReadLogHistoryAsync(WslContainer container)
+    {
+        var lines = new List<LogLine>();
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        try
+        {
+            await foreach (var line in container.LogsAsync(cancellation.Token))
+            {
+                lines.Add(line);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        return lines;
+    }
+
+    [IntegrationFact]
     public async Task Read_only_session_volumes_reject_writes()
     {
         await using var container = new WslContainerBuilder()

@@ -96,7 +96,9 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
 ## Storage and orphans
 
 - Ephemeral storage lives under `%LOCALAPPDATA%\Wslc` (override with
-  `WSLC_DATA_DIRECTORY`). `DisposeAsync()` deletes it; `StopAsync()` keeps it (restart resets session storage).
+  `WSLC_DATA_DIRECTORY`). `DisposeAsync()` deletes it; `StopAsync()` keeps it. Restart reuses
+  the session VHD for `WithReuse(true)` instances (images stay cached) and starts ephemeral
+  instances with clean storage; session volumes are recreated empty either way.
 - Crashed test hosts leave storage behind. Next `StartAsync()` runs
   `WslResourceReaper.CleanupAsync()` for dead owners automatically (7-day grace for corrupt metadata).
 - Reusable instances (`WithReuse(true)`) are never reaped automatically, even

@@ -4,6 +4,10 @@ namespace Wslc.Testcontainers.Waiting;
 /// The environment a wait strategy observes. Implementations are provided by
 /// <see cref="WslContainer"/>; custom strategies can be written against this abstraction.
 /// </summary>
+/// <remarks>
+/// A library-implemented service interface (per ADR-0008): consumers observe it but should not
+/// implement it, because additive members would break external implementers.
+/// </remarks>
 public interface IWaitTarget
 {
     /// <summary>Gets the WSLC instance name.</summary>

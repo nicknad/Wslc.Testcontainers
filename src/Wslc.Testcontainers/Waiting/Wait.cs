@@ -7,7 +7,7 @@ public static class Wait
     public static WslWaitBuilder ForWsl() => new();
 }
 
-/// <summary>Fluent factory for the built-in wait strategies.</summary>
+/// <summary>Fluent factory for built-in wait strategies and custom <c>Until</c> conditions.</summary>
 public sealed class WslWaitBuilder
 {
     private TimeSpan? _timeout;
@@ -82,9 +82,12 @@ public sealed class WslWaitBuilder
 
     /// <summary>
     /// Waits until a custom condition returns <c>true</c>. The delegate receives the environment
-    /// and the linked timeout/cancellation token; a thrown exception propagates out of
-    /// <c>WaitAsync</c> instead of being retried. Use <see cref="WithTimeout"/> /
-    /// <see cref="WithRetryInterval"/> to bound and pace the polls.
+    /// and the linked timeout/cancellation token, so it should observe cancellation. Exceptions
+    /// are not retried: an <see cref="OperationCanceledException"/> is reported as a
+    /// <see cref="WslReadinessException"/> timeout unless the caller cancelled, and through
+    /// <c>StartAsync</c> any other exception surfaces as <see cref="WslProvisioningException"/>
+    /// with the original exception as <see cref="Exception.InnerException"/>. Use
+    /// <see cref="WithTimeout"/> / <see cref="WithRetryInterval"/> to bound and pace the polls.
     /// </summary>
     /// <param name="name">Human-readable condition name used in diagnostics.</param>
     /// <param name="condition">Condition to poll; return <c>true</c> when satisfied.</param>

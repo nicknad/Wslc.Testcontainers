@@ -4,6 +4,12 @@ namespace Wslc.Testcontainers;
 /// A disposable, isolated WSL container managed by WSLC on top of the official
 /// <c>Microsoft.WSL.Containers</c> API.
 /// </summary>
+/// <remarks>
+/// A library-implemented service interface (per ADR-0008): consumers program against it but
+/// should not implement it, because additive members would break external implementers.
+/// Extend behavior via <see cref="Waiting.IWaitStrategy"/> (including custom
+/// <c>Wait.ForWsl().Until</c> conditions), module builders, or the builders' configuration hooks.
+/// </remarks>
 public interface IWslContainer : IAsyncDisposable
 {
     /// <summary>Gets the unique name of the underlying WSLC instance.</summary>

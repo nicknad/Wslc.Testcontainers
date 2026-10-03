@@ -10,7 +10,7 @@ internal sealed record CompositeWaitStrategy(IReadOnlyList<IWaitStrategy> Strate
     {
         ArgumentNullException.ThrowIfNull(target);
         // The composite Timeout bounds the whole sequence; child strategies keep their own
-        // timeouts for diagnostics, but the composite CTS guarantees we never exceed the sum.
+        // timeouts for diagnostics, but the composite CTS guarantees we never exceed it.
         using var timeoutSource = new CancellationTokenSource(Timeout);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutSource.Token);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();

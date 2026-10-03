@@ -207,10 +207,14 @@ Rules that bite:
 
 - `WithPort(n)` every port you probe — `GetMappedPort(n)` throws `WslNetworkException`
   otherwise, and before `StartAsync()`.
-- `And(...)` flattens nested composites and keeps the left operand's timeout/retry interval:
-  two composed 60 s waits get a 60 s budget, not 120 s. Set the budget on the left operand.
-- Custom conditions: `Until("name", (target, ct) => ...)` polls a delegate (exceptions propagate;
-  use `WithTimeout`/`WithRetryInterval` to bound and pace it).
+- `And(...)` flattens nested composites and keeps the left operand's timeout, which bounds the
+  whole sequence: two composed 60 s waits get a 60 s budget, not 120 s. Set the budget on the
+  left operand. The composite keeps the left retry interval too, but it does not poll itself —
+  each child keeps its own interval.
+- Custom conditions: `Until("name", (target, ct) => ...)` polls a delegate. Exceptions are not
+  retried: `OperationCanceledException` becomes a `WslReadinessException` timeout unless the
+  caller cancelled, and other exceptions surface from `StartAsync` as `WslProvisioningException`
+  (original as `InnerException`). Use `WithTimeout`/`WithRetryInterval` to bound and pace it.
 - `WithStartupTimeout` ≥ sum of wait timeouts. A 5 s strategy inside a 120 s startup
   still fails at 5 s.
 - `UntilMessageIsLogged` is ordinal substring, case-sensitive, ignores `LogSource.System`

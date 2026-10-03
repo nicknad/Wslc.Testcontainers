@@ -10,7 +10,11 @@ namespace Wslc.Testcontainers;
 /// </summary>
 public static class WslPlatform
 {
-    /// <summary>Gets the minimum supported WSL version with container support.</summary>
+    /// <summary>
+    /// Gets the minimum supported WSL runtime version with container support (2.9.3, the release
+    /// where WSLC shipped). This is the runtime feature floor, independent of the
+    /// <c>Microsoft.WSL.Containers</c> package version.
+    /// </summary>
     public static Version MinimumWslVersion { get; } = new(2, 9, 3);
 
     /// <summary>Gets a value indicating whether the current machine can run WSLC.</summary>

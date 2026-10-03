@@ -15,7 +15,7 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 
 ### Changed
 
-- `And(...)` composites now consistently keep the left operand's timeout/retry interval; the non-composite + non-composite case previously fell back to the default timeout.
+- `And(...)` composites now consistently keep the left operand's timeout (which bounds the whole sequence) and retry interval; the non-composite + non-composite case previously fell back to the default timeout.
 - `CS1591` is no longer globally suppressed: missing XML docs on public members fail the strict build.
 - `WslModuleContainer` now implements `IWslContainer`, so module containers are substitutable wherever the interface is expected.
 - Pre-start errors are unified on `WslcException` (previously `WslNetworkException` for `GetMappedPort` and `InvalidOperationException` for exec/copy/start-process), so `catch (WslcException)` is complete.
@@ -60,7 +60,7 @@ First public preview of `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.
 
 - The public API no longer exposes `Microsoft.WSL.Containers` enum types: `WithNetworkingMode` takes the package-owned `ContainerNetworkMode` and `WithSessionVolume` takes `VhdAllocationType`, mapped internally to the SDK. Port APIs are TCP-only and take no protocol parameter.
 - `WithNamedVolume` was renamed `WithSessionVolume`: the volume is scratch space recreated empty on every start, not a Docker-style persistent named volume.
-- `IWaitTarget` gained `GetProbeHost(int)` so probes can target the port's bind address; external implementations must add it (package is still `0.1.0-preview`).
+- `IWaitTarget` gained `GetProbeHost(int)` so probes can target the port's bind address (library-implemented per ADR-0008; consumers program against it, not implement it).
 - Tests and examples now use xUnit.net v3 (`xunit.v3` 4.0.1) with the Microsoft Testing Platform: `global.json` opts into MTP, commands use `dotnet test --solution ...`, and test-app options are passed after `--`.
 - Lifecycle transitions on `WslContainer` are serialized; commands, copies and processes issued concurrently with `DisposeAsync` may fail with an exception rather than corrupting state.
 - Test and example projects target net8/9/10-windows (tests) and are no longer locked to `win-x64`, enabling ARM64 runs.

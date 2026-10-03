@@ -21,8 +21,9 @@ public interface IWaitStrategy
     /// <summary>
     /// Combines this strategy with another one; both must be satisfied sequentially.
     /// Nested composites are flattened; the returned composite keeps this strategy's timeout
-    /// and retry interval and bounds the whole sequence, so two composed 60s waits get 60s
-    /// total, not 120s.
+    /// and retry interval. The timeout bounds the whole sequence, so two composed 60s waits get
+    /// 60s total, not 120s. The composite does not poll itself, so each child keeps its own
+    /// retry interval.
     /// </summary>
     IWaitStrategy And(IWaitStrategy other);
 

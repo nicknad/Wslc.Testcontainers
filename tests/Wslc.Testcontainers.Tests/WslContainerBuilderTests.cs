@@ -16,11 +16,9 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
-    public void Build_rejects_a_missing_tarball()
+    public void FromTarball_rejects_a_missing_tarball()
     {
-        var builder = new WslContainerBuilder().FromTarball("does-not-exist.tar");
-
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslcException>(() => new WslContainerBuilder().FromTarball("does-not-exist.tar"));
     }
 
     [Fact]

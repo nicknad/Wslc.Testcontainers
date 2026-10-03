@@ -20,7 +20,7 @@ public enum LogSource
 public sealed record LogLine(LogSource Source, string Text, DateTimeOffset Timestamp)
 {
     /// <summary>Creates a WSLC diagnostic line.</summary>
-    public static LogLine Diagnostic(string text) => new(LogSource.System, text, DateTimeOffset.UtcNow);
+    internal static LogLine Diagnostic(string text) => new(LogSource.System, text, DateTimeOffset.UtcNow);
 
     /// <inheritdoc />
     public override string ToString() =>

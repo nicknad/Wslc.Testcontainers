@@ -38,8 +38,8 @@ public static class WslcEnvironment
     /// <summary>Gets the configured default image, when any.</summary>
     public static string? DefaultImage => GetNonEmpty(DefaultImageVariable);
 
-    /// <summary>Gets the data directory used for instance metadata and caches.</summary>
-    public static string DataDirectory =>
+    /// <summary>Gets the data directory used for instance metadata and caches. Snapshotted on first use.</summary>
+    public static string DataDirectory { get; } =
         GetNonEmpty(DataDirectoryVariable)
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wslc");
 

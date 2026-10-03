@@ -19,7 +19,6 @@ static Wslc.Testcontainers.ExecOptions.operator !=(Wslc.Testcontainers.ExecOptio
 static Wslc.Testcontainers.ExecOptions.operator ==(Wslc.Testcontainers.ExecOptions? left, Wslc.Testcontainers.ExecOptions? right) -> bool
 static Wslc.Testcontainers.ExecResult.operator !=(Wslc.Testcontainers.ExecResult? left, Wslc.Testcontainers.ExecResult? right) -> bool
 static Wslc.Testcontainers.ExecResult.operator ==(Wslc.Testcontainers.ExecResult? left, Wslc.Testcontainers.ExecResult? right) -> bool
-static Wslc.Testcontainers.LogLine.Diagnostic(string! text) -> Wslc.Testcontainers.LogLine!
 static Wslc.Testcontainers.LogLine.operator !=(Wslc.Testcontainers.LogLine? left, Wslc.Testcontainers.LogLine? right) -> bool
 static Wslc.Testcontainers.LogLine.operator ==(Wslc.Testcontainers.LogLine? left, Wslc.Testcontainers.LogLine? right) -> bool
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.CleanupAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
@@ -203,7 +202,7 @@ Wslc.Testcontainers.WslModuleContainer.StartProcess(string! command, string![]! 
 Wslc.Testcontainers.WslModuleContainer.StopAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.WslModuleContainer(Wslc.Testcontainers.IWslContainer! inner) -> void
 Wslc.Testcontainers.WslPlatform
-static readonly Wslc.Testcontainers.WslPlatform.MinimumWslVersion -> System.Version!
+static Wslc.Testcontainers.WslPlatform.MinimumWslVersion.get -> System.Version!
 static Wslc.Testcontainers.WslPlatform.DescribeCurrent() -> string!
 static Wslc.Testcontainers.WslPlatform.IsSupported.get -> bool
 static Wslc.Testcontainers.WslPlatform.ThrowIfUnsupported() -> void

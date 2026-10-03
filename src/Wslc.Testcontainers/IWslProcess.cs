@@ -1,6 +1,10 @@
 namespace Wslc.Testcontainers;
 
-/// <summary>A long-running process started inside a WSLC environment.</summary>
+/// <summary>
+/// A long-running process started inside a WSLC environment. The caller owns the handle:
+/// disposing it terminates a still-running process, so <c>DisposeAsync</c> both releases the
+/// handle and cleans the process up.
+/// </summary>
 public interface IWslProcess : IAsyncDisposable
 {
     /// <summary>Gets the Linux process id when it could be resolved.</summary>
@@ -15,6 +19,6 @@ public interface IWslProcess : IAsyncDisposable
     /// <summary>Waits until the process exits and returns its exit code.</summary>
     Task<int> WaitForExitAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Terminates the process.</summary>
+    /// <summary>Terminates the process (SIGTERM, then SIGKILL after a grace period).</summary>
     Task KillAsync(CancellationToken cancellationToken = default);
 }

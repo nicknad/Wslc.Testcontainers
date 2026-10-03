@@ -129,8 +129,9 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 ```
 
 - If `WSLC_DEFAULT_IMAGE` is set it is used when no source is configured.
-- `Build()` throws `WslcException` when no source is configured or the tarball
-  is missing. Pin tags/digests in tests; avoid `:latest` for reproducibility.
+- `FromTarball` throws `WslcException` when the tarball does not exist (same
+  call-time check as `WithFile`/`WithVolume`); `Build()` throws when no source
+  is configured. Pin tags/digests in tests; avoid `:latest` for reproducibility.
 
 ## Builder reference
 

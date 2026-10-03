@@ -42,12 +42,17 @@ public sealed class WslContainerBuilder
         return this;
     }
 
-    /// <summary>Imports a root filesystem tarball as a container image.</summary>
+    /// <summary>Imports a root filesystem tarball as a container image. The tarball must exist when this is called.</summary>
     /// <param name="tarballPath">Path to a tar archive.</param>
     /// <param name="imageName">Image reference to assign. Defaults to a WSLC-generated local name.</param>
     public WslContainerBuilder FromTarball(string tarballPath, string? imageName = null)
     {
         RequireText(tarballPath, nameof(tarballPath));
+        if (!File.Exists(tarballPath))
+        {
+            throw new WslcException($"Tarball '{tarballPath}' does not exist.");
+        }
+
         _configuration = _configuration with
         {
             TarballPath = tarballPath,
@@ -349,9 +354,9 @@ public sealed class WslContainerBuilder
 
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
     /// <exception cref="WslcException">
-    /// The configuration is incomplete or inconsistent: no image source, a missing tarball, ports
-    /// or network waits combined with <see cref="ContainerNetworkMode.None"/>, or a startup timeout
-    /// smaller than the sum of wait timeouts.
+    /// The configuration is incomplete or inconsistent: no image source, ports or network waits
+    /// combined with <see cref="ContainerNetworkMode.None"/>, or a startup timeout smaller than
+    /// the sum of wait timeouts.
     /// </exception>
     public WslContainer Build()
     {
@@ -380,11 +385,6 @@ public sealed class WslContainerBuilder
             throw new WslcException(
                 "No image source configured. Call WithImage(...) or FromTarball(...), or set " +
                 $"{WslcEnvironment.DefaultImageVariable}.");
-        }
-
-        if (configuration.TarballPath is { } tarball && !File.Exists(tarball))
-        {
-            throw new WslcException($"Tarball '{tarball}' does not exist.");
         }
 
         if (configuration.NetworkingMode == ContainerNetworkMode.None)

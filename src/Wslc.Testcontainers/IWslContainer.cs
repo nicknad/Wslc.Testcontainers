@@ -68,8 +68,9 @@ public interface IWslContainer : IAsyncDisposable
 
     /// <summary>
     /// Starts a long-running process inside the environment. The caller owns the returned
-    /// <see cref="IWslProcess"/> and must dispose it; the container tracks live processes only
-    /// with pruning of exited entries, so undisposed handles pin memory until container disposal.
+    /// <see cref="IWslProcess"/> and must dispose it; disposal terminates the process if it is
+    /// still running. The container tracks live processes only with pruning of exited entries,
+    /// so undisposed handles pin memory until container disposal.
     /// </summary>
     /// <remarks>
     /// <see cref="ExecOptions.StandardInput"/> and <see cref="ExecOptions.Timeout"/> apply only to

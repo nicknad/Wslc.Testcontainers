@@ -50,18 +50,21 @@ catch (WslReadinessException ex)
 }
 ```
 
-2. Dump the container logs. `LogsAsync()` replays the bounded history (up to
-   the last 10,000 lines) and then streams live; the step 1 report already
-   includes the last 50 stdout/stderr lines:
+2. Grab the bounded log tail. `GetRecentLogs(100)` returns the newest lines
+   without blocking and without enumerating an infinite stream; the step 1
+   report already includes the last 50 stdout/stderr lines:
 
 ```csharp
-await foreach (var line in container.LogsAsync(testCancellationToken))
+foreach (var line in container.GetRecentLogs(100))
 {
     output.WriteLine(line.ToString());
 }
 ```
 
-Or use the one-liner helper (no xUnit dependency):
+`LogsAsync()` is an infinite stream that replays retained history
+oldest-first, so `LogDumper.DumpAsync(..., maxLines: 100)` dumps the
+**oldest** 100 lines — useful for startup diagnostics, wrong for the failure
+tail:
 
 ```csharp
 using Wslc.Testcontainers.Testing;
@@ -81,7 +84,11 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
      paths starting with `/`; swapped host/container order fails fast.
    - Two timeouts: `WithStartupTimeout` bounds the whole `StartAsync` and must be ≥ sum of
      wait timeouts (validated at `Build()`); each strategy has its own `WithTimeout`/`WithRetryInterval`.
-     A 5s strategy inside a 120s startup still fails at 5s. Modules derive startup as `2*timeout+30s`.
+     A 5s strategy inside a 120s startup still fails at 5s. Module builders use `WithWaitTimeout(t)`
+     for per-wait timeouts and derive startup as `2*t+30s`.
+   - Missing init command: WSLC never runs the image's ENTRYPOINT/CMD automatically. Without
+     `WithCommand(...)` (or a module builder) only a keep-alive shell runs, so waits for the
+     image's service can never pass. The readiness report prints this hint when `Command` is unset.
    - Image pull: first start pulls the image into session storage. Re-run
      once before blaming the wait.
 

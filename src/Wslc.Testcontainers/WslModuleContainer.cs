@@ -51,16 +51,6 @@ public abstract class WslModuleContainer : IAsyncDisposable
     public IWslProcess StartProcess(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
         _inner.StartProcess(command, arguments, options, cancellationToken);
 
-    /// <summary>Starts a long-running process inside the environment.</summary>
-    [Obsolete("Use StartProcess(...) instead.")]
-    public IWslProcess StartProcessAsync(string command, params string[] arguments) =>
-        _inner.StartProcess(command, arguments);
-
-    /// <summary>Starts a long-running process with additional options.</summary>
-    [Obsolete("Use StartProcess(...) instead.")]
-    public IWslProcess StartProcessAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
-        _inner.StartProcess(command, arguments, options, cancellationToken);
-
     /// <summary>Copies a Windows file into the environment.</summary>
     public Task CopyToAsync(string hostPath, string containerPath, CancellationToken cancellationToken = default) =>
         _inner.CopyToAsync(hostPath, containerPath, cancellationToken);
@@ -75,6 +65,10 @@ public abstract class WslModuleContainer : IAsyncDisposable
     /// </summary>
     public IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default) =>
         _inner.LogsAsync(cancellationToken);
+
+    /// <summary>Returns a bounded snapshot of the most recent log lines, oldest first.</summary>
+    public IReadOnlyList<LogLine> GetRecentLogs(int maxLines = 50) =>
+        _inner.GetRecentLogs(maxLines);
 
     /// <inheritdoc />
     public ValueTask DisposeAsync()

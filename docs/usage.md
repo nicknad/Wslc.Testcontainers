@@ -72,7 +72,7 @@ Minimal round-trip (`examples/Quickstart/Program.cs`):
 using Wslc.Testcontainers;
 
 await using var container = new WslContainerBuilder()
-    .FromImage("docker.io/library/alpine:latest")
+    .WithImage("docker.io/library/alpine:latest")
     .WithCommand("/bin/sh", "-c", "while true; do sleep 3600; done")
     .WithEnvironment("HELLO", "wslc")
     .WithStartupTimeout(TimeSpan.FromMinutes(2))
@@ -110,7 +110,7 @@ var endpoint = redis.GetConnectionString(); // host:port for StackExchange.Redis
 
 | Concept | Description |
 | --- | --- |
-| `WslContainerBuilder` | Immutable builder. Every `With...`/`From...` returns a new configuration. |
+| `WslContainerBuilder` | Mutable builder. Every `With...`/`From...` mutates and returns the same builder; `Build()` snapshots. |
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
@@ -124,7 +124,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 ## Image sources
 
 ```csharp
-.FromImage("docker.io/library/redis:7")            // pulled on first use, cached in session storage
+.WithImage("docker.io/library/redis:7")            // pulled on first use, cached in session storage
 .FromTarball(@"C:\images\rootfs.tar", "app:test")  // import a rootfs tarball as an image
 ```
 
@@ -136,8 +136,8 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 
 | Method | Purpose / notes |
 | --- | --- |
-| `FromImage(image)` / `FromTarball(path, imageName?)` | Mutually exclusive source. |
-| `WithCommand(cmd, params args)` | Init process. Default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules override this with the image entrypoint (e.g. `docker-entrypoint.sh postgres`) — do not override it for modules. |
+| `WithImage(image)` / `FromTarball(path, imageName?)` | Mutually exclusive source. |
+| `WithCommand(cmd, params args)` | Init process. WSLC never runs the image's ENTRYPOINT/CMD automatically; the default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules override this with the image entrypoint (e.g. `docker-entrypoint.sh postgres`) — do not override it for modules. |
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve with `GetMappedPort()`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass `bindAddress` (e.g. `0.0.0.0`) to override. TCP/HTTP readiness probes honor the configured bind address. |
@@ -148,13 +148,13 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithFile(hostPath, containerPath)` | Copy one Windows **file** (≤1 GiB, must exist) to an absolute Linux dest at startup. |
 | `WithVolume(host, container)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mount an existing Windows **directory** (host, container order, like `docker run -v`). Prefer read-only unless the test must write back. |
 | `WithReuse(true)` | Keep session storage (and cached images) between runs; name is a config hash. Disabled under CI unless `WSLC_REUSE_IN_CI=1`. See `reuse.md`. |
-| `WithStartupTimeout(t)` | Whole-`StartAsync` budget. Must be ≥ sum of wait timeouts (validated at `Build()`). Default 120 s; modules use `2*timeout+30 s`. |
+| `WithStartupTimeout(t)` | Whole-`StartAsync` budget. Must be ≥ sum of wait timeouts (validated at `Build()`). Default 120 s. Module builders set per-wait timeouts with `WithWaitTimeout(t)` and derive startup as `2*t+30 s`. |
 
 ## Lifecycle and cleanup
 
 ```csharp
 await using var container = new WslContainerBuilder()
-    .FromImage("docker.io/library/alpine:latest")
+    .WithImage("docker.io/library/alpine:latest")
     .Build();
 
 await container.StartAsync();
@@ -241,13 +241,13 @@ var connectionString =
 ```csharp
 // Fully offline container: no NIC, no ports, no egress. Drive it via Exec/Copy.
 await using var offline = new WslContainerBuilder()
-    .FromImage("docker.io/library/alpine:latest")
+    .WithImage("docker.io/library/alpine:latest")
     .WithNetworkingMode(ContainerNetworkMode.None)
     .Build();
 
 // Bounded session VM + loopback-only port + native-Linux scratch disk.
 await using var agent = new WslContainerBuilder()
-    .FromImage("my-registry/agent:latest")
+    .WithImage("my-registry/agent:latest")
     .WithCpuCount(2)
     .WithMemoryMB(2048)
     .WithPort(8080, "127.0.0.1")
@@ -314,7 +314,10 @@ using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 await foreach (var line in container.LogsAsync(cts.Token))
     Console.WriteLine(line.ToString());
 
-// One-liner without an xUnit dependency:
+// Bounded tail snapshot (never blocks): the right first look after a failure.
+var recent = container.GetRecentLogs(100);
+
+// One-liner without an xUnit dependency: dumps the OLDEST 100 lines of the stream.
 using Wslc.Testcontainers.Testing;
 await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 100, ct);
 ```
@@ -390,7 +393,7 @@ Guidance:
 - Gate real-runtime tests with `[IntegrationFact]` (`WSLC_RUN_INTEGRATION=1`) so unit
   runs stay green on machines without WSL. See `IntegrationFactAttribute` and
   `troubleshooting.md`.
-- On failure dump `ex.Describe()` + last ~100 log lines (`LogDumper`) + builder chain.
+- On failure dump `ex.Describe()` + `container.GetRecentLogs(100)` (bounded tail) + builder chain.
 - `WithContainerConfiguration(b => b.WithReuse(true).WithStartupTimeout(...))` is the
   escape hatch for core settings a module does not expose (extra ports/waits/volumes).
 

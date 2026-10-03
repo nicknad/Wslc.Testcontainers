@@ -7,8 +7,9 @@ namespace Wslc.Testcontainers;
 /// image, exposed port, readiness waits and startup timeout.
 /// </summary>
 /// <remarks>
-/// Like <see cref="WslContainerBuilder"/>, module builders are immutable: every <c>With...</c>
-/// returns a new builder. Do not reuse a builder after branching — each branch is independent.
+/// Like <see cref="WslContainerBuilder"/>, module builders are mutable: every <c>With...</c>
+/// mutates the builder and returns it for chaining. <c>Build()</c> snapshots the configuration.
+/// Builders are not thread-safe.
 /// </remarks>
 /// <typeparam name="TBuilder">The concrete builder type returned by fluent calls.</typeparam>
 public abstract class WslModuleBuilder<TBuilder>
@@ -33,30 +34,27 @@ public abstract class WslModuleBuilder<TBuilder>
     public TBuilder WithImage(string image)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(image);
-        var clone = (TBuilder)MemberwiseClone();
-        clone._image = image;
-        return clone;
+        _image = image;
+        return (TBuilder)this;
     }
 
     /// <summary>
-    /// Overrides the readiness budget. The value is applied as the per-wait timeout for both the
-    /// TCP and log-message waits; the overall startup timeout is derived as <c>2 * timeout + 30s</c>
-    /// so sequential waits cannot outlive startup (the core-builder validation would otherwise reject it).
+    /// Overrides the per-wait readiness timeout applied to both the TCP and log-message waits.
+    /// The overall startup budget is derived as <c>2 * timeout + 30s</c> so sequential waits
+    /// cannot outlive startup (the core-builder validation would otherwise reject it).
     /// </summary>
-    public TBuilder WithStartupTimeout(TimeSpan timeout)
+    public TBuilder WithWaitTimeout(TimeSpan timeout)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(timeout, TimeSpan.Zero);
-        var clone = (TBuilder)MemberwiseClone();
-        clone._timeout = timeout;
-        return clone;
+        _timeout = timeout;
+        return (TBuilder)this;
     }
 
     /// <summary>Enables reuse for the built module (see core <c>WithReuse</c> for CI semantics).</summary>
     public TBuilder WithReuse(bool reuse = true)
     {
-        var clone = (TBuilder)MemberwiseClone();
-        clone._reuse = reuse;
-        return clone;
+        _reuse = reuse;
+        return (TBuilder)this;
     }
 
     /// <summary>
@@ -66,10 +64,8 @@ public abstract class WslModuleBuilder<TBuilder>
     public TBuilder WithContainerConfiguration(Func<WslContainerBuilder, WslContainerBuilder> customize)
     {
         ArgumentNullException.ThrowIfNull(customize);
-        var clone = (TBuilder)MemberwiseClone();
-        var previous = clone._customizer;
-        clone._customizer = previous is null ? customize : builder => customize(previous(builder));
-        return clone;
+        _customizer = _customizer is null ? customize : builder => customize(_customizer(builder));
+        return (TBuilder)this;
     }
 
     /// <summary>
@@ -83,7 +79,7 @@ public abstract class WslModuleBuilder<TBuilder>
     {
         var startupTimeout = ComputeStartupTimeout(_timeout);
         var builder = new WslContainerBuilder()
-            .FromImage(_image)
+            .WithImage(_image)
             .WithPort(_port)
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsAvailable(_port))
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage, ReadyMessageOccurrences))
@@ -120,8 +116,8 @@ public abstract class WslModuleBuilder<TBuilder>
     }
 
     /// <summary>
-    /// Applies module-specific settings to the core builder. The core builder is immutable,
-    /// so overrides must return the updated builder (e.g. <c>builder.WithCommand(...)</c>).
+    /// Applies module-specific settings to the core builder. The core builder is mutable, so
+    /// overrides can mutate and return it (e.g. <c>builder.WithCommand(...)</c>).
     /// </summary>
     protected virtual WslContainerBuilder Configure(WslContainerBuilder builder) => builder;
 }

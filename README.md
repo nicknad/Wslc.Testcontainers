@@ -5,24 +5,21 @@ directly on the official [`Microsoft.WSL.Containers`](https://www.nuget.org/pack
 runtime. No Docker daemon required.
 
 ```csharp
-using Wslc.Testcontainers;
-using Wslc.Testcontainers.Waiting;
+using Wslc.Testcontainers.Modules.PostgreSql;
 
-await using var postgres = new WslContainerBuilder()
-    .FromImage("docker.io/library/postgres:17")
-    .WithEnvironment("POSTGRES_PASSWORD", "secret")
-    .WithPort(5432)
-    .WithWaitStrategy(
-        Wait.ForWsl()
-            .WithTimeout(TimeSpan.FromMinutes(2))
-            .UntilTcpPortIsAvailable(5432))
+await using var postgres = new PostgreSqlBuilder()
+    .WithPassword("secret")
     .Build();
 
 await postgres.StartAsync();
 
-var connectionString =
-    $"Host={postgres.Host};Port={postgres.GetMappedPort(5432)};Username=postgres;Password=secret";
+var connectionString = postgres.GetConnectionString();
 ```
+
+> Using the core `WslContainerBuilder` instead? WSLC never runs the image's ENTRYPOINT/CMD
+> automatically: without `WithCommand(...)` only a keep-alive shell starts, so a readiness wait
+> for the image's service always times out. Declare the service command explicitly or use a
+> module builder.
 
 > **Security: defaults are for *trusted* test dependencies, not hostile code.**
 > Out of the box this library (and the underlying WSL container runtime) provides
@@ -69,7 +66,7 @@ dotnet pack src/Wslc.Testcontainers -c Release
 
 | Concept               | Description                                                                                   |
 | --------------------- | --------------------------------------------------------------------------------------------- |
-| `WslContainerBuilder` | Immutable, `With...`/`From...` builder. Every call returns a new configuration.               |
+| `WslContainerBuilder` | Mutable, `With...`/`From...` builder. Every call mutates and returns the same builder; `Build()` snapshots. |
 | `WslContainer`        | One disposable container in its own WSL session. Create with `Build()`, start with `StartAsync()`. |
 | `Wait`                | Readiness strategies (`IWaitStrategy`) evaluated by `StartAsync()` before it completes.       |
 | `IWslProcess`         | A long-running process started with `StartProcess` (must be disposed).                        |
@@ -80,7 +77,7 @@ run in parallel. Instances are named `wslc-{session}-{random}` and are destroyed
 ## Sources
 
 ```csharp
-.FromImage("docker.io/library/redis:7")          // pull (cached in session storage)
+.WithImage("docker.io/library/redis:7")          // pull (cached in session storage)
 .FromTarball(@"C:\images\rootfs.tar", "app:test") // import a root filesystem tarball
 ```
 
@@ -90,9 +87,9 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 
 | Method                                                            | Purpose                                                            |
 | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `FromImage(image)`                                                | Use a container image. Pulled on first use.                        |
+| `WithImage(image)`                                                | Use a container image. Pulled on first use.                        |
 | `FromTarball(path, imageName?)`                                   | Import a root filesystem tarball as an image.                      |
-| `WithCommand(command, params args)`                               | Init process. Defaults to a keep-alive shell so `ExecAsync` works. |
+| `WithCommand(command, params args)`                               | Init process. Defaults to a keep-alive shell so `ExecAsync` works — the image ENTRYPOINT/CMD never runs automatically. |
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)`         | Exposes a Linux TCP port on a dynamic Windows port; the optional per-port Windows bind address defaults to loopback (pass `0.0.0.0` to expose on the LAN). UDP is not supported — the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
@@ -128,11 +125,15 @@ await process.KillAsync();
 await process.DisposeAsync();
 
 // Output from the init process, ExecAsync and StartProcess all flows
-// through container.LogsAsync() (infinite until cancelled — bound with CTS or LogDumper).
+// through container.LogsAsync() (infinite until cancelled — bound with CTS or LogDumper;
+// container.GetRecentLogs() returns a bounded tail snapshot without blocking).
 
 // Files (≤1 GiB each way; container paths must be absolute Linux paths)
 await container.CopyToAsync(@".\fixtures\app.conf", "/etc/app/app.conf");
 await container.CopyFromAsync("/var/log/app.log", @".\artifacts\app.log");
+
+// Bounded tail snapshot (never blocks; returns the newest lines)
+var recent = container.GetRecentLogs(50);
 
 // Logs (infinite stream — always cancel; see docs/troubleshooting.md)
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
@@ -145,7 +146,7 @@ await foreach (var line in container.LogsAsync(cts.Token))
 ## Readiness
 
 `StartAsync()` returns only after every configured strategy passes (or throws `WslReadinessException`).
-On failure, call `ex.Describe()` and dump `LogsAsync()` — see [troubleshooting](docs/troubleshooting.md).
+On failure, call `ex.Describe()` and inspect `GetRecentLogs()` (bounded tail snapshot) — see [troubleshooting](docs/troubleshooting.md).
 
 ```csharp
 using Wslc.Testcontainers.Waiting;
@@ -179,7 +180,7 @@ probes honor the configured bind address.
 using Wslc.Testcontainers;
 
 await using var container = new WslContainerBuilder()
-    .FromImage("docker.io/library/alpine:latest")
+    .WithImage("docker.io/library/alpine:latest")
     .Build();
 
 await container.StartAsync();

@@ -160,16 +160,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     /// <inheritdoc />
-    [Obsolete("Use StartProcess(...) instead. StartProcessAsync was misnamed: it starts synchronously and returns IWslProcess, not Task.")]
-    public IWslProcess StartProcessAsync(string command, params string[] arguments) =>
-        StartProcess(command, arguments, null, CancellationToken.None);
-
-    /// <inheritdoc />
-    [Obsolete("Use StartProcess(...) instead. StartProcessAsync was misnamed: it starts synchronously and returns IWslProcess, not Task.")]
-    public IWslProcess StartProcessAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
-        StartProcess(command, arguments, options, cancellationToken);
-
-    /// <inheritdoc />
     public Task CopyToAsync(string hostPath, string containerPath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hostPath);
@@ -203,6 +193,13 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     /// <inheritdoc />
     public IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default) =>
         _logs.StreamAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public IReadOnlyList<LogLine> GetRecentLogs(int maxLines = 50)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxLines);
+        return LogHelpers.TakeLast(_logs.Snapshot(), maxLines);
+    }
 
     Task<ExecResult> IWaitTarget.ExecAsync(string command, string[] arguments, CancellationToken cancellationToken) =>
         ExecInternalAsync(command, arguments, null, cancellationToken);
@@ -935,7 +932,10 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
             return startupTimeout.IsCancellationRequested
                 ? new WslTimeoutException(
-                    $"Container '{Name}' did not complete startup within {_configuration.StartupTimeout.TotalSeconds:0.###}s.",
+                    $"Container '{Name}' did not complete startup within {_configuration.StartupTimeout.TotalSeconds:0.###}s." +
+                    (_configuration.Command is null
+                        ? " No init command was configured, so only a keep-alive shell is running; WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder."
+                        : string.Empty),
                     exception)
                 : exception;
         }

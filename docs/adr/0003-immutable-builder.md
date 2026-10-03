@@ -1,6 +1,6 @@
 # ADR-0003: Immutable builder, single-copy handoff
 
-Status: Accepted
+Status: Superseded by [ADR-0007](0007-mutable-builders.md)
 
 ## Context
 

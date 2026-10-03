@@ -68,14 +68,6 @@ public interface IWslContainer : IAsyncDisposable
     /// </summary>
     IWslProcess StartProcess(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default);
 
-    /// <summary>Starts a long-running process inside the environment.</summary>
-    [Obsolete("Use StartProcess(...) instead. StartProcessAsync was misnamed: it starts synchronously and returns IWslProcess, not Task.")]
-    IWslProcess StartProcessAsync(string command, params string[] arguments);
-
-    /// <summary>Starts a long-running process with additional options.</summary>
-    [Obsolete("Use StartProcess(...) instead. StartProcessAsync was misnamed: it starts synchronously and returns IWslProcess, not Task.")]
-    IWslProcess StartProcessAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default);
-
     /// <summary>
     /// Copies a Windows file into the environment. Fails when <paramref name="hostPath"/> is missing
     /// or larger than 1 GiB. <paramref name="containerPath"/> must be an absolute Linux path.
@@ -96,4 +88,11 @@ public interface IWslContainer : IAsyncDisposable
     /// Abandoning the enumeration without cancellation/disposal pins a bounded subscriber buffer.
     /// </summary>
     IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns a bounded snapshot of the most recent log lines, oldest first. Never blocks and
+    /// never enumerates an infinite stream, so this is the right tool for failure triage.
+    /// </summary>
+    /// <param name="maxLines">Maximum number of trailing lines to return (must be positive).</param>
+    IReadOnlyList<LogLine> GetRecentLogs(int maxLines = 50);
 }

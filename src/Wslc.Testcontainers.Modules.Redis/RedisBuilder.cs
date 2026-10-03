@@ -1,7 +1,8 @@
 namespace Wslc.Testcontainers.Modules.Redis;
 
 // Testcontainers-style builder for Redis. Same module pattern as Postgres:
-// image, port, and readiness live in the module builder base.
+// image, port, and readiness live in the module builder base. The builder is
+// mutable; every With... mutates and returns it for chaining.
 public sealed class RedisBuilder : WslModuleBuilder<RedisBuilder>
 {
     public RedisBuilder()

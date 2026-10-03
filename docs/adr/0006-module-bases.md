@@ -17,10 +17,9 @@ contract, and a third module would copy the pattern again.
 - `WslModuleBuilder<TBuilder>` is the public fluent base. It owns the default
   image, exposed port, readiness waits and startup timeout, and calls the
   `Configure(WslContainerBuilder)` hook for module-specific settings.
-- Module builders are deliberately mutable, unlike `WslContainerBuilder`
-  (ADR-0003): they hold module defaults, not user-visible container
-  configuration, and their terminal `Build()` still produces the immutable
-  core builder.
+- Module builders are mutable like `WslContainerBuilder` (ADR-0007): they hold
+  module defaults, not user-visible container configuration, and their terminal
+  `Build()` still snapshots the immutable core configuration.
 - Modules must derive these bases instead of copying the delegation and wait
   presets. Public surface changes are tracked by PublicApiAnalyzers
   (ADR-0005).

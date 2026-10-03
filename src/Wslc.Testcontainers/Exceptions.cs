@@ -64,6 +64,12 @@ public sealed class WslReadinessException(
         builder.AppendLine();
         builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Image:        {Image ?? "<unknown>"}");
         builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Command:      {Command ?? "<none>"}");
+        if (Command is null)
+        {
+            builder.AppendLine("Hint:         no init command was configured, so only a keep-alive shell is running.");
+            builder.AppendLine("              WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder.");
+        }
+
         builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Expected:     {ExpectedCondition}");
         builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Timeout:      {Timeout.TotalSeconds:0.###}s");
 

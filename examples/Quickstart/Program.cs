@@ -5,7 +5,7 @@ using Wslc.Testcontainers;
 //   dotnet run --project examples/Quickstart
 
 await using var container = new WslContainerBuilder()
-    .FromImage("docker.io/library/alpine:latest")
+    .WithImage("docker.io/library/alpine:latest")
     .WithCommand("/bin/sh", "-c", "while true; do sleep 3600; done")
     .WithEnvironment("HELLO", "wslc")
     .WithStartupTimeout(TimeSpan.FromMinutes(2))

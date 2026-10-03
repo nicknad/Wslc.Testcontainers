@@ -2,6 +2,25 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages.
 
+## Unreleased
+
+### Added
+
+- `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `LogsAsync` stream.
+- Readiness failures and startup timeouts now hint when no init command was configured: WSLC never runs the image's ENTRYPOINT/CMD automatically.
+
+### Changed
+
+- Builders (`WslContainerBuilder`, module builders) are now mutable: every `With...` mutates and returns the same builder; `Build()` snapshots the configuration. Supersedes ADR-0003 (see ADR-0007).
+- `WslContainerBuilder.FromImage` renamed `WithImage` (matches module builders and Testcontainers).
+- `WslModuleBuilder<TBuilder>.WithStartupTimeout` renamed `WithWaitTimeout`: the value is the per-wait timeout; the startup budget is derived as `2*t+30s`.
+- README quickstart now uses `PostgreSqlBuilder`; docs call out that the image ENTRYPOINT/CMD is never started automatically.
+
+### Removed
+
+- `StartProcessAsync` (all six members) — obsolete before first release; use `StartProcess`.
+- `WithVolume(hostPath, containerPath, bool readOnly)` — use the `VolumeAccess` overload or `WithReadOnlyVolume`.
+
 ## 0.1.0-preview.1
 
 First public preview of `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`).

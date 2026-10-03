@@ -5,12 +5,14 @@ using Wslc.Testcontainers.Waiting;
 namespace Wslc.Testcontainers;
 
 /// <summary>
-/// Immutable Testcontainers-style builder for <see cref="WslContainer"/> instances.
-/// Every <c>With...</c>/<c>From...</c> call returns a new builder sharing the accumulated configuration.
+/// Mutable Testcontainers-style builder for <see cref="WslContainer"/> instances.
+/// Every <c>With...</c>/<c>From...</c> call mutates this builder and returns it for chaining.
+/// <see cref="Build"/> snapshots the current configuration, so later builder changes do not affect
+/// containers already built. Builders are not thread-safe.
 /// </summary>
 public sealed class WslContainerBuilder
 {
-    private readonly WslContainerConfiguration _configuration;
+    private WslContainerConfiguration _configuration;
 
     public WslContainerBuilder()
         : this(new WslContainerConfiguration())
@@ -19,16 +21,21 @@ public sealed class WslContainerBuilder
 
     private WslContainerBuilder(WslContainerConfiguration configuration) => _configuration = configuration;
 
-    /// <summary>Uses a container image. The image is pulled on first use and cached in the session storage.</summary>
-    public WslContainerBuilder FromImage(string image)
+    /// <summary>
+    /// Uses a container image. The image is pulled on first use and cached in the session storage.
+    /// The image's ENTRYPOINT/CMD is not executed automatically; declare the service with
+    /// <see cref="WithCommand"/> or use a module builder, otherwise only a keep-alive shell runs.
+    /// </summary>
+    public WslContainerBuilder WithImage(string image)
     {
         RequireText(image, nameof(image));
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             Image = image,
             TarballPath = null,
             TarballImageName = null,
-        });
+        };
+        return this;
     }
 
     /// <summary>Imports a root filesystem tarball as a container image.</summary>
@@ -37,31 +44,38 @@ public sealed class WslContainerBuilder
     public WslContainerBuilder FromTarball(string tarballPath, string? imageName = null)
     {
         RequireText(tarballPath, nameof(tarballPath));
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             TarballPath = tarballPath,
             TarballImageName = imageName,
             Image = null,
-        });
+        };
+        return this;
     }
 
-    /// <summary>Sets the long-running command started as the container init process.</summary>
+    /// <summary>
+    /// Sets the long-running command started as the container init process. WSLC never runs the
+    /// image's ENTRYPOINT/CMD automatically, so declare the service here or use a module builder.
+    /// Without this, a keep-alive shell runs and the image's service never starts.
+    /// </summary>
     public WslContainerBuilder WithCommand(string command, params string[] arguments)
     {
         RequireText(command, nameof(command));
         ArgumentNullException.ThrowIfNull(arguments);
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             Command = command,
             CommandArguments = (string[])arguments.Clone(),
-        });
+        };
+        return this;
     }
 
     /// <summary>Sets the working directory used by the init process and command executions.</summary>
     public WslContainerBuilder WithWorkingDirectory(string workingDirectory)
     {
         RequireText(workingDirectory, nameof(workingDirectory));
-        return new WslContainerBuilder(_configuration with { WorkingDirectory = workingDirectory });
+        _configuration = _configuration with { WorkingDirectory = workingDirectory };
+        return this;
     }
 
     /// <summary>Adds an environment variable scoped to the container processes.</summary>
@@ -71,7 +85,8 @@ public sealed class WslContainerBuilder
         ArgumentNullException.ThrowIfNull(value);
         var environment = CopyEnvironment(_configuration.Environment, additionalCapacity: 1);
         environment[name] = value;
-        return new WslContainerBuilder(_configuration with { Environment = environment });
+        _configuration = _configuration with { Environment = environment };
+        return this;
     }
 
     /// <summary>Adds environment variables scoped to the container processes.</summary>
@@ -90,7 +105,8 @@ public sealed class WslContainerBuilder
             environment[pair.Key] = pair.Value;
         }
 
-        return new WslContainerBuilder(_configuration with { Environment = environment });
+        _configuration = _configuration with { Environment = environment };
+        return this;
     }
 
     /// <summary>
@@ -136,7 +152,8 @@ public sealed class WslContainerBuilder
             }
         }
 
-        return new WslContainerBuilder(_configuration with { PortMappings = Append(_configuration.PortMappings, new WslPortMapping(port, bindAddress)) });
+        _configuration = _configuration with { PortMappings = Append(_configuration.PortMappings, new WslPortMapping(port, bindAddress)) };
+        return this;
     }
 
     private static void ValidatePort(int port)
@@ -149,10 +166,11 @@ public sealed class WslContainerBuilder
     public WslContainerBuilder WithWaitStrategy(IWaitStrategy strategy)
     {
         ArgumentNullException.ThrowIfNull(strategy);
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             WaitStrategies = Append(_configuration.WaitStrategies, strategy),
-        });
+        };
+        return this;
     }
 
     /// <summary>
@@ -177,10 +195,11 @@ public sealed class WslContainerBuilder
             throw new WslcException($"File '{hostPath}' exceeds 1 GiB limit ({length} bytes) and cannot be copied into the container.");
         }
 
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             Files = Append(_configuration.Files, new WslFileCopy(hostPath, containerPath)),
-        });
+        };
+        return this;
     }
 
     /// <summary>
@@ -192,18 +211,6 @@ public sealed class WslContainerBuilder
     public WslContainerBuilder WithVolume(string hostPath, string containerPath) =>
         WithVolume(hostPath, containerPath, VolumeAccess.ReadWrite);
 
-    /// <summary>
-    /// Mounts a Windows directory into the container. Follows <c>host, container</c> order
-    /// like <c>docker run -v</c>; both are validated so a swapped call fails fast.
-    /// Prefer the <see cref="VolumeAccess"/> overload or <see cref="WithReadOnlyVolume"/>
-    /// over the <c>bool</c> overload for readability at the callsite.
-    /// </summary>
-    /// <param name="hostPath">Existing Windows directory.</param>
-    /// <param name="containerPath">Absolute Linux destination (e.g. <c>/workspace</c>).</param>
-    /// <param name="readOnly">When <c>true</c>, mounts read-only. Prefer <see cref="WithReadOnlyVolume"/>.</param>
-    public WslContainerBuilder WithVolume(string hostPath, string containerPath, bool readOnly) =>
-        WithVolume(hostPath, containerPath, readOnly ? VolumeAccess.ReadOnly : VolumeAccess.ReadWrite);
-
     /// <summary>Mounts a Windows directory into the container with an explicit access mode.</summary>
     public WslContainerBuilder WithVolume(string hostPath, string containerPath, VolumeAccess access)
     {
@@ -214,10 +221,11 @@ public sealed class WslContainerBuilder
             throw new WslcException($"Volume host path '{hostPath}' does not exist or is not a directory.");
         }
 
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             Volumes = Append(_configuration.Volumes, new WslVolumeMount(Path.GetFullPath(hostPath), containerPath, access == VolumeAccess.ReadOnly)),
-        });
+        };
+        return this;
     }
 
     /// <summary>Mounts a Windows directory into the container as read-only.</summary>
@@ -256,10 +264,11 @@ public sealed class WslContainerBuilder
             throw new WslcException($"A session volume '{name}' is already configured. Volume names must be unique per container.");
         }
 
-        return new WslContainerBuilder(_configuration with
+        _configuration = _configuration with
         {
             SessionVolumes = Append(_configuration.SessionVolumes, new WslSessionVolume(name, containerPath, access == VolumeAccess.ReadOnly, sizeBytes, type)),
-        });
+        };
+        return this;
     }
 
     /// <summary>
@@ -276,7 +285,8 @@ public sealed class WslContainerBuilder
             throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown networking mode.");
         }
 
-        return new WslContainerBuilder(_configuration with { NetworkingMode = mode });
+        _configuration = _configuration with { NetworkingMode = mode };
+        return this;
     }
 
     /// <summary>Caps the session CPU count. Null (default) leaves the runtime default.</summary>
@@ -287,7 +297,8 @@ public sealed class WslContainerBuilder
             throw new ArgumentOutOfRangeException(nameof(cpuCount), cpuCount, "CPU count must be positive.");
         }
 
-        return new WslContainerBuilder(_configuration with { CpuCount = cpuCount });
+        _configuration = _configuration with { CpuCount = cpuCount };
+        return this;
     }
 
     /// <summary>Caps the session memory in megabytes. Null (default) leaves the runtime default.</summary>
@@ -298,7 +309,8 @@ public sealed class WslContainerBuilder
             throw new ArgumentOutOfRangeException(nameof(megabytes), megabytes, "Memory limit must be positive.");
         }
 
-        return new WslContainerBuilder(_configuration with { MemorySizeInMB = megabytes });
+        _configuration = _configuration with { MemorySizeInMB = megabytes };
+        return this;
     }
 
     /// <summary>
@@ -310,8 +322,11 @@ public sealed class WslContainerBuilder
     /// are still recreated empty on every start. Reusable instances are never auto-deleted; run
     /// the reaper purge to reclaim disk.
     /// </summary>
-    public WslContainerBuilder WithReuse(bool reuse = true) =>
-        new(_configuration with { Reuse = reuse });
+    public WslContainerBuilder WithReuse(bool reuse = true)
+    {
+        _configuration = _configuration with { Reuse = reuse };
+        return this;
+    }
 
     /// <summary>
     /// Overrides the overall startup timeout. Must be &gt;= the sum of configured wait-strategy
@@ -324,7 +339,8 @@ public sealed class WslContainerBuilder
             throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Timeout must be positive.");
         }
 
-        return new WslContainerBuilder(_configuration with { StartupTimeout = timeout });
+        _configuration = _configuration with { StartupTimeout = timeout };
+        return this;
     }
 
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
@@ -353,7 +369,7 @@ public sealed class WslContainerBuilder
         if (configuration.Image is null && configuration.TarballPath is null)
         {
             throw new WslcException(
-                "No image source configured. Call FromImage(...) or FromTarball(...), or set " +
+                "No image source configured. Call WithImage(...) or FromTarball(...), or set " +
                 $"{WslcEnvironment.DefaultImageVariable}.");
         }
 

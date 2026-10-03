@@ -223,12 +223,14 @@ Host ports are dynamic. Never hardcode them:
 var connectionString =
     $"Host={postgres.Host};Port={postgres.GetMappedPort(5432)};Username=postgres;Password=secret";
 // Host is always a Windows loopback address (127.0.0.1).
+// Non-loopback binds: use GetMappedHost(containerPort) instead of Host.
 ```
 
 - `Host` is `127.0.0.1` and works for loopback-bound ports (the default);
   `GetMappedPort(containerPort)` resolves the runtime-assigned port. Mappings are
-  TCP-only because the WSLC runtime returns `E_NOTIMPL` for UDP. If you bound a port
-  to another address, connect to that address instead.
+  TCP-only because the WSLC runtime returns `E_NOTIMPL` for UDP. For a non-loopback
+  bind address, connect to `GetMappedHost(containerPort)` (wildcard bindings resolve
+  to loopback).
 - Only declared ports are mapped; each `WslContainer` gets its own mapping so
   parallel tests never collide. UDP mapping support must come from the runtime.
 - The Windows side binds loopback (`127.0.0.1`) by default. Override it only when you

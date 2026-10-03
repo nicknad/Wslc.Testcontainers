@@ -233,8 +233,8 @@ public sealed class WslContainerBuilderTests
         await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
 
         Assert.False(container.IsStarted);
-        Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => container.ExecAsync("echo"));
+        Assert.Throws<WslcException>(() => container.GetMappedPort(8080));
+        await Assert.ThrowsAsync<WslcException>(() => container.ExecAsync("echo"));
     }
 
     [Fact]

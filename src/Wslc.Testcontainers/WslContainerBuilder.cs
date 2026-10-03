@@ -344,6 +344,11 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
+    /// <exception cref="WslcException">
+    /// The configuration is incomplete or inconsistent: no image source, a missing tarball, ports
+    /// or network waits combined with <see cref="ContainerNetworkMode.None"/>, or a startup timeout
+    /// smaller than the sum of wait timeouts.
+    /// </exception>
     public WslContainer Build()
     {
         WslPlatform.ThrowIfUnsupported();

@@ -30,7 +30,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private readonly ProcessRegistry _processes = new();
     private readonly bool _reuse;
     private readonly string _ownerProcessId;
-    private readonly Lazy<string> _name;
+    private readonly string _name;
 
     // Mutable state is published with volatile so lock-free readers (Exec/Copy/GetMappedPort
     // and the process-exit hook) observe a consistent reference instead of a torn read.
@@ -56,16 +56,14 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         _store = store;
         _reuse = (configuration.Reuse ?? WslcEnvironment.ReuseByDefault) && WslcEnvironment.ReuseAllowed;
 
-        // Lazy so constructing a reuse container does not synchronously SHA256 every WithFile
-        // source until the name is actually needed (start, metadata, diagnostics).
-        _name = new Lazy<string>(() => _reuse
+        _name = _reuse
             ? WslNaming.CreateReuseName(WslConfigHasher.Compute(configuration))
-            : WslNaming.CreateInstanceName(store.SessionId));
+            : WslNaming.CreateInstanceName(store.SessionId);
         _ownerProcessId = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <inheritdoc />
-    public string Name => _name.Value;
+    public string Name => _name;
 
     /// <inheritdoc />
     public string Host => IPAddress.Loopback.ToString();
@@ -82,9 +80,13 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     public int GetMappedPort(int port)
     {
         var network = _network
-            ?? throw new WslNetworkException($"Container '{Name}' has not been started, so port {port} is not mapped yet.");
+            ?? throw new WslcException($"Container '{Name}' has not been started, so port {port} is not mapped yet. Call StartAsync() first.");
         return network.GetMappedPort(port);
     }
+
+    /// <inheritdoc />
+    public string GetMappedHost(int port) =>
+        _network is { } network ? network.GetProbeHost(port) : Host;
 
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken = default)
@@ -115,6 +117,10 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     /// <inheritdoc />
     public Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
         ExecInternalAsync(command, arguments, options, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<ExecResult> ExecAsync(string command, ExecOptions? options, CancellationToken cancellationToken) =>
+        ExecInternalAsync(command, Array.Empty<string>(), options, cancellationToken);
 
     /// <inheritdoc />
     public IWslProcess StartProcess(string command, params string[] arguments) =>
@@ -209,8 +215,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             ? network.IsPortOpenAsync(containerPort, cancellationToken)
             : Task.FromResult(false);
 
-    string IWaitTarget.GetProbeHost(int containerPort) =>
-        _network is { } network ? network.GetProbeHost(containerPort) : Host;
+    string IWaitTarget.GetProbeHost(int containerPort) => GetMappedHost(containerPort);
 
     Task<bool> IWaitTarget.IsProcessRunningAsync(string processName, CancellationToken cancellationToken) =>
         IsProcessRunningAsync(processName, cancellationToken);
@@ -771,7 +776,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     private Microsoft.WSL.Containers.Container RequireContainer() =>
-        _container ?? throw new InvalidOperationException($"Container '{Name}' has not been started. Call StartAsync() first.");
+        _container ?? throw new WslcException($"Container '{Name}' has not been started. Call StartAsync() first.");
 
     private async Task CleanupAsync(bool throwOnError, CancellationToken cancellationToken)
     {
@@ -907,18 +912,19 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             return exception;
         }
 
-        readiness.Image ??= _configuration.Image ?? _configuration.TarballPath;
-        readiness.Command ??= _configuration.Command;
-
-        if (_mainProcess is { HasExited: true } mainProcess)
+        var exitCode = readiness.ExitCode;
+        if (exitCode is null && _mainProcess is { HasExited: true } mainProcess)
         {
-            readiness.ExitCode ??= mainProcess.ExitCode;
+            exitCode = mainProcess.ExitCode;
         }
 
         var logs = _logs.Snapshot();
-        readiness.Stdout ??= LogHelpers.JoinLast(logs, LogSource.Stdout, 50);
-        readiness.Stderr ??= LogHelpers.JoinLast(logs, LogSource.Stderr, 50);
-        return readiness;
+        return readiness.WithDiagnostics(
+            readiness.Image ?? _configuration.Image ?? _configuration.TarballPath,
+            readiness.Command ?? _configuration.Command,
+            exitCode,
+            readiness.Stdout ?? LogHelpers.JoinLast(logs, LogSource.Stdout, 50),
+            readiness.Stderr ?? LogHelpers.JoinLast(logs, LogSource.Stderr, 50));
     }
 
     private Exception Translate(Exception exception, CancellationTokenSource startupTimeout, CancellationToken userToken)

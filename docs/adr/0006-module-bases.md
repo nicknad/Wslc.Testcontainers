@@ -12,8 +12,8 @@ contract, and a third module would copy the pattern again.
 ## Decision
 
 - `WslModuleContainer` is the public abstract base for typed wrappers. It
-  forwards `Name`, `Host`, lifecycle, logs and dispose to `IWslContainer`,
-  and exposes `GetMappedPort(int)` to derived types.
+  implements `IWslContainer` (module containers are substitutable) and exposes
+  `Inner` for advanced scenarios.
 - `WslModuleBuilder<TBuilder>` is the public fluent base. It owns the default
   image, exposed port, readiness waits and startup timeout, and calls the
   `Configure(WslContainerBuilder)` hook for module-specific settings.

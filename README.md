@@ -172,7 +172,8 @@ Mapped ports are dynamic (`WindowsPort = 0`): the WSL runtime assigns a free hos
 resolves it after start, so `GetMappedPort(5432)` never collides between parallel tests.
 Mappings are TCP-only: the WSLC runtime returns `E_NOTIMPL` for UDP mappings. The Windows side
 binds loopback by default; pass a bind address (e.g. `"0.0.0.0"`) to override. TCP/HTTP readiness
-probes honor the configured bind address.
+probes honor the configured bind address; `GetMappedHost(port)` returns the effective connect
+address (wildcard bindings resolve to loopback).
 
 ## Lifecycle and cleanup
 

@@ -6,6 +6,10 @@ stay cached in that VHD, so the second run skips the pull. Session volumes are
 still recreated empty on every start. Ephemeral instances use
 `wslc-{session}-{random}` and are deleted by `DisposeAsync()`.
 
+The reuse name covers configuration metadata (paths and settings) only, not
+`WithFile` source contents — those are copied into the container on every
+start, and hashing them would put file I/O behind the public `Name` property.
+
 ## When to reuse
 
 - Safe: stateless images (alpine tools, HTTP stubs), or throwaway DBs you

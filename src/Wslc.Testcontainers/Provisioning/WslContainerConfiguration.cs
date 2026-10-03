@@ -110,6 +110,11 @@ internal static class WslNaming
 }
 
 /// <summary>Computes a stable identity for reusable environments.</summary>
+/// <remarks>
+/// Identity covers configuration metadata (paths and settings), not <c>WithFile</c> source
+/// contents: those are copied into the container on every start, and hashing them would put
+/// file I/O behind the public <c>Name</c> property.
+/// </remarks>
 internal static class WslConfigHasher
 {
     public static string Compute(WslContainerConfiguration configuration)
@@ -171,7 +176,6 @@ internal static class WslConfigHasher
         {
             WriteString(hash, file.Source);
             WriteString(hash, file.Destination);
-            WriteFileContentHash(hash, file.Source);
         }
 
         var volumes = configuration.Volumes.ToArray();
@@ -253,19 +257,5 @@ internal static class WslConfigHasher
         Span<byte> buffer = stackalloc byte[sizeof(ulong)];
         BinaryPrimitives.WriteUInt64LittleEndian(buffer, value);
         hash.AppendData(buffer);
-    }
-
-    private static void WriteFileContentHash(IncrementalHash hash, string path)
-    {
-        if (!File.Exists(path))
-        {
-            hash.AppendData(stackalloc byte[1] { 0 });
-            return;
-        }
-
-        hash.AppendData(stackalloc byte[1] { 1 });
-        using var stream = File.OpenRead(path);
-        var contentHash = SHA256.HashData(stream);
-        hash.AppendData(contentHash);
     }
 }

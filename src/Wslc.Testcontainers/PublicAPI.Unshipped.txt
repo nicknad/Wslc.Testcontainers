@@ -63,6 +63,8 @@ Wslc.Testcontainers.IWslContainer.CopyFromAsync(string! containerPath, string! h
 Wslc.Testcontainers.IWslContainer.CopyToAsync(string! hostPath, string! containerPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.IWslContainer.ExecAsync(string! command, params string![]! arguments) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
 Wslc.Testcontainers.IWslContainer.ExecAsync(string! command, string![]! arguments, Wslc.Testcontainers.ExecOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.IWslContainer.ExecAsync(string! command, Wslc.Testcontainers.ExecOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.IWslContainer.GetMappedHost(int port) -> string!
 Wslc.Testcontainers.IWslContainer.GetMappedPort(int port) -> int
 Wslc.Testcontainers.IWslContainer.Host.get -> string!
 Wslc.Testcontainers.IWslContainer.Image.get -> string?
@@ -140,6 +142,8 @@ Wslc.Testcontainers.WslContainer.CopyToAsync(string! hostPath, string! container
 Wslc.Testcontainers.WslContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.WslContainer.ExecAsync(string! command, params string![]! arguments) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
 Wslc.Testcontainers.WslContainer.ExecAsync(string! command, string![]! arguments, Wslc.Testcontainers.ExecOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.WslContainer.ExecAsync(string! command, Wslc.Testcontainers.ExecOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.WslContainer.GetMappedHost(int port) -> string!
 Wslc.Testcontainers.WslContainer.GetMappedPort(int port) -> int
 Wslc.Testcontainers.WslContainer.Host.get -> string!
 Wslc.Testcontainers.WslContainer.Image.get -> string?
@@ -182,7 +186,9 @@ Wslc.Testcontainers.WslModuleContainer.CopyToAsync(string! hostPath, string! con
 Wslc.Testcontainers.WslModuleContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.WslModuleContainer.ExecAsync(string! command, params string![]! arguments) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
 Wslc.Testcontainers.WslModuleContainer.ExecAsync(string! command, string![]! arguments, Wslc.Testcontainers.ExecOptions? options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
-Wslc.Testcontainers.WslModuleContainer.GetMappedPort(int containerPort) -> int
+Wslc.Testcontainers.WslModuleContainer.ExecAsync(string! command, Wslc.Testcontainers.ExecOptions? options, System.Threading.CancellationToken cancellationToken) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.WslModuleContainer.GetMappedHost(int port) -> string!
+Wslc.Testcontainers.WslModuleContainer.GetMappedPort(int port) -> int
 Wslc.Testcontainers.WslModuleContainer.Host.get -> string!
 Wslc.Testcontainers.WslModuleContainer.Image.get -> string?
 Wslc.Testcontainers.WslModuleContainer.Inner.get -> Wslc.Testcontainers.IWslContainer!

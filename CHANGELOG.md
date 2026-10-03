@@ -7,10 +7,16 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 ### Added
 
 - `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `LogsAsync` stream.
+- `IWslContainer.GetMappedHost(int containerPort)`: effective connect address for a mapped port (the configured bind address; loopback for wildcard/default bindings).
+- `ExecAsync(string command, ExecOptions?, CancellationToken)` overload: options (and cancellation) without the `Array.Empty<string>()` argument noise.
 - Readiness failures and startup timeouts now hint when no init command was configured: WSLC never runs the image's ENTRYPOINT/CMD automatically.
 
 ### Changed
 
+- `WslModuleContainer` now implements `IWslContainer`, so module containers are substitutable wherever the interface is expected.
+- Pre-start errors are unified on `WslcException` (previously `WslNetworkException` for `GetMappedPort` and `InvalidOperationException` for exec/copy/start-process), so `catch (WslcException)` is complete.
+- `WslReadinessException` is immutable; the container builds the fully populated instance before throwing instead of mutating properties after creation.
+- Reuse identity (`Name`) covers configuration metadata only: `WithFile` source contents are no longer hashed (they are copied on every start), so `Name` performs no file I/O.
 - Builders (`WslContainerBuilder`, module builders) are now mutable: every `With...` mutates and returns the same builder; `Build()` snapshots the configuration. Supersedes ADR-0003 (see ADR-0007).
 - `WslContainerBuilder.FromImage` renamed `WithImage` (matches module builders and Testcontainers).
 - `WslModuleBuilder<TBuilder>.WithStartupTimeout` renamed `WithWaitTimeout`: the value is the per-wait timeout; the startup budget is derived as `2*t+30s`.

@@ -23,7 +23,16 @@ public interface IWslContainer : IAsyncDisposable
     string Host { get; }
 
     /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
+    /// <exception cref="WslcException">The container has not been started.</exception>
+    /// <exception cref="WslNetworkException">The port was not declared with <c>WithPort</c> or the runtime has not assigned it.</exception>
     int GetMappedPort(int port);
+
+    /// <summary>
+    /// Gets the Windows address to connect to for a mapped Linux TCP port: the port's configured
+    /// bind address, or <see cref="Host"/> (loopback) for the default/wildcard binding. Before
+    /// <see cref="StartAsync"/> this returns <see cref="Host"/>.
+    /// </summary>
+    string GetMappedHost(int port);
 
     /// <summary>Creates and provisions the environment, then waits until all readiness strategies pass.</summary>
     /// <remarks>
@@ -49,6 +58,13 @@ public interface IWslContainer : IAsyncDisposable
     /// per-command environment names must be valid Linux identifiers.
     /// </summary>
     Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Executes a command with additional options and no arguments. Pass <c>null</c> for
+    /// <paramref name="options"/> to use container defaults; the cancellation token is required
+    /// so the no-argument case stays cancellable.
+    /// </summary>
+    Task<ExecResult> ExecAsync(string command, ExecOptions? options, CancellationToken cancellationToken);
 
     /// <summary>
     /// Starts a long-running process inside the environment. The caller owns the returned

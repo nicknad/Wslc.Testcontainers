@@ -1,11 +1,11 @@
 namespace Wslc.Testcontainers;
 
 /// <summary>
-/// Base class for typed module containers wrapping an underlying <see cref="IWslContainer"/>.
-/// Forwards lifecycle, exec, copy and log operations so module users are not blocked when they
-/// need ad-hoc initialization (e.g. seeding a database) without dropping to the inner container.
+/// Base class for typed module containers implementing <see cref="IWslContainer"/>. Forwards
+/// lifecycle, exec, copy and log operations so module users are not blocked when they need
+/// ad-hoc initialization (e.g. seeding a database) without dropping to the inner container.
 /// </summary>
-public abstract class WslModuleContainer : IAsyncDisposable
+public abstract class WslModuleContainer : IWslContainer
 {
     private readonly IWslContainer _inner;
 
@@ -43,6 +43,10 @@ public abstract class WslModuleContainer : IAsyncDisposable
     public Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
         _inner.ExecAsync(command, arguments, options, cancellationToken);
 
+    /// <summary>Executes a command with additional options and no arguments.</summary>
+    public Task<ExecResult> ExecAsync(string command, ExecOptions? options, CancellationToken cancellationToken) =>
+        _inner.ExecAsync(command, options, cancellationToken);
+
     /// <summary>Starts a long-running process inside the environment.</summary>
     public IWslProcess StartProcess(string command, params string[] arguments) =>
         _inner.StartProcess(command, arguments);
@@ -78,5 +82,8 @@ public abstract class WslModuleContainer : IAsyncDisposable
     }
 
     /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
-    public int GetMappedPort(int containerPort) => _inner.GetMappedPort(containerPort);
+    public int GetMappedPort(int port) => _inner.GetMappedPort(port);
+
+    /// <summary>Gets the Windows address to connect to for a mapped Linux TCP port.</summary>
+    public string GetMappedHost(int port) => _inner.GetMappedHost(port);
 }

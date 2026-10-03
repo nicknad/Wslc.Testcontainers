@@ -151,8 +151,25 @@ public sealed class WslConfigHasherTests
     }
 
     [Fact]
-    public void File_content_changes_the_hash()
+    public void File_paths_and_destinations_change_the_hash()
     {
+        var first = new WslContainerConfiguration
+        {
+            Image = "alpine",
+            Files = new[] { new WslFileCopy(@"C:\one.txt", "/tmp/file.txt") },
+        };
+        var otherSource = first with { Files = new[] { new WslFileCopy(@"C:\two.txt", "/tmp/file.txt") } };
+        var otherDestination = first with { Files = new[] { new WslFileCopy(@"C:\one.txt", "/tmp/other.txt") } };
+
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(otherSource));
+        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(otherDestination));
+    }
+
+    [Fact]
+    public void File_content_does_not_change_the_hash()
+    {
+        // WithFile sources are copied into the container on every start, so identity tracks the
+        // configured paths only; hashing contents would put file I/O behind the Name property.
         var path = Path.Combine(Path.GetTempPath(), $"wslc-hash-{Guid.NewGuid():N}.txt");
         try
         {
@@ -167,31 +184,7 @@ public sealed class WslConfigHasherTests
             File.WriteAllText(path, "two");
             var after = WslConfigHasher.Compute(configuration);
 
-            Assert.NotEqual(before, after);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
-    }
-
-    [Fact]
-    public void Missing_file_and_empty_file_hash_differently()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"wslc-hash-{Guid.NewGuid():N}.txt");
-        try
-        {
-            var configuration = new WslContainerConfiguration
-            {
-                Image = "alpine",
-                Files = new[] { new WslFileCopy(path, "/tmp/file.txt") },
-            };
-            var missing = WslConfigHasher.Compute(configuration);
-
-            File.WriteAllBytes(path, Array.Empty<byte>());
-            var empty = WslConfigHasher.Compute(configuration);
-
-            Assert.NotEqual(missing, empty);
+            Assert.Equal(before, after);
         }
         finally
         {

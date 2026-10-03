@@ -1,5 +1,4 @@
 using System.Net;
-using Wslc.Testcontainers.Networking;
 using Wslc.Testcontainers.Provisioning;
 using Wslc.Testcontainers.Waiting;
 
@@ -94,77 +93,56 @@ public sealed class WslContainerBuilder
         return new WslContainerBuilder(_configuration with { Environment = environment });
     }
 
-    /// <summary>Declares a Linux TCP service port that will be exposed on a dynamic Windows port.</summary>
-    public WslContainerBuilder WithPort(int port) => WithPort(port, PortProtocol.Tcp);
-
     /// <summary>
-    /// Declares a Linux service port with an explicit protocol, exposed on a dynamic Windows port.
-    /// Only <see cref="PortProtocol.Tcp"/> is supported: the WSLC runtime returns <c>E_NOTIMPL</c>
-    /// for UDP mappings, so <see cref="PortProtocol.Udp"/> is rejected immediately.
+    /// Declares a Linux TCP service port that will be exposed on a dynamic Windows port.
+    /// UDP mappings are not supported: the WSLC runtime returns <c>E_NOTIMPL</c> for them.
     /// </summary>
-    public WslContainerBuilder WithPort(int port, PortProtocol protocol)
+    public WslContainerBuilder WithPort(int port)
     {
         ValidatePort(port);
-        ValidateProtocol(protocol);
-        return AddPortMapping(port, protocol, bindAddress: null);
+        return AddPortMapping(port, bindAddress: null);
     }
 
     /// <summary>
-    /// Declares a Linux service port bound to a specific Windows address (e.g.
+    /// Declares a Linux TCP service port bound to a specific Windows address (e.g.
     /// <c>0.0.0.0</c> to expose it on the LAN). The Windows port stays dynamic.
     /// When omitted the SDK default (loopback, <c>127.0.0.1</c>) is used.
-    /// Only <see cref="PortProtocol.Tcp"/> is supported; see <see cref="WithPort(int, PortProtocol)"/>.
     /// </summary>
-    public WslContainerBuilder WithPort(int port, PortProtocol protocol, string bindAddress)
+    public WslContainerBuilder WithPort(int port, string bindAddress)
     {
         ValidatePort(port);
-        ValidateProtocol(protocol);
         ArgumentException.ThrowIfNullOrWhiteSpace(bindAddress);
         if (!IPAddress.TryParse(bindAddress, out var address))
         {
             throw new ArgumentException($"Bind address '{bindAddress}' is not a valid IP address.", nameof(bindAddress));
         }
 
-        return AddPortMapping(port, protocol, address.ToString());
+        return AddPortMapping(port, address.ToString());
     }
 
-    private WslContainerBuilder AddPortMapping(int port, PortProtocol protocol, string? bindAddress)
+    private WslContainerBuilder AddPortMapping(int port, string? bindAddress)
     {
         foreach (var existing in _configuration.PortMappings)
         {
-            if (existing.ContainerPort == port && existing.Protocol == protocol)
+            if (existing.ContainerPort == port)
             {
                 if (!string.Equals(existing.BindAddress, bindAddress, StringComparison.OrdinalIgnoreCase))
                 {
                     throw new WslcException(
-                        $"Port {port}/{protocol.ToString().ToLowerInvariant()} is already mapped with a different bind address. Declare each port/protocol once.");
+                        $"Port {port} is already mapped with a different bind address. Declare each port once.");
                 }
 
                 return this;
             }
         }
 
-        return new WslContainerBuilder(_configuration with { PortMappings = Append(_configuration.PortMappings, new WslPortMapping(port, protocol, bindAddress)) });
+        return new WslContainerBuilder(_configuration with { PortMappings = Append(_configuration.PortMappings, new WslPortMapping(port, bindAddress)) });
     }
 
     private static void ValidatePort(int port)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
-    }
-
-    private static void ValidateProtocol(PortProtocol protocol)
-    {
-        if (!Enum.IsDefined(protocol))
-        {
-            throw new ArgumentOutOfRangeException(nameof(protocol), protocol, "Unknown port protocol.");
-        }
-
-        if (protocol == PortProtocol.Udp)
-        {
-            throw new WslcException(
-                "UDP port mappings are not implemented by the WSLC runtime (Microsoft.WSL.Containers 3.0.1 returns E_NOTIMPL). Declare TCP ports only.");
-        }
     }
 
     /// <summary>Adds a readiness strategy. All configured strategies must pass before startup completes.</summary>
@@ -287,7 +265,7 @@ public sealed class WslContainerBuilder
     /// <summary>
     /// Sets the container networking mode. The default is <see cref="ContainerNetworkMode.Bridged"/>.
     /// <see cref="ContainerNetworkMode.None"/> fully isolates the container (no NIC):
-    /// no <c>WithPort</c>, no network wait strategies and no egress allowlist may be combined with it.
+    /// no <c>WithPort</c> and no network wait strategies may be combined with it.
     /// Note that detection covers only the built-in TCP/HTTP wait strategies; a custom
     /// <see cref="IWaitStrategy"/> that needs the network bypasses this validation.
     /// </summary>
@@ -321,30 +299,6 @@ public sealed class WslContainerBuilder
         }
 
         return new WslContainerBuilder(_configuration with { MemorySizeInMB = megabytes });
-    }
-
-    /// <summary>
-    /// Restricts container egress to the listed destinations via an in-container
-    /// <c>iptables</c> default-deny <c>OUTPUT</c> policy (plus IPv6 default-deny via
-    /// <c>ip6tables</c> when the container has IPv6 addresses), applied after start and
-    /// before readiness waits. The image must provide <c>iptables</c>; applying fails
-    /// closed when it is unavailable or cannot manage rules, so egress is never left open
-    /// silently. Cannot be combined with <see cref="ContainerNetworkMode.None"/>
-    /// (already fully isolated). Re-applying replaces the previous <c>OUTPUT</c> chain
-    /// (including image-installed rules). A process running as root inside the container
-    /// can remove these rules, so treat this as egress hygiene, not a tamper-proof boundary.
-    /// </summary>
-    /// <remarks>
-    /// Hosts are normalized to IPv4/CIDR and duplicates removed; ports are grouped into
-    /// multiport rules, and allowlists above the generated-rule limit are rejected.
-    /// <c>iptables</c> needs <c>CAP_NET_ADMIN</c>; containers created through the
-    /// WSLC runtime do not receive it, so applying an allowlist fails closed with
-    /// guidance until the runtime grants privileged networking.
-    /// </remarks>
-    public WslContainerBuilder WithEgressAllowlist(EgressAllowlistOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        return new WslContainerBuilder(_configuration with { EgressAllowlist = EgressIsolation.Normalize(options) });
     }
 
     /// <summary>
@@ -406,24 +360,12 @@ public sealed class WslContainerBuilder
             throw new WslcException($"Tarball '{tarball}' does not exist.");
         }
 
-        if (configuration.PortMappings.Any(mapping => mapping.Protocol == PortProtocol.Udp))
-        {
-            throw new WslcException(
-                "UDP port mappings are not implemented by the WSLC runtime (Microsoft.WSL.Containers 3.0.1 returns E_NOTIMPL). Declare TCP ports only.");
-        }
-
         if (configuration.NetworkingMode == ContainerNetworkMode.None)
         {
             if (configuration.PortMappings.Count > 0)
             {
                 throw new WslcException(
                     "NetworkingMode.None provides no network: remove WithPort(...) declarations or use Bridged networking.");
-            }
-
-            if (configuration.EgressAllowlist is not null)
-            {
-                throw new WslcException(
-                    "NetworkingMode.None is already fully isolated: WithEgressAllowlist(...) does not apply without networking.");
             }
 
             var networkWait = FindNetworkWaitStrategy(configuration.WaitStrategies);

@@ -16,9 +16,6 @@ public sealed class IntegrationTests
 {
     private const string TestImage = "docker.io/library/alpine:latest";
 
-    // Ships iptables/ip6tables, python3 and curl, so egress rules can be installed and probed.
-    private const string IptablesImage = "docker.io/nicolaka/netshoot:latest";
-
     [IntegrationFact]
     public void Runtime_components_are_available()
     {
@@ -150,47 +147,6 @@ public sealed class IntegrationTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("offline-ok", result.Stdout);
         Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080));
-    }
-
-    [IntegrationFact]
-    public async Task Egress_allowlist_startup_failure_reports_guidance_and_cleans_up()
-    {
-        // docker.io/library/alpine has no iptables: startup must fail with guidance,
-        // not silently leave egress open, and must not leak the ephemeral instance.
-        var container = new WslContainerBuilder()
-            .FromImage(TestImage)
-            .WithEgressAllowlist(new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } })
-            .Build();
-        var name = container.Name;
-
-        var exception = await Assert.ThrowsAsync<WslProvisioningException>(() => container.StartAsync());
-
-        Assert.Contains("iptables", exception.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.False(container.IsStarted);
-        Assert.False(Directory.Exists(WslInstanceStore.Default.GetInstanceDirectory(name)));
-
-        await container.DisposeAsync();
-    }
-
-    [IntegrationFact]
-    public async Task Egress_allowlist_fails_closed_when_iptables_cannot_manage_rules()
-    {
-        // The WSLC runtime does not grant CAP_NET_ADMIN, so even an image with iptables
-        // (netshoot) cannot install the policy. Startup must fail with guidance and must
-        // not leave a partially applied or silently open policy behind.
-        var container = new WslContainerBuilder()
-            .FromImage(IptablesImage)
-            .WithEgressAllowlist(new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } })
-            .Build();
-        var name = container.Name;
-
-        var exception = await Assert.ThrowsAsync<WslProvisioningException>(() => container.StartAsync());
-
-        Assert.Contains("CAP_NET_ADMIN", exception.Message);
-        Assert.False(container.IsStarted);
-        Assert.False(Directory.Exists(WslInstanceStore.Default.GetInstanceDirectory(name)));
-
-        await container.DisposeAsync();
     }
 
     [IntegrationFact]

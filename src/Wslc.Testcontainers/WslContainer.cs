@@ -87,50 +87,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     /// <inheritdoc />
-    public int GetMappedPort(int port, PortProtocol protocol)
-    {
-        var network = _network
-            ?? throw new WslNetworkException($"Container '{Name}' has not been started, so port {port} is not mapped yet.");
-        return network.GetMappedPort(port, protocol);
-    }
-
-    /// <summary>
-    /// Applies an egress allowlist inside the running container (iptables default-deny
-    /// <c>OUTPUT</c> with the listed TCP destinations kept, plus IPv6 default-deny via
-    /// <c>ip6tables</c> when the container has IPv6 addresses). The image must provide
-    /// <c>iptables</c>, and the container needs <c>CAP_NET_ADMIN</c> — which WSL 3.0.1
-    /// containers are not granted — so applying fails closed with guidance instead of
-    /// leaving egress open. Builder-configured allowlists are applied automatically by
-    /// <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
-    /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
-    /// container can remove them, so this is not a tamper-proof boundary.
-    /// </summary>
-    public Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default)
-    {
-        var normalized = EgressIsolation.Normalize(options);
-        if (_configuration.NetworkingMode == ContainerNetworkMode.None)
-        {
-            throw new WslcException($"Container '{Name}' has no networking (NetworkingMode.None), so an egress allowlist does not apply.");
-        }
-
-        // ExecInternalAsync requires a started container and throws otherwise.
-        return ApplyEgressAllowlistCoreAsync(normalized, cancellationToken);
-    }
-
-    private async Task ApplyEgressAllowlistCoreAsync(EgressAllowlistOptions options, CancellationToken cancellationToken)
-    {
-        var script = EgressIsolation.BuildScript(options);
-        var result = await ExecInternalAsync("sh", new[] { "-c", script }, null, cancellationToken).ConfigureAwait(false);
-        if (result.ExitCode != 0)
-        {
-            throw new WslProvisioningException(
-                $"Failed to apply the egress allowlist in container '{Name}' (exit {result.ExitCode}): {result.Stderr.Trim()}".Trim());
-        }
-
-        _logs.Publish(LogLine.Diagnostic($"applied egress allowlist ({options.AllowedHosts.Count} host(s), {options.AllowedTcpPorts.Count} port(s))"));
-    }
-
-    /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
         WslPlatform.ThrowIfUnsupported();
@@ -423,11 +379,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             _logs.Publish(LogLine.Diagnostic($"creating WSL container '{Name}' (runtime {WslcHost.GetVersion()})"));
             var image = await CreateSessionAndContainerAsync(token).ConfigureAwait(false);
 
-            if (_configuration.EgressAllowlist is { } egress)
-            {
-                await ApplyEgressAllowlistCoreAsync(egress, token).ConfigureAwait(false);
-            }
-
             await CopyConfiguredFilesAsync(token).ConfigureAwait(false);
             await WaitForReadinessAsync(token).ConfigureAwait(false);
 
@@ -673,7 +624,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     private string FormatMappedPorts() => string.Join(
         ", ",
-        _configuration.PortMappings.Select(mapping => $"{mapping}->{_network!.GetMappedPort(mapping.ContainerPort, mapping.Protocol)}"));
+        _configuration.PortMappings.Select(mapping => $"{mapping}->{_network!.GetMappedPort(mapping.ContainerPort)}"));
 
     private async Task ResolveMappedPortsAsync(CancellationToken cancellationToken)
     {

@@ -15,12 +15,12 @@ public sealed class WslConfigHasherTests
             Command = "sleep",
             CommandArguments = new[] { "infinity" },
             Environment = new Dictionary<string, string> { ["A"] = "1", ["B"] = "2" },
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Tcp, null), new WslPortMapping(5432, PortProtocol.Tcp, null) },
+            PortMappings = new[] { new WslPortMapping(8080, null), new WslPortMapping(5432, null) },
         };
         var second = first with
         {
             Environment = new Dictionary<string, string> { ["B"] = "2", ["A"] = "1" },
-            PortMappings = new[] { new WslPortMapping(5432, PortProtocol.Tcp, null), new WslPortMapping(8080, PortProtocol.Tcp, null) },
+            PortMappings = new[] { new WslPortMapping(5432, null), new WslPortMapping(8080, null) },
         };
 
         Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(second));
@@ -47,28 +47,23 @@ public sealed class WslConfigHasherTests
     }
 
     [Fact]
-    public void Port_protocol_and_bind_address_change_the_hash()
+    public void Bind_address_changes_the_hash()
     {
         var first = new WslContainerConfiguration
         {
             Image = "alpine",
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Tcp, null) },
-        };
-        var udp = first with
-        {
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Udp, null) },
+            PortMappings = new[] { new WslPortMapping(8080, null) },
         };
         var bound = first with
         {
-            PortMappings = new[] { new WslPortMapping(8080, PortProtocol.Tcp, "127.0.0.1") },
+            PortMappings = new[] { new WslPortMapping(8080, "127.0.0.1") },
         };
 
-        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(udp));
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(bound));
     }
 
     [Fact]
-    public void Resource_networking_volume_and_egress_settings_change_the_hash()
+    public void Resource_networking_and_volume_settings_change_the_hash()
     {
         var first = new WslContainerConfiguration { Image = "alpine" };
         var cpu = first with { CpuCount = 2u };
@@ -78,44 +73,11 @@ public sealed class WslConfigHasherTests
         {
             SessionVolumes = new[] { new WslSessionVolume("data", "/data", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic) },
         };
-        var egress = first with
-        {
-            EgressAllowlist = new EgressAllowlistOptions { AllowedHosts = new[] { "10.0.0.5" } },
-        };
 
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(cpu));
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(memory));
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(netmode));
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(named));
-        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(egress));
-    }
-
-    [Fact]
-    public void Egress_order_and_flags_are_canonicalized_in_the_hash()
-    {
-        var first = new WslContainerConfiguration
-        {
-            Image = "alpine",
-            EgressAllowlist = new EgressAllowlistOptions
-            {
-                AllowedHosts = new[] { "10.0.0.5", "10.0.0.0/8" },
-                AllowedTcpPorts = new[] { 443, 80 },
-            },
-        };
-        var reordered = first with
-        {
-            EgressAllowlist = new EgressAllowlistOptions
-            {
-                AllowedHosts = new[] { "10.0.0.0/8", "10.0.0.5" },
-                AllowedTcpPorts = new[] { 80, 443 },
-            },
-        };
-        var noDns = first with { EgressAllowlist = first.EgressAllowlist! with { AllowDns = false } };
-        var noLoopback = first with { EgressAllowlist = first.EgressAllowlist! with { AllowLoopback = false } };
-
-        Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(reordered));
-        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(noDns));
-        Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(noLoopback));
     }
 
     [Fact]

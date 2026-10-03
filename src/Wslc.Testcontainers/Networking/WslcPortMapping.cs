@@ -11,14 +11,15 @@ namespace Wslc.Testcontainers.Networking;
 /// Maps Linux container ports to Windows ports (loopback by default, overridable per port)
 /// using the official <see cref="ContainerPortMapping"/> mechanism. A Windows port of 0 asks
 /// the WSL runtime to assign a free dynamic port, which is then discovered from the container
-/// inspect payload. Entries are keyed by (container port, protocol); the single-port API is TCP.
-/// TCP probes honor the configured bind address (any-address bindings probe loopback).
+/// inspect payload. Mappings are TCP-only: the runtime returns <c>E_NOTIMPL</c> for UDP, so
+/// non-TCP inspect entries are ignored. TCP probes honor the configured bind address
+/// (any-address bindings probe loopback).
 /// </summary>
 internal sealed class WslcPortMapping
 {
     private const string InspectPortsProperty = "Ports";
 
-    private readonly Dictionary<(int Port, PortProtocol Protocol), Entry> _entries;
+    private readonly Dictionary<int, Entry> _entries;
 
     private sealed class Entry
     {
@@ -28,7 +29,7 @@ internal sealed class WslcPortMapping
         public Entry(string? bindAddress) => BindAddress = bindAddress;
     }
 
-    private WslcPortMapping(Dictionary<(int Port, PortProtocol Protocol), Entry> entries) => _entries = entries;
+    private WslcPortMapping(Dictionary<int, Entry> entries) => _entries = entries;
 
     public int UnresolvedCount
     {
@@ -56,7 +57,7 @@ internal sealed class WslcPortMapping
             {
                 if (pair.Value.MappedPort == 0)
                 {
-                    result.Add(WslPortMapping.Format(pair.Key.Port, pair.Key.Protocol));
+                    result.Add(pair.Key.ToString(CultureInfo.InvariantCulture));
                 }
             }
 
@@ -66,13 +67,12 @@ internal sealed class WslcPortMapping
 
     public static WslcPortMapping Create(IEnumerable<WslPortMapping> mappings)
     {
-        var entries = new Dictionary<(int Port, PortProtocol Protocol), Entry>();
+        var entries = new Dictionary<int, Entry>();
         foreach (var mapping in mappings)
         {
-            var key = (mapping.ContainerPort, mapping.Protocol);
-            if (!entries.ContainsKey(key))
+            if (!entries.ContainsKey(mapping.ContainerPort))
             {
-                entries[key] = new Entry(mapping.BindAddress);
+                entries[mapping.ContainerPort] = new Entry(mapping.BindAddress);
             }
         }
 
@@ -84,7 +84,7 @@ internal sealed class WslcPortMapping
         var mappings = new List<ContainerPortMapping>(_entries.Count);
         foreach (var pair in _entries)
         {
-            var mapping = new ContainerPortMapping(0, (ushort)pair.Key.Port, ToSdkProtocol(pair.Key.Protocol));
+            var mapping = new ContainerPortMapping(0, (ushort)pair.Key, Microsoft.WSL.Containers.PortProtocol.TCP);
             if (pair.Value.BindAddress is { } bindAddress)
             {
                 mapping.WindowsAddress = new Windows.Networking.HostName(bindAddress);
@@ -96,21 +96,18 @@ internal sealed class WslcPortMapping
         return mappings;
     }
 
-    public int GetMappedPort(int containerPort) => GetMappedPort(containerPort, PortProtocol.Tcp);
-
-    public int GetMappedPort(int containerPort, PortProtocol protocol)
+    public int GetMappedPort(int containerPort)
     {
-        if (!_entries.TryGetValue((containerPort, protocol), out var entry))
+        if (!_entries.TryGetValue(containerPort, out var entry))
         {
-            throw new WslNetworkException(protocol == PortProtocol.Udp
-                ? $"Port {WslPortMapping.Format(containerPort, protocol)} is not mapped. UDP mappings are not implemented by the WSLC runtime; declare TCP ports only."
-                : $"Port {WslPortMapping.Format(containerPort, protocol)} is not mapped. Declare it with WithPort({containerPort}) before starting the container.");
+            throw new WslNetworkException(
+                $"Port {containerPort} is not mapped. Declare it with WithPort({containerPort}) before starting the container.");
         }
 
         if (entry.MappedPort == 0)
         {
             throw new WslNetworkException(
-                $"Port {WslPortMapping.Format(containerPort, protocol)} has no host mapping yet. The WSL runtime assigns the port when the container starts.");
+                $"Port {containerPort} has no host mapping yet. The WSL runtime assigns the port when the container starts.");
         }
 
         return entry.MappedPort;
@@ -127,12 +124,12 @@ internal sealed class WslcPortMapping
 
         foreach (var property in ports.EnumerateObject())
         {
-            if (!TryParseInspectKey(property.Name, out var containerPort, out var protocol))
+            if (!TryParseInspectPort(property.Name, out var containerPort))
             {
                 continue;
             }
 
-            if (!_entries.TryGetValue((containerPort, protocol), out var entry) || property.Value.ValueKind != JsonValueKind.Array)
+            if (!_entries.TryGetValue(containerPort, out var entry) || property.Value.ValueKind != JsonValueKind.Array)
             {
                 continue;
             }
@@ -149,43 +146,31 @@ internal sealed class WslcPortMapping
         }
     }
 
-    private static bool TryParseInspectKey(string key, out int containerPort, out PortProtocol protocol)
+    /// <summary>
+    /// Parses an inspect port key. TCP keys are <c>port</c>, <c>port/</c> and
+    /// <c>port/tcp</c> (suffix case-insensitive); UDP/other protocols are skipped so
+    /// they can never resolve a TCP declaration.
+    /// </summary>
+    private static bool TryParseInspectPort(string key, out int containerPort)
     {
         containerPort = 0;
-        protocol = PortProtocol.Tcp;
 
         var separator = key.IndexOf('/');
-        if (separator <= 0 ||
-            !int.TryParse(key.AsSpan(0, separator), NumberStyles.None, CultureInfo.InvariantCulture, out containerPort))
+        var portPart = separator < 0 ? key : key.Substring(0, separator);
+        if (portPart.Length == 0 ||
+            !int.TryParse(portPart, NumberStyles.None, CultureInfo.InvariantCulture, out containerPort))
         {
             return false;
         }
 
+        if (separator < 0)
+        {
+            return true;
+        }
+
         var suffix = key.Substring(separator + 1);
-        if (suffix.Length == 0)
-        {
-            return true;
-        }
-
-        if (suffix.Equals("tcp", StringComparison.OrdinalIgnoreCase))
-        {
-            protocol = PortProtocol.Tcp;
-            return true;
-        }
-
-        if (suffix.Equals("udp", StringComparison.OrdinalIgnoreCase))
-        {
-            protocol = PortProtocol.Udp;
-            return true;
-        }
-
-        return false;
+        return suffix.Length == 0 || suffix.Equals("tcp", StringComparison.OrdinalIgnoreCase);
     }
-
-    private static Microsoft.WSL.Containers.PortProtocol ToSdkProtocol(PortProtocol protocol) =>
-        protocol == PortProtocol.Udp
-            ? Microsoft.WSL.Containers.PortProtocol.UDP
-            : Microsoft.WSL.Containers.PortProtocol.TCP;
 
     private static bool TryReadMappedPort(JsonElement element, out int port)
     {
@@ -202,7 +187,7 @@ internal sealed class WslcPortMapping
 
     public async Task<bool> IsPortOpenAsync(int containerPort, CancellationToken cancellationToken = default)
     {
-        var mappedPort = GetMappedPort(containerPort, PortProtocol.Tcp);
+        var mappedPort = GetMappedPort(containerPort);
         var probeAddress = ResolveProbeAddress(containerPort);
         using var client = new TcpClient();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -233,7 +218,7 @@ internal sealed class WslcPortMapping
     /// </summary>
     private IPAddress ResolveProbeAddress(int containerPort)
     {
-        if (!_entries.TryGetValue((containerPort, PortProtocol.Tcp), out var entry) ||
+        if (!_entries.TryGetValue(containerPort, out var entry) ||
             entry.BindAddress is not { } bindAddress ||
             !IPAddress.TryParse(bindAddress, out var address))
         {

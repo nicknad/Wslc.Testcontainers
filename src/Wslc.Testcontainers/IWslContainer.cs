@@ -17,29 +17,13 @@ public interface IWslContainer : IAsyncDisposable
 
     /// <summary>
     /// Gets the Windows loopback address (<c>127.0.0.1</c>) for mapped ports. Ports bound
-    /// to a different address (see <c>WithPort(port, protocol, bindAddress)</c>) must be
+    /// to a different address (see <c>WithPort(port, bindAddress)</c>) must be
     /// reached via that address instead.
     /// </summary>
     string Host { get; }
 
     /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
     int GetMappedPort(int port);
-
-    /// <summary>Gets the Windows port mapped to a Linux service port with an explicit protocol.</summary>
-    int GetMappedPort(int port, PortProtocol protocol);
-
-    /// <summary>
-    /// Applies an egress allowlist inside the running container (iptables default-deny
-    /// <c>OUTPUT</c> with the listed TCP destinations kept, plus IPv6 default-deny via
-    /// <c>ip6tables</c> when the container has IPv6 addresses). The image must provide
-    /// <c>iptables</c>, and the container needs <c>CAP_NET_ADMIN</c> — which WSL 3.0.1
-    /// containers are not granted — so applying fails closed with guidance instead of
-    /// leaving egress open. Builder-configured allowlists are applied automatically
-    /// by <see cref="StartAsync"/>; use this to (re-)apply a dynamically computed one.
-    /// Re-applying replaces the previous <c>OUTPUT</c> rules. A root process inside the
-    /// container can remove them, so this is not a tamper-proof boundary.
-    /// </summary>
-    Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default);
 
     /// <summary>Creates and provisions the environment, then waits until all readiness strategies pass.</summary>
     /// <remarks>

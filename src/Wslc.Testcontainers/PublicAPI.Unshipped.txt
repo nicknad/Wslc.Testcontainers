@@ -6,9 +6,6 @@ const Wslc.Testcontainers.WslcEnvironment.ReuseInCiVariable = "WSLC_REUSE_IN_CI"
 const Wslc.Testcontainers.WslcEnvironment.ReuseVariable = "WSLC_REUSE" -> string!
 const Wslc.Testcontainers.WslcEnvironment.SessionIdVariable = "WSLC_SESSION_ID" -> string!
 const Wslc.Testcontainers.WslcEnvironment.TimeoutVariable = "WSLC_TIMEOUT" -> string!
-override Wslc.Testcontainers.EgressAllowlistOptions.Equals(object? obj) -> bool
-override Wslc.Testcontainers.EgressAllowlistOptions.GetHashCode() -> int
-override Wslc.Testcontainers.EgressAllowlistOptions.ToString() -> string!
 override Wslc.Testcontainers.ExecOptions.Equals(object? obj) -> bool
 override Wslc.Testcontainers.ExecOptions.GetHashCode() -> int
 override Wslc.Testcontainers.ExecOptions.ToString() -> string!
@@ -18,8 +15,6 @@ override Wslc.Testcontainers.ExecResult.ToString() -> string!
 override Wslc.Testcontainers.LogLine.Equals(object? obj) -> bool
 override Wslc.Testcontainers.LogLine.GetHashCode() -> int
 override Wslc.Testcontainers.LogLine.ToString() -> string!
-static Wslc.Testcontainers.EgressAllowlistOptions.operator !=(Wslc.Testcontainers.EgressAllowlistOptions? left, Wslc.Testcontainers.EgressAllowlistOptions? right) -> bool
-static Wslc.Testcontainers.EgressAllowlistOptions.operator ==(Wslc.Testcontainers.EgressAllowlistOptions? left, Wslc.Testcontainers.EgressAllowlistOptions? right) -> bool
 static Wslc.Testcontainers.ExecOptions.operator !=(Wslc.Testcontainers.ExecOptions? left, Wslc.Testcontainers.ExecOptions? right) -> bool
 static Wslc.Testcontainers.ExecOptions.operator ==(Wslc.Testcontainers.ExecOptions? left, Wslc.Testcontainers.ExecOptions? right) -> bool
 static Wslc.Testcontainers.ExecResult.operator !=(Wslc.Testcontainers.ExecResult? left, Wslc.Testcontainers.ExecResult? right) -> bool
@@ -38,9 +33,6 @@ static Wslc.Testcontainers.WslcEnvironment.DefaultImage.get -> string?
 static Wslc.Testcontainers.WslcEnvironment.ReuseByDefault.get -> bool
 static Wslc.Testcontainers.WslcEnvironment.SessionId.get -> string!
 virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.Configure(Wslc.Testcontainers.WslContainerBuilder! builder) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.EgressAllowlistOptions.<Clone>$() -> Wslc.Testcontainers.EgressAllowlistOptions!
-Wslc.Testcontainers.EgressAllowlistOptions.EgressAllowlistOptions() -> void
-Wslc.Testcontainers.EgressAllowlistOptions.Equals(Wslc.Testcontainers.EgressAllowlistOptions? other) -> bool
 Wslc.Testcontainers.ExecOptions
 Wslc.Testcontainers.ExecOptions.<Clone>$() -> Wslc.Testcontainers.ExecOptions!
 Wslc.Testcontainers.ExecOptions.Environment.get -> System.Collections.Generic.IReadOnlyDictionary<string!, string!>?
@@ -233,34 +225,14 @@ Wslc.Testcontainers.WslRuntimeException
 Wslc.Testcontainers.WslRuntimeException.WslRuntimeException(string! message, System.Exception? innerException = null) -> void
 Wslc.Testcontainers.WslTimeoutException
 Wslc.Testcontainers.WslTimeoutException.WslTimeoutException(string! message, System.Exception? innerException = null) -> void
-Wslc.Testcontainers.EgressAllowlistOptions
-Wslc.Testcontainers.EgressAllowlistOptions.AllowDns.get -> bool
-Wslc.Testcontainers.EgressAllowlistOptions.AllowDns.init -> void
-Wslc.Testcontainers.EgressAllowlistOptions.AllowedHosts.get -> System.Collections.Generic.IReadOnlyList<string!>!
-Wslc.Testcontainers.EgressAllowlistOptions.AllowedHosts.init -> void
-Wslc.Testcontainers.EgressAllowlistOptions.AllowedTcpPorts.get -> System.Collections.Generic.IReadOnlyList<int>!
-Wslc.Testcontainers.EgressAllowlistOptions.AllowedTcpPorts.init -> void
-Wslc.Testcontainers.EgressAllowlistOptions.AllowLoopback.get -> bool
-Wslc.Testcontainers.EgressAllowlistOptions.AllowLoopback.init -> void
-Wslc.Testcontainers.IWslContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-Wslc.Testcontainers.IWslContainer.GetMappedPort(int port, Wslc.Testcontainers.PortProtocol protocol) -> int
-Wslc.Testcontainers.WslContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-Wslc.Testcontainers.WslContainer.GetMappedPort(int port, Wslc.Testcontainers.PortProtocol protocol) -> int
 Wslc.Testcontainers.WslContainerBuilder.WithCpuCount(uint cpuCount) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithEgressAllowlist(Wslc.Testcontainers.EgressAllowlistOptions! options) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithMemoryMB(uint megabytes) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithSessionVolume(string! name, string! containerPath, ulong sizeBytes, Wslc.Testcontainers.VolumeAccess access = Wslc.Testcontainers.VolumeAccess.ReadWrite, Wslc.Testcontainers.VhdAllocationType type = Wslc.Testcontainers.VhdAllocationType.Dynamic) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithNetworkingMode(Wslc.Testcontainers.ContainerNetworkMode mode) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, Wslc.Testcontainers.PortProtocol protocol) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, Wslc.Testcontainers.PortProtocol protocol, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslModuleContainer.ApplyEgressAllowlistAsync(Wslc.Testcontainers.EgressAllowlistOptions! options, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-Wslc.Testcontainers.WslModuleContainer.GetMappedPort(int containerPort, Wslc.Testcontainers.PortProtocol protocol) -> int
+Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.ContainerNetworkMode
 Wslc.Testcontainers.ContainerNetworkMode.Bridged = 0 -> Wslc.Testcontainers.ContainerNetworkMode
 Wslc.Testcontainers.ContainerNetworkMode.None = 1 -> Wslc.Testcontainers.ContainerNetworkMode
-Wslc.Testcontainers.PortProtocol
-Wslc.Testcontainers.PortProtocol.Tcp = 0 -> Wslc.Testcontainers.PortProtocol
-Wslc.Testcontainers.PortProtocol.Udp = 1 -> Wslc.Testcontainers.PortProtocol
 Wslc.Testcontainers.VhdAllocationType
 Wslc.Testcontainers.VhdAllocationType.Dynamic = 0 -> Wslc.Testcontainers.VhdAllocationType
 Wslc.Testcontainers.VhdAllocationType.Fixed = 1 -> Wslc.Testcontainers.VhdAllocationType

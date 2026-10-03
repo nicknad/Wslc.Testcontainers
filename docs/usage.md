@@ -16,7 +16,9 @@ library nor the underlying WSL container runtime offers an out-of-the-box securi
 boundary against hostile code running inside a container:
 
 - **Full egress by default.** Bridged containers can reach the internet, the LAN and
-  the Windows host. Nothing filters outbound traffic unless you add it.
+  the Windows host. The runtime exposes no outbound filter, and the library cannot
+  install one from inside the container (no `CAP_NET_ADMIN`), so the only enforced
+  choice is the NIC-less `WithNetworkingMode(None)`.
 - **Root by default, no syscall filtering.** Processes run as the image default user
   (usually root). WSLC exposes no seccomp profiles, capability drops, user namespaces
   or read-only rootfs.
@@ -32,9 +34,10 @@ Per-container WSL sessions do isolate test dependencies from *each other* (own V
 own storage VHD, own network namespace), which is what makes parallel trusted tests
 safe. That is **test isolation, not a hostile-code sandbox**. To contain untrusted or
 agent-generated code so it can only interact with the API that invoked it, you must
-opt into the hardening primitives (`WithNetworkingMode(None)`, `WithEgressAllowlist`,
-`WithSessionVolume`, loopback bind addresses, resource caps, short-lived tokens) —
-see [Agent containment](#agent-containment-note).
+opt into the hardening primitives (`WithNetworkingMode(None)`, `WithSessionVolume`,
+loopback bind addresses, resource caps, short-lived tokens) —
+see [Agent containment](#agent-containment-note). Egress filtering is not offered:
+see [Egress policy](#egress-policy-not-offered).
 
 ## Requirements
 
@@ -137,11 +140,10 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithCommand(cmd, params args)` | Init process. Default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules override this with the image entrypoint (e.g. `docker-entrypoint.sh postgres`) — do not override it for modules. |
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
-| `WithPort(containerPort)` / `WithPort(port, protocol)` / `WithPort(port, protocol, bindAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve with `GetMappedPort()`. Only `PortProtocol.Tcp` is supported — `PortProtocol.Udp` throws immediately because the WSLC runtime returns `E_NOTIMPL` for UDP mappings. The Windows side binds loopback (`127.0.0.1`) by default; pass `bindAddress` (e.g. `0.0.0.0`) to override. TCP/HTTP readiness probes honor the configured bind address. |
-| `WithNetworkingMode(mode)` | `Bridged` (default) or `None` (no NIC — full isolation; no ports, network waits or egress rules allowed). |
+| `WithPort(containerPort)` / `WithPort(port, bindAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve with `GetMappedPort()`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass `bindAddress` (e.g. `0.0.0.0`) to override. TCP/HTTP readiness probes honor the configured bind address. |
+| `WithNetworkingMode(mode)` | `Bridged` (default) or `None` (no NIC — full isolation; no ports or network waits allowed; the only containment mode the runtime enforces). |
 | `WithCpuCount(n)` / `WithMemoryMB(n)` | Caps for the session VM (megabytes). Null (default) leaves the runtime default. |
 | `WithSessionVolume(name, containerPath, sizeBytes, ...)` | Session VHD volume (native ext4, recreated empty every start). Prefer over bind mounts when data must not be exposed as Windows host files (the VHD still lives under the session storage directory). |
-| `WithEgressAllowlist(options)` | In-container iptables default-deny `OUTPUT` (IPv4 and IPv6 when the container has IPv6 addresses) with listed TCP destinations kept; applied after start, before readiness. Image must provide `iptables`; applying fails closed when it is unavailable or cannot manage rules. Needs `CAP_NET_ADMIN`, which WSL 3.0.1 containers are not granted, so applying currently fails closed with guidance. Ports are grouped into `multiport` rules; allowlists above the generated-rule limit are rejected when configured. |
 | `WithWaitStrategy(s)` | Add a readiness condition. All must pass, run sequentially. |
 | `WithFile(hostPath, containerPath)` | Copy one Windows **file** (≤1 GiB, must exist) to an absolute Linux dest at startup. |
 | `WithVolume(host, container)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mount an existing Windows **directory** (host, container order, like `docker run -v`). Prefer read-only unless the test must write back. |
@@ -222,16 +224,13 @@ var connectionString =
 ```
 
 - `Host` is `127.0.0.1` and works for loopback-bound ports (the default);
-  `GetMappedPort(containerPort)` resolves the runtime-assigned port. The
-  `GetMappedPort(port, protocol)` overload takes `PortProtocol.Tcp`; UDP mappings
-  cannot be created because the WSLC runtime returns `E_NOTIMPL` for them
-  (`WithPort(port, PortProtocol.Udp)` throws immediately with guidance). If you
-  bound a port to another address, connect to that address instead.
+  `GetMappedPort(containerPort)` resolves the runtime-assigned port. Mappings are
+  TCP-only because the WSLC runtime returns `E_NOTIMPL` for UDP. If you bound a port
+  to another address, connect to that address instead.
 - Only declared ports are mapped; each `WslContainer` gets its own mapping so
-  parallel tests never collide. A Linux port cannot be mapped for UDP until the
-  runtime implements it.
+  parallel tests never collide. UDP mapping support must come from the runtime.
 - The Windows side binds loopback (`127.0.0.1`) by default. Override it only when you
-  need LAN exposure, e.g. `WithPort(8080, PortProtocol.Tcp, "0.0.0.0")`.
+  need LAN exposure, e.g. `WithPort(8080, "0.0.0.0")`.
 - Published ports are reachable via loopback from Windows. Treat them as test-only
   listeners, not public endpoints.
 
@@ -249,12 +248,12 @@ await using var agent = new WslContainerBuilder()
     .FromImage("my-registry/agent:latest")
     .WithCpuCount(2)
     .WithMemoryMB(2048)
-    .WithPort(8080, PortProtocol.Tcp, "127.0.0.1")
+    .WithPort(8080, "127.0.0.1")
     .WithSessionVolume("scratch", "/scratch", sizeBytes: 10UL * 1024 * 1024 * 1024)
     .Build();
 ```
 
-- `None` rejects `WithPort`, TCP/HTTP waits and egress rules at `Build()` time —
+- `None` rejects `WithPort` and TCP/HTTP waits at `Build()` time —
   use process/log/file waits instead.
 - Named VHD volumes are ext4 inside the session VM (no VirtioFS/Windows round-trip)
   and are recreated empty on every start: size-limited scratch, not persistence.
@@ -262,54 +261,25 @@ await using var agent = new WslContainerBuilder()
   the session storage directory. Volume names must be unique per container.
 - `WithCpuCount`/`WithMemoryMB` cap the session VM; they are part of the reuse hash.
 
-## Egress allowlist (agent containment)
+## Egress policy (not offered)
 
-> **Runtime limitation (WSL 3.0.1).** Containers created through the WSLC runtime are
-> not granted `CAP_NET_ADMIN`, which `iptables` needs, and the SDK's container
-> `Privileged` setting does not change the process capability set. On this runtime the
-> allowlist **cannot be installed**: startup fails closed with a `CAP_NET_ADMIN`
-> message and no partial rules are written. Use `WithNetworkingMode(None)` (no NIC) for
-> real containment until the runtime grants privileged networking.
+The library cannot enforce a destination allowlist on this runtime, so it does not
+expose an API that pretends to:
 
-Bridged containers have full egress by default. `WithEgressAllowlist` installs an
-in-container iptables default-deny `OUTPUT` policy for IPv4 (and IPv6 when the
-container has IPv6 addresses) after start (before readiness), keeping only the listed
-destinations. The image must provide `iptables`; applying fails closed before changing
-anything when it is unavailable or cannot manage rules, so egress is never left open
-silently. Containers with no IPv6 addresses (empty/absent `/proc/net/if_inet6`) skip
-the v6 rules; if IPv6 addresses exist and `ip6tables` cannot manage tables, applying
-fails closed. Ingress (port mappings, readiness probes) is unaffected. Applying
-replaces the container's whole `OUTPUT` chain — including any rules the image
-installed — so re-applying is deterministic. This is egress hygiene, **not a security
-boundary**: the workload runs as root and can remove the rules.
+- On the current WSLC runtime (WSL 3.0.1), containers are started without
+  `CAP_NET_ADMIN` (the capability set is the Docker default minus network admin).
+  `iptables`/`nftables` inside the container can neither read nor modify the ruleset,
+  and because the capability is also absent from the bounding set, no in-container
+  workaround (`setcap`, setuid, a different backend) can add it.
+- The SDK's container settings expose ingress (`PortMappings`, `NetworkingMode`) but
+  no outbound policy. Egress can therefore only be enforced by the runtime outside the
+  container's security context — network-namespace rules applied by WSLC, or the
+  user-mode session network proxy — which does not exist today.
 
-```csharp
-var api = new EgressAllowlistOptions
-{
-    AllowedHosts = new[] { "10.0.0.5" },  // IPv4 literals/CIDRs only — no DNS names
-    AllowedTcpPorts = new[] { 443 },      // empty = any TCP port to those hosts
-    AllowDns = false,                     // strict IP-only mode (default true)
-};
-
-await using var container = new WslContainerBuilder()
-    .FromImage("my-registry/agent:latest") // image must provide iptables
-    .WithEgressAllowlist(api)
-    .Build();
-await container.StartAsync();
-
-// Or apply a dynamically computed rule to a running container:
-await container.ApplyEgressAllowlistAsync(api);
-```
-
-Rules: `ESTABLISHED` return traffic, loopback/`127.0.0.0/8` (unless `AllowLoopback`
-is off) and UDP+TCP 53 (unless `AllowDns` is off) stay open. When the container has
-IPv6 addresses, IPv6 egress is dropped too (established and loopback only); applying
-fails closed if `ip6tables` is missing or cannot manage its tables. Hosts must be IPv4 literals/CIDRs — DNS names are rejected
-(they would be resolved over the path being restricted) and IPv6 is rejected (only
-`NetworkingMode.None` fully removes v6). Only TCP destinations can be allowlisted
-(DNS excepted); callbacks from the agent to the calling API must use TCP. Ports are
-grouped into `multiport` rules (up to 15 per rule) so the number of installed rules
-stays bounded; an allowlist that would generate more than 256 rules is rejected.
+Until the runtime provides it, the only enforced containment is
+`WithNetworkingMode(None)`: no NIC, so neither egress nor ingress is possible. Drive
+the workload from the outside with `Exec`/`Copy`/`Logs`. If a runtime-side policy API
+appears, egress belongs there, not inside the container.
 
 ## Exec, processes, files, logs
 
@@ -454,11 +424,11 @@ From the [WSLC architecture deep dive](https://devblogs.microsoft.com/commandlin
 - **Networking ("Consommé").** VM traffic goes as Ethernet frames over a virtio queue
   to a user-mode Windows process that provides DNS, TCP/UDP routing and port mapping.
   Egress leaves Windows **as the session owner**, so VPNs/firewalls see it as a normal
-  user process. WSLC defaults to `ContainerNetworkMode.Bridged` with dynamic TCP/UDP
-  port mappings onto Windows loopback (optionally pinned with a bind address);
-  `WithNetworkingMode(None)` removes the NIC, and `WithEgressAllowlist` would add an
-  in-container iptables default-deny `OUTPUT` policy — but on WSL 3.0.1 containers lack
-  `CAP_NET_ADMIN`, so it fails closed at startup and `None` is the usable boundary.
+  user process. WSLC defaults to `ContainerNetworkMode.Bridged` with dynamic TCP port
+  mappings onto Windows loopback (optionally pinned with a bind address);
+  `WithNetworkingMode(None)` removes the NIC (the only enforced containment). There is
+  no egress policy mechanism in WSLC 3.0.1: containers do not receive `CAP_NET_ADMIN`
+  and the runtime exposes no outbound filter.
 
 ## Agent containment note
 
@@ -473,25 +443,20 @@ that invoked it:
 
 1. **Strongest: no network.** `WithNetworkingMode(None)` removes the NIC entirely —
    drive the agent via `ExecAsync`/`StartProcess`/`CopyTo`/`CopyFrom`/`LogsAsync`.
-2. **Callback pattern (runtime permitting).** Keep `Bridged` and allowlist the API
-   address *as the container sees it* (`AllowedTcpPorts` = the API port, `AllowDns =
-   false`, IP literal). For a host-side API that address is the host gateway on the
-   container network — discover it at runtime rather than assuming `127.0.0.1`;
-   `AllowLoopback` only covers the container's own loopback. On WSL 3.0.1 the allowlist
-   cannot be installed (see the runtime limitation above); if the address is not
-   statically knowable, prefer `NetworkingMode.None` and drive the exchange from the
-   outside via `Exec`.
-3. **No mounts by default.** Seed with `WithFile`/`CopyToAsync`, extract with
+   This is also the only containment the runtime can enforce today; an egress
+   allowlist is not available (see [Egress policy](#egress-policy-not-offered)).
+2. **No mounts by default.** Seed with `WithFile`/`CopyToAsync`, extract with
    `CopyFromAsync`; for scratch that must not be exposed as Windows host files use
    `WithSessionVolume`; if a bind mount is unavoidable use `WithReadOnlyVolume` on the
    narrowest directory. Never mount a repo root or `C:\` writable.
-4. **Bound the blast radius.** `WithCpuCount`/`WithMemoryMB`, minimal pinned-digest
+3. **Bound the blast radius.** `WithCpuCount`/`WithMemoryMB`, minimal pinned-digest
    image, minimal `WithCommand`, per-run short-lived tokens (never host credentials
    in `WithEnvironment`).
-5. **Observe.** `LogsAsync` + `Exec` audit trail is your record; `DisposeAsync`
+4. **Observe.** `LogsAsync` + `Exec` audit trail is your record; `DisposeAsync`
    destroys the session VHD/scratch on completion.
 
 Not yet exposed by the SDK surface in WSLC: custom bind defaults beyond per-port
 `bindAddress`, non-root users, seccomp/capability controls, read-only rootfs, image
-signing. Until those exist, treat `None` + allowlist + mount/port hygiene as layered
-defenses, and re-evaluate before trusting agents with production-adjacent access.
+signing, or any outbound network policy. Until those exist, treat `None` + mount/port
+hygiene as layered defenses, and re-evaluate before trusting agents with
+production-adjacent access.

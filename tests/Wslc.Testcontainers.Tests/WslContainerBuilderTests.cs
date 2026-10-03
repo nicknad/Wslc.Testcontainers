@@ -73,7 +73,7 @@ public sealed class WslContainerBuilderTests
         var builder = new WslContainerBuilder().FromImage("alpine").WithPort(8080).WithPort(8080).WithPort(5432);
 
         Assert.Equal(
-            new[] { new WslPortMapping(8080, PortProtocol.Tcp, null), new WslPortMapping(5432, PortProtocol.Tcp, null) },
+            new[] { new WslPortMapping(8080, null), new WslPortMapping(5432, null) },
             builder.Build().Configuration.PortMappings);
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(70000));
@@ -85,47 +85,27 @@ public sealed class WslContainerBuilderTests
         var container = new WslContainerBuilder()
             .FromImage("alpine")
             .WithPort(8080)
-            .WithPort(9090, PortProtocol.Tcp, "127.0.0.1")
+            .WithPort(9090, "127.0.0.1")
             .Build();
 
         Assert.Equal(
             new[]
             {
-                new WslPortMapping(8080, PortProtocol.Tcp, null),
-                new WslPortMapping(9090, PortProtocol.Tcp, "127.0.0.1"),
+                new WslPortMapping(8080, null),
+                new WslPortMapping(9090, "127.0.0.1"),
             },
             container.Configuration.PortMappings);
-    }
-
-    [Fact]
-    public void Udp_ports_are_rejected_at_declaration_with_runtime_guidance()
-    {
-        var builder = new WslContainerBuilder().FromImage("alpine");
-
-        var exception = Assert.Throws<WslcException>(() => builder.WithPort(8080, PortProtocol.Udp));
-        Assert.Contains("E_NOTIMPL", exception.Message);
-
-        Assert.Throws<WslcException>(() => builder.WithPort(8080, PortProtocol.Udp, "127.0.0.1"));
     }
 
     [Fact]
     public void WithPort_rejects_invalid_bind_addresses_and_conflicts()
     {
         var builder = new WslContainerBuilder().FromImage("alpine");
-        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, PortProtocol.Tcp, "not-an-ip"));
-        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, PortProtocol.Tcp, ""));
+        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, "not-an-ip"));
+        Assert.Throws<ArgumentException>(() => builder.WithPort(8080, ""));
 
-        var bound = builder.WithPort(8080, PortProtocol.Tcp, "127.0.0.1");
-        Assert.Throws<WslcException>(() => bound.WithPort(8080, PortProtocol.Tcp, "0.0.0.0"));
-    }
-
-    [Fact]
-    public void WithPort_rejects_unknown_protocols()
-    {
-        var builder = new WslContainerBuilder().FromImage("alpine");
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithPort(8080, (PortProtocol)99));
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithPort(8080, (PortProtocol)99, "127.0.0.1"));
+        var bound = builder.WithPort(8080, "127.0.0.1");
+        Assert.Throws<WslcException>(() => bound.WithPort(8080, "0.0.0.0"));
     }
 
     [Fact]
@@ -133,7 +113,7 @@ public sealed class WslContainerBuilderTests
     {
         var container = new WslContainerBuilder()
             .FromImage("alpine")
-            .WithPort(8080, PortProtocol.Tcp, "0:0:0:0:0:0:0:1")
+            .WithPort(8080, "0:0:0:0:0:0:0:1")
             .Build();
 
         Assert.Equal("::1", Assert.Single(container.Configuration.PortMappings).BindAddress);
@@ -155,15 +135,10 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
-    public void WithNetworkingMode_None_rejects_ports_egress_and_network_waits()
+    public void WithNetworkingMode_None_rejects_ports_and_network_waits()
     {
         var ports = new WslContainerBuilder().FromImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode.None);
         Assert.Throws<WslcException>(() => ports.Build());
-
-        var egress = new WslContainerBuilder().FromImage("alpine")
-            .WithEgressAllowlist(new EgressAllowlistOptions())
-            .WithNetworkingMode(ContainerNetworkMode.None);
-        Assert.Throws<WslcException>(() => egress.Build());
 
         var waits = new WslContainerBuilder().FromImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(80))
@@ -224,32 +199,6 @@ public sealed class WslContainerBuilderTests
         Assert.Equal(VhdAllocationType.Fixed, configured.Type);
     }
 
-    [Fact]
-    public void WithEgressAllowlist_records_normalized_options()
-    {
-        var hosts = new List<string> { "10.1.2.3/8", "192.168.0.0/16", "10.0.0.0/8", "10.0.0.5" };
-        var options = new EgressAllowlistOptions
-        {
-            AllowedHosts = hosts,
-            AllowedTcpPorts = new[] { 443, 80, 443 },
-        };
-        var container = new WslContainerBuilder().FromImage("alpine").WithEgressAllowlist(options).Build();
-
-        var recorded = container.Configuration.EgressAllowlist!;
-        Assert.NotSame(options, recorded);
-        Assert.Equal(new[] { "10.0.0.0/8", "10.0.0.5", "192.168.0.0/16" }, recorded.AllowedHosts);
-        Assert.Equal(new[] { 80, 443 }, recorded.AllowedTcpPorts);
-
-        // Mutating the caller's collections afterwards must not leak into the configuration.
-        hosts.Add("8.8.8.8");
-        Assert.Equal(3, recorded.AllowedHosts.Count);
-
-        Assert.Throws<ArgumentNullException>(() => new WslContainerBuilder().WithEgressAllowlist(null!));
-        Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithEgressAllowlist(new EgressAllowlistOptions { AllowedHosts = new[] { "example.com" } }));
-        Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithEgressAllowlist(new EgressAllowlistOptions { AllowedHosts = new[] { "::1" } }));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithEgressAllowlist(new EgressAllowlistOptions { AllowedTcpPorts = new[] { 70000 } }));
-    }
-
     [Theory]
     [InlineData("")]
     [InlineData("1INVALID")]
@@ -284,23 +233,7 @@ public sealed class WslContainerBuilderTests
 
         Assert.False(container.IsStarted);
         Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080));
-        Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080, PortProtocol.Udp));
         await Assert.ThrowsAsync<InvalidOperationException>(() => container.ExecAsync("echo"));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => container.ApplyEgressAllowlistAsync(new EgressAllowlistOptions(), TestContext.Current.CancellationToken));
-    }
-
-    [Fact]
-    public async Task ApplyEgressAllowlist_rejects_containers_without_networking()
-    {
-        var container = new WslContainerBuilder()
-            .FromImage("alpine")
-            .WithNetworkingMode(ContainerNetworkMode.None)
-            .Build();
-
-        var exception = await Assert.ThrowsAsync<WslcException>(
-            () => container.ApplyEgressAllowlistAsync(new EgressAllowlistOptions(), TestContext.Current.CancellationToken));
-
-        Assert.Contains("NetworkingMode.None", exception.Message);
     }
 
     [Fact]
@@ -331,7 +264,7 @@ public sealed class WslContainerBuilderTests
         // are valid with TCP and HTTP waits (no build-time rejection, no guaranteed timeout).
         var container = new WslContainerBuilder()
             .FromImage("alpine")
-            .WithPort(8080, PortProtocol.Tcp, "192.168.1.10")
+            .WithPort(8080, "192.168.1.10")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(8080))
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
             .Build();

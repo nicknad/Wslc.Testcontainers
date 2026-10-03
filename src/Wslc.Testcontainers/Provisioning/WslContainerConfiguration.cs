@@ -42,9 +42,6 @@ internal sealed record WslContainerConfiguration
     /// <summary>Session memory cap in megabytes. Null leaves the runtime default.</summary>
     public uint? MemorySizeInMB { get; init; }
 
-    /// <summary>Egress allowlist applied after start. Null means unrestricted egress.</summary>
-    public EgressAllowlistOptions? EgressAllowlist { get; init; }
-
     public bool? Reuse { get; init; }
 
     public TimeSpan StartupTimeout { get; init; } = TimeSpan.FromSeconds(120);
@@ -54,19 +51,12 @@ internal sealed record WslFileCopy(string Source, string Destination);
 
 internal sealed record WslVolumeMount(string HostPath, string ContainerPath, bool ReadOnly);
 
-/// <summary>A Linux port exposed on a dynamic Windows port.</summary>
+/// <summary>A Linux TCP port exposed on a dynamic Windows port.</summary>
 /// <param name="ContainerPort">Linux service port (1-65535).</param>
-/// <param name="Protocol">TCP or UDP.</param>
 /// <param name="BindAddress">Optional normalized Windows bind address (e.g. 127.0.0.1). Null uses the SDK default (loopback).</param>
-internal sealed record WslPortMapping(int ContainerPort, PortProtocol Protocol, string? BindAddress)
+internal sealed record WslPortMapping(int ContainerPort, string? BindAddress)
 {
-    /// <summary>Formats a port/protocol pair as <c>port</c> (TCP) or <c>port/udp</c>.</summary>
-    public static string Format(int port, PortProtocol protocol) =>
-        protocol == PortProtocol.Udp
-            ? string.Concat(port.ToString(CultureInfo.InvariantCulture), "/udp")
-            : port.ToString(CultureInfo.InvariantCulture);
-
-    public override string ToString() => Format(ContainerPort, Protocol);
+    public override string ToString() => ContainerPort.ToString(CultureInfo.InvariantCulture);
 }
 
 /// <summary>A session VHD volume mounted into the container. Recreated empty on every start.</summary>
@@ -157,19 +147,12 @@ internal static class WslConfigHasher
         Array.Sort(ports, static (a, b) =>
         {
             var c = a.ContainerPort.CompareTo(b.ContainerPort);
-            if (c != 0)
-            {
-                return c;
-            }
-
-            c = ((int)a.Protocol).CompareTo((int)b.Protocol);
             return c != 0 ? c : string.CompareOrdinal(a.BindAddress, b.BindAddress);
         });
         WriteInt32(hash, ports.Length);
         foreach (var port in ports)
         {
             WriteInt32(hash, port.ContainerPort);
-            WriteInt32(hash, (int)port.Protocol);
             WriteString(hash, port.BindAddress);
         }
 
@@ -224,39 +207,7 @@ internal static class WslConfigHasher
             WriteInt32(hash, (int)volume.Type);
         }
 
-        WriteEgressAllowlist(hash, configuration.EgressAllowlist);
-
         return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-    }
-
-    private static void WriteEgressAllowlist(IncrementalHash hash, EgressAllowlistOptions? egress)
-    {
-        if (egress is null)
-        {
-            WriteInt32(hash, -1);
-            return;
-        }
-
-        var hosts = egress.AllowedHosts.ToArray();
-        Array.Sort(hosts, StringComparer.Ordinal);
-        WriteInt32(hash, hosts.Length);
-        foreach (var host in hosts)
-        {
-            WriteString(hash, host);
-        }
-
-        var ports = egress.AllowedTcpPorts.ToArray();
-        Array.Sort(ports);
-        WriteInt32(hash, ports.Length);
-        foreach (var port in ports)
-        {
-            WriteInt32(hash, port);
-        }
-
-        Span<byte> flags = stackalloc byte[2];
-        flags[0] = egress.AllowDns ? (byte)1 : (byte)0;
-        flags[1] = egress.AllowLoopback ? (byte)1 : (byte)0;
-        hash.AppendData(flags);
     }
 
     private static void WriteString(IncrementalHash hash, string? value)

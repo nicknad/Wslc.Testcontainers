@@ -85,11 +85,4 @@ public abstract class WslModuleContainer : IAsyncDisposable
 
     /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
     public int GetMappedPort(int containerPort) => _inner.GetMappedPort(containerPort);
-
-    /// <summary>Gets the Windows port mapped to a Linux service port with an explicit protocol.</summary>
-    public int GetMappedPort(int containerPort, PortProtocol protocol) => _inner.GetMappedPort(containerPort, protocol);
-
-    /// <summary>Applies an egress allowlist inside the running container (see <see cref="IWslContainer"/>).</summary>
-    public Task ApplyEgressAllowlistAsync(EgressAllowlistOptions options, CancellationToken cancellationToken = default) =>
-        _inner.ApplyEgressAllowlistAsync(options, cancellationToken);
 }

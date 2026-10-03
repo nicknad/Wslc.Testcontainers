@@ -7,25 +7,27 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 ### Added
 
 - Resource caps: `WslContainerBuilder.WithCpuCount(uint)` and `WithMemoryMB(uint)` bound the session VM (`SessionSettings.CpuCount`/`MemorySizeInMB`) and participate in the reuse hash.
-- Network isolation: `WithNetworkingMode(Bridged | None)`. `None` removes the NIC entirely (no ports, TCP/HTTP waits or egress rules — rejected at `Build()`); offline containers are driven via `Exec`/`Copy`/`Logs`.
-- Port control: `WithPort(port, protocol)`, `WithPort(port, protocol, bindAddress)` (bind defaults to loopback; pass `"0.0.0.0"` to expose on the LAN) and `GetMappedPort(port, protocol)`. Inspect payloads now resolve `port/tcp` vs `port/udp` independently. Only `PortProtocol.Tcp` is supported: the WSLC runtime returns `E_NOTIMPL` for UDP mappings, so UDP declarations throw immediately with guidance (`WithUdpPort` was removed rather than shipping a method that can never succeed).
+- Network isolation: `WithNetworkingMode(Bridged | None)`. `None` removes the NIC entirely (no ports or TCP/HTTP waits — rejected at `Build()`); offline containers are driven via `Exec`/`Copy`/`Logs`.
+- Port control: `WithPort(port)` and `WithPort(port, bindAddress)` (bind defaults to loopback; pass `"0.0.0.0"` to expose on the LAN); resolve dynamic ports with `GetMappedPort(port)`. Mappings are TCP-only: the WSLC runtime returns `E_NOTIMPL` for UDP, so the protocol-taking overloads and `WithUdpPort` are not shipped rather than exposing methods that can never succeed.
 - Session VHD volumes: `WithSessionVolume(name, containerPath, sizeBytes, access, type)` provisions native ext4 scratch inside the session VM (recreated empty every start, never exposed as Windows host files) instead of a Windows bind mount.
-- Egress hygiene: `WithEgressAllowlist(EgressAllowlistOptions)` installs an in-container iptables default-deny `OUTPUT` policy for IPv4 (and IPv6 when the container has IPv6 addresses) after start (IPv4 literals/CIDRs only, normalized/de-duplicated, optional DNS/loopback); `IWslContainer.ApplyEgressAllowlistAsync` (re-)applies a dynamic rule on a running container by replacing the `OUTPUT` chain. Images must provide `iptables`; applying fails closed before changing anything when it is unavailable or cannot manage rules. Containers with no IPv6 addresses (empty/absent `/proc/net/if_inet6`) skip the v6 rules, so a v6-less container applies normally instead of hard-failing; if IPv6 addresses exist, a usable `ip6tables` is required so IPv6 egress is never silently left open. WSL 3.0.1 containers are not granted `CAP_NET_ADMIN` (the SDK `Privileged` setting does not change the capability set), so on this runtime applying consistently fails closed with a `CAP_NET_ADMIN` message; `WithNetworkingMode(None)` is the containment mode that currently works. Root inside the container can remove the rules, so this is not a tamper-proof boundary.
-- `docs/usage.md`: testing guide (builder, waits, ports, volumes, xUnit fixture patterns) with networking-modes/resources/egress sections and an agent-containment checklist.
+- `docs/usage.md`: testing guide (builder, waits, ports, volumes, xUnit fixture patterns) with networking-modes/resources sections and an agent-containment checklist.
 
 ### Changed
 
-- `IWslContainer` gained `GetMappedPort(int, PortProtocol)` and `ApplyEgressAllowlistAsync(...)`, and `IWaitTarget` gained `GetProbeHost(int)`; external implementations must add these members (package is still `0.1.0-preview`).
-- The public API no longer exposes `Microsoft.WSL.Containers` enum types: `WithPort`/`GetMappedPort` take the package-owned `PortProtocol` (`Tcp`/`Udp`), `WithNetworkingMode` takes `ContainerNetworkMode`, and `WithSessionVolume` takes `VhdAllocationType`. This keeps SDK versioning from leaking into the package's surface and lets `PortProtocol` be constrained to the protocols the inspect payload can resolve.
+- The public API no longer exposes `Microsoft.WSL.Containers` enum types: `WithNetworkingMode` takes the package-owned `ContainerNetworkMode` and `WithSessionVolume` takes `VhdAllocationType`, mapped internally to the SDK. Port APIs are TCP-only and take no protocol parameter.
 - `WithNamedVolume` was renamed `WithSessionVolume`: the volume is scratch space recreated empty on every start, not a Docker-style persistent named volume.
-- Egress allowlists are normalized and copied when configured, so mutating the `EgressAllowlistOptions` instance after `Build()` no longer affects the container or its reuse identity.
 - `IWaitTarget` gained `GetProbeHost(int)` so probes can target the port's bind address; external implementations must add it (package is still `0.1.0-preview`).
+- Tests and examples now use xUnit.net v3 (`xunit.v3` 4.0.1) with the Microsoft Testing Platform: `global.json` opts into MTP, commands use `dotnet test --solution ...`, and test-app options are passed after `--`.
+- Lifecycle transitions on `WslContainer` are serialized; commands, copies and processes issued concurrently with `DisposeAsync` may fail with an exception rather than corrupting state.
+
+### Removed
+
+- In-container egress allowlisting (`WithEgressAllowlist`, `IWslContainer.ApplyEgressAllowlistAsync`, `EgressAllowlistOptions`). On WSL 3.0.1, containers are not granted `CAP_NET_ADMIN` (the SDK's container `Privileged` setting does not change the capability set), so an `iptables` policy could never be installed from inside the container, and the SDK's container settings expose no outbound policy API. Shipping the API would promise enforcement it cannot deliver; use `WithNetworkingMode(None)` for containment. See the README security note and `docs/usage.md#egress-policy-not-offered`.
+- The `PortProtocol` enum and the protocol-taking `WithPort`/`GetMappedPort` overloads: only `Tcp` was ever accepted (UDP returns `E_NOTIMPL`), so the protocol parameter was dead surface. UDP can be re-added additively if the runtime implements it.
+- The removals above also change the reuse configuration hash for every configuration (the old encoding wrote the port protocol for each mapping and a trailing egress marker), so instances cached by earlier preview builds are no longer matched and are left to the reaper. This is a one-time, expected consequence of dropping the fields.
+- Public API (unshipped preview): `WslResourceReaper.CleanupAllAsync()` (the reaper never deletes reusable instances), `WslPlatform.MinimumWindowsVersion`, `LogDumper.Dump(IReadOnlyList<LogLine>, ...)`, `IWslProcess.Stdout`/`Stderr`/`LogsAsync`, and `IWslContainer.Stdout`/`Stderr`. Use `container.LogsAsync()` and `ExecResult` for container and process output.
 
 ### Fixed
-
-- TCP/HTTP readiness probes now honor `WithPort(port, protocol, bindAddress)` instead of always probing `127.0.0.1`, so ports bound to a specific non-loopback Windows address no longer burn the full wait timeout.
-- Egress allowlists now group ports into `multiport` rules (15 per rule) and reject lists that would generate more than 256 rules, so rule installation time and script size are bounded instead of growing with the host×port product.
-- Egress application now probes `iptables` manageability before modifying any chain and reports missing `CAP_NET_ADMIN` guidance instead of a misleading mid-script rule error, so a container without the capability fails closed without partial rules. IPv6 is contained only when the container actually has IPv6 addresses, so IPv6-disabled containers are not rejected for lacking `ip6tables`.
 
 - Postgres module now waits for the second "database system is ready to accept connections" log line. The image entrypoint starts a temporary server for initialization, logs readiness, then restarts; accepting the first occurrence let tests connect and get dropped mid-initialization (`UntilMessageIsLogged(message, occurrences)` added).
 - Real-runtime example tests (`examples/Postgres.Tests`) now skip unless `WSLC_RUN_INTEGRATION=1`, matching the documented opt-in and the CI integration job; previously `dotnet test --solution` pulled and started Postgres unconditionally.
@@ -40,16 +42,7 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 - `CleanupIncludingReuseAsync` skips reusable instances another live process holds via `wslc.lock`; owner-liveness probes treat access-denied (`Win32Exception`) as alive.
 - Cleanup paths abort processes after a 2s grace period instead of stalling up to 10s per child; HTTP wait paths that cannot form a valid URI fail the check instead of throwing.
 - Constructing a reuse container defers configuration hashing (and `WithFile` content hashing) until the name is needed, and one metadata write per start was removed.
-- TCP and HTTP readiness probes now honor the per-port bind address (`IWaitTarget.GetProbeHost`, wildcard bindings probe loopback), so `WithPort(port, protocol, bindAddress)` no longer times out when combined with network wait strategies.
-
-### Changed
-
-- Tests and examples now use xUnit.net v3 (`xunit.v3` 4.0.1) with the Microsoft Testing Platform: `global.json` opts into MTP, commands use `dotnet test --solution ...`, and test-app options are passed after `--`.
-- Lifecycle transitions on `WslContainer` are serialized; commands, copies and processes issued concurrently with `DisposeAsync` may fail with an exception rather than corrupting state.
-
-### Removed
-
-- Public API (unshipped preview): `WslResourceReaper.CleanupAllAsync()` (the reaper never deletes reusable instances), `WslPlatform.MinimumWindowsVersion`, `LogDumper.Dump(IReadOnlyList<LogLine>, ...)`, `IWslProcess.Stdout`/`Stderr`/`LogsAsync`, and `IWslContainer.Stdout`/`Stderr`. Use `container.LogsAsync()` and `ExecResult` for container and process output.
+- TCP and HTTP readiness probes now honor the per-port bind address (`IWaitTarget.GetProbeHost`, wildcard bindings probe loopback), so `WithPort(port, bindAddress)` no longer times out when combined with network wait strategies.
 
 ## 0.1.0-preview.1
 

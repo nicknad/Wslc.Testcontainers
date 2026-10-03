@@ -28,5 +28,6 @@ nothing failed the build on new warnings.
 ## Consequences
 
 - Any new warning breaks CI; fix or justify with a scoped suppression.
-- Docs stay in `GenerateDocumentationFile`; `CS1591` remains suppressed for
-  internal members only.
+- Docs stay in `GenerateDocumentationFile`; `CS1591` is not globally
+  suppressed: every public member carries XML docs, and test projects disable
+  doc generation.

@@ -240,6 +240,41 @@ public sealed class WaitStrategyTests
     }
 
     [Fact]
+    public async Task Custom_until_condition_polls_until_satisfied()
+    {
+        var attempts = 0;
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromSeconds(2))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(10))
+            .Until("custom flag", (_, _) => Task.FromResult(Interlocked.Increment(ref attempts) >= 3));
+
+        await strategy.WaitAsync(new FakeWaitTarget(), CancellationToken.None);
+
+        Assert.True(attempts >= 3);
+        Assert.Equal("custom flag", strategy.Name);
+    }
+
+    [Fact]
+    public void Composite_keeps_the_left_operand_timeout_and_retry_interval()
+    {
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromMilliseconds(150))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(25))
+            .UntilTcpPortIsAvailable(8080)
+            .And(Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(30)).UntilProcessIsRunning("nginx"));
+
+        Assert.Equal(TimeSpan.FromMilliseconds(150), strategy.Timeout);
+        Assert.Equal(TimeSpan.FromMilliseconds(25), strategy.RetryInterval);
+    }
+
+    [Fact]
+    public void Custom_until_condition_validates_arguments()
+    {
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().Until(" ", (_, _) => Task.FromResult(true)));
+        Assert.Throws<ArgumentNullException>(() => Wait.ForWsl().Until("condition", null!));
+    }
+
+    [Fact]
     public void Invalid_configuration_is_rejected()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().WithTimeout(TimeSpan.Zero));

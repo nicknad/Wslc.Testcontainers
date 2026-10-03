@@ -80,6 +80,20 @@ public sealed class WslWaitBuilder
     public IWaitStrategy UntilFileExists(string path) =>
         Configure(new FileExistsWaitStrategy(RequireContainerPath(path, nameof(path))));
 
+    /// <summary>
+    /// Waits until a custom condition returns <c>true</c>. The delegate receives the environment
+    /// and the linked timeout/cancellation token; a thrown exception propagates out of
+    /// <c>WaitAsync</c> instead of being retried. Use <see cref="WithTimeout"/> /
+    /// <see cref="WithRetryInterval"/> to bound and pace the polls.
+    /// </summary>
+    /// <param name="name">Human-readable condition name used in diagnostics.</param>
+    /// <param name="condition">Condition to poll; return <c>true</c> when satisfied.</param>
+    public IWaitStrategy Until(string name, Func<IWaitTarget, CancellationToken, Task<bool>> condition)
+    {
+        ArgumentNullException.ThrowIfNull(condition);
+        return Configure(new DelegateWaitStrategy(RequireText(name, nameof(name)), condition));
+    }
+
     private IWaitStrategy Configure(IWaitStrategy strategy)
     {
         if (_timeout is { } timeout)

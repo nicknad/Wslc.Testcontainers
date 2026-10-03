@@ -14,6 +14,10 @@ public sealed class WslContainerBuilder
 {
     private WslContainerConfiguration _configuration;
 
+    /// <summary>
+    /// Initializes a builder with no configuration. Call <see cref="WithImage"/> or
+    /// <see cref="FromTarball"/> before <see cref="Build"/>.
+    /// </summary>
     public WslContainerBuilder()
         : this(new WslContainerConfiguration())
     {

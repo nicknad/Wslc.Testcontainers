@@ -1,9 +1,12 @@
 namespace Wslc.Testcontainers.Modules.Redis;
 
-// Typed wrapper for Redis. Renders a StackExchange.Redis-style endpoint from
-// the dynamic host port mapping.
+/// <summary>
+/// Typed Redis container: a module wrapper that renders a StackExchange.Redis-style endpoint
+/// from the dynamic host port mapping.
+/// </summary>
 public sealed class RedisContainer : WslModuleContainer
 {
+    /// <summary>The Linux TCP port Redis listens on (6379).</summary>
     public const int ContainerPort = 6379;
 
     internal RedisContainer(IWslContainer inner)
@@ -11,7 +14,9 @@ public sealed class RedisContainer : WslModuleContainer
     {
     }
 
+    /// <summary>Gets the Windows port mapped to <see cref="ContainerPort"/>.</summary>
     public int GetMappedPort() => base.GetMappedPort(ContainerPort);
 
+    /// <summary>Renders the <c>host:port</c> endpoint for StackExchange.Redis.</summary>
     public string GetConnectionString() => $"{Host}:{GetMappedPort()}";
 }

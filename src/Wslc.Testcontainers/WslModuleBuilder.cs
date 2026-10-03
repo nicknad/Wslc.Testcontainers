@@ -59,7 +59,8 @@ public abstract class WslModuleBuilder<TBuilder>
 
     /// <summary>
     /// Escape hatch for core settings the module does not expose (volumes, environment, extra
-    /// waits/ports). Applied after module defaults so it can override them.
+    /// waits/ports). Applied after module defaults so it can override them. Module-level
+    /// <c>WithReuse</c> is applied last and wins over a customizer that sets reuse.
     /// </summary>
     public TBuilder WithContainerConfiguration(Func<WslContainerBuilder, WslContainerBuilder> customize)
     {

@@ -6,13 +6,17 @@ All notable changes to the `Wslc.Testcontainers*` packages.
 
 ### Added
 
+- `Wait.ForWsl().Until(name, condition)`: poll a custom readiness delegate with the builder's timeout/retry settings.
 - `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `LogsAsync` stream.
 - `IWslContainer.GetMappedHost(int containerPort)`: effective connect address for a mapped port (the configured bind address; loopback for wildcard/default bindings).
 - `ExecAsync(string command, ExecOptions?, CancellationToken)` overload: options (and cancellation) without the `Array.Empty<string>()` argument noise.
 - Readiness failures and startup timeouts now hint when no init command was configured: WSLC never runs the image's ENTRYPOINT/CMD automatically.
+- XML docs for the module packages (`PostgreSqlBuilder`/`PostgreSqlContainer`/`RedisBuilder`/`RedisContainer`).
 
 ### Changed
 
+- `And(...)` composites now consistently keep the left operand's timeout/retry interval; the non-composite + non-composite case previously fell back to the default timeout.
+- `CS1591` is no longer globally suppressed: missing XML docs on public members fail the strict build.
 - `WslModuleContainer` now implements `IWslContainer`, so module containers are substitutable wherever the interface is expected.
 - Pre-start errors are unified on `WslcException` (previously `WslNetworkException` for `GetMappedPort` and `InvalidOperationException` for exec/copy/start-process), so `catch (WslcException)` is complete.
 - `WslReadinessException` is immutable; the container builds the fully populated instance before throwing instead of mutating properties after creation.

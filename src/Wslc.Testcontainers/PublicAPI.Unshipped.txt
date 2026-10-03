@@ -121,6 +121,7 @@ Wslc.Testcontainers.Waiting.IWaitTarget.IsTcpPortOpenAsync(int containerPort, Sy
 Wslc.Testcontainers.Waiting.IWaitTarget.Name.get -> string!
 Wslc.Testcontainers.Waiting.Wait
 Wslc.Testcontainers.Waiting.WslWaitBuilder
+Wslc.Testcontainers.Waiting.WslWaitBuilder.Until(string! name, System.Func<Wslc.Testcontainers.Waiting.IWaitTarget!, System.Threading.CancellationToken, System.Threading.Tasks.Task<bool>!>! condition) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilFileExists(string! path) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestIsSucceeded(string! pathAndQuery) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestIsSucceeded(string! pathAndQuery, int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!

@@ -159,7 +159,8 @@ using Wslc.Testcontainers.Waiting;
 .WithWaitStrategy(Wait.ForWsl().UntilFileExists("/tmp/ready"))
 ```
 
-Strategies support `WithTimeout(...)`, `WithRetryInterval(...)` and can be combined:
+Strategies support `WithTimeout(...)`, `WithRetryInterval(...)` and can be combined (the
+composite keeps the left operand's timeout; nested composites are flattened):
 
 ```csharp
 var strategy = Wait.ForWsl()

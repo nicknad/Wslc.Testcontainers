@@ -13,3 +13,4 @@ When a comment refers to one of these rules, cite it as `per ADR-XXXX <slug>`.
 | [0005](0005-strict-build.md) | Strict build with zero warnings |
 | [0006](0006-module-bases.md) | Typed module bases |
 | [0007](0007-mutable-builders.md) | Mutable builders, single-copy handoff |
+| [0008](0008-service-interfaces.md) | `IWslContainer`/`IWaitTarget` are library-implemented |

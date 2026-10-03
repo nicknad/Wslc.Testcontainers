@@ -68,3 +68,12 @@ internal sealed record LogMessageWaitStrategy(string Message, int Occurrences = 
         return Task.FromResult(false);
     }
 }
+
+/// <summary>Waits until a caller-provided condition returns true.</summary>
+internal sealed record DelegateWaitStrategy(string ConditionName, Func<IWaitTarget, CancellationToken, Task<bool>> Condition) : PollingWaitStrategyBase
+{
+    public override string Name => ConditionName;
+
+    protected override Task<bool> CheckAsync(IWaitTarget target, CancellationToken cancellationToken) =>
+        Condition(target, cancellationToken);
+}

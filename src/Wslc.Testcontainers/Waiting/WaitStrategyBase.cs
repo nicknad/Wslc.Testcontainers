@@ -54,7 +54,11 @@ internal abstract record WaitStrategyBase : IWaitStrategy
             return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
         }
 
-        return new CompositeWaitStrategy(new IWaitStrategy[] { this, other });
+        return new CompositeWaitStrategy(new IWaitStrategy[] { this, other }) with
+        {
+            Timeout = Timeout,
+            RetryInterval = RetryInterval,
+        };
     }
 
     public abstract Task WaitAsync(IWaitTarget target, CancellationToken cancellationToken);

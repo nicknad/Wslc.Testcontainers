@@ -1,5 +1,6 @@
 #include "internal/process_runner.hpp"
 
+#include "internal/pipe_reader.hpp"
 #include "internal/util.hpp"
 #include "wslc/exceptions.hpp"
 
@@ -18,49 +19,6 @@ namespace
 constexpr std::uint64_t c_maxCopyBytes = 1024ull * 1024ull * 1024ull;
 constexpr std::size_t c_copyChunkSize = 64 * 1024;
 constexpr std::chrono::milliseconds c_abortGracePeriod{2000};
-
-class IoHandle
-{
-public:
-    IoHandle() = default;
-    explicit IoHandle(HANDLE Handle) : m_handle(Handle) {}
-    ~IoHandle() { reset(); }
-    IoHandle(const IoHandle&) = delete;
-    IoHandle& operator=(const IoHandle&) = delete;
-    IoHandle(IoHandle&& other) noexcept : m_handle(other.m_handle) { other.m_handle = INVALID_HANDLE_VALUE; }
-    IoHandle& operator=(IoHandle&& other) noexcept
-    {
-        if (this != &other)
-        {
-            reset();
-            m_handle = other.m_handle;
-            other.m_handle = INVALID_HANDLE_VALUE;
-        }
-        return *this;
-    }
-
-    HANDLE get() const noexcept { return m_handle; }
-    explicit operator bool() const noexcept { return m_handle != nullptr && m_handle != INVALID_HANDLE_VALUE; }
-    HANDLE release() noexcept
-    {
-        HANDLE result = m_handle;
-        m_handle = INVALID_HANDLE_VALUE;
-        return result;
-    }
-
-    void reset() noexcept
-    {
-        if (operator bool())
-        {
-            CloseHandle(m_handle);
-        }
-
-        m_handle = INVALID_HANDLE_VALUE;
-    }
-
-private:
-    HANDLE m_handle = INVALID_HANDLE_VALUE;
-};
 
 std::vector<PCSTR> build_argv(const std::vector<std::string>& CommandLine)
 {
@@ -412,19 +370,9 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
             std::uint64_t total = 0;
             for (;;)
             {
-                ThrowIfStopped(token);
-                DWORD read = 0;
-                if (ReadFile(stdoutHandle.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &read, nullptr) == 0)
-                {
-                    const DWORD last_error = GetLastError();
-                    if (last_error == ERROR_BROKEN_PIPE || last_error == ERROR_HANDLE_EOF)
-                    {
-                        break;
-                    }
-
-                    throw WslProcessException("Failed to read the process standard output.");
-                }
-
+                // Poll instead of blocking in ReadFile so a cancelled copy is observed between
+                // chunks; ReadPipeAvailable returns 0 once the stdout pipe reaches end-of-file.
+                const std::size_t read = ReadPipeAvailable(stdoutHandle, buffer, token);
                 if (read == 0)
                 {
                     break;

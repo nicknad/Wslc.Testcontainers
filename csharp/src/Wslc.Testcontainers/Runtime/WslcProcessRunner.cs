@@ -238,41 +238,56 @@ internal static class WslcProcessRunner
             {
                 await using var output = new FileStream(
                     tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
-
-                // The WinRT stream adapter rejects InputStreamOptions::Partial, so read
-                // explicitly through a DataReader instead of AsStreamForRead().
                 using IInputStream stdout = process.NativeProcess.GetOutputStream(ProcessOutputHandle.StandardOutput);
-                using var reader = new DataReader(stdout) { InputStreamOptions = InputStreamOptions.None };
-
-                // Per ADR bounded loops we don't allow while(true): copy the container stdout
-                // in fixed 64 KiB chunks up to 1 GiB, then fail. The cap bounds both bytes and iterations.
-                const ulong MaxBytes = 1024u * 1024u * 1024u;
-                const uint ChunkSize = 64 * 1024;
-                const int MaxChunks = (int)(MaxBytes / ChunkSize) + 1;
-                ulong total = 0;
-                for (var chunk = 0; chunk < MaxChunks; chunk++)
-                {
-                    var loaded = await reader.LoadAsync(ChunkSize);
-                    if (loaded == 0)
-                    {
-                        break;
-                    }
-
-                    total += loaded;
-                    if (total > MaxBytes)
-                    {
-                        throw new WslProcessException($"Copying '{source}' to '{destination}' exceeded 1 GiB limit.");
-                    }
-
-                    // DataReader.ReadBytes(byte[]) requires an exact-length array, so each
-                    // chunk allocates exactly the loaded size instead of sharing a buffer.
-                    var buffer = new byte[loaded];
-                    reader.ReadBytes(buffer);
-                    await output.WriteAsync(buffer.AsMemory(0, (int)loaded), cancellationToken).ConfigureAwait(false);
-                }
+                await CopyStdoutAsync(stdout, output, source, destination, cancellationToken).ConfigureAwait(false);
             },
             commit: () => AtomicFile.Commit(tempPath, destinationPath),
             rollback: () => AtomicFile.Discard(tempPath));
+    }
+
+    /// <summary>
+    /// Streams a container stdout pipe into <paramref name="output"/> in bounded chunks while
+    /// honoring <paramref name="cancellationToken"/> even when the pipe is idle.
+    /// </summary>
+    internal static async Task CopyStdoutAsync(
+        IInputStream stdout,
+        Stream output,
+        string source,
+        string destination,
+        CancellationToken cancellationToken)
+    {
+        // The WinRT stream adapter rejects InputStreamOptions::Partial, so read explicitly
+        // through a DataReader instead of AsStreamForRead().
+        using var reader = new DataReader(stdout) { InputStreamOptions = InputStreamOptions.None };
+
+        // Per ADR bounded loops we don't allow while(true): copy the container stdout
+        // in fixed 64 KiB chunks up to 1 GiB, then fail. The cap bounds both bytes and iterations.
+        const ulong MaxBytes = 1024u * 1024u * 1024u;
+        const uint ChunkSize = 64 * 1024;
+        const int MaxChunks = (int)(MaxBytes / ChunkSize) + 1;
+        ulong total = 0;
+        for (var chunk = 0; chunk < MaxChunks; chunk++)
+        {
+            // Await with the token so a cancelled copy does not wait for the next chunk (or
+            // forever on a silent container); the caller kills the process, unblocking the read.
+            var loaded = await reader.LoadAsync(ChunkSize).AsTask(cancellationToken).ConfigureAwait(false);
+            if (loaded == 0)
+            {
+                break;
+            }
+
+            total += loaded;
+            if (total > MaxBytes)
+            {
+                throw new WslProcessException($"Copying '{source}' to '{destination}' exceeded 1 GiB limit.");
+            }
+
+            // DataReader.ReadBytes(byte[]) requires an exact-length array, so each
+            // chunk allocates exactly the loaded size instead of sharing a buffer.
+            var buffer = new byte[loaded];
+            reader.ReadBytes(buffer);
+            await output.WriteAsync(buffer.AsMemory(0, (int)loaded), cancellationToken).ConfigureAwait(false);
+        }
     }
 
     private static async Task ExecuteCopyAsync(

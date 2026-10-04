@@ -128,6 +128,7 @@ add_library(wslc STATIC
   src/internal/instance_store.cpp
   src/internal/json.cpp
   src/internal/log_broadcaster.cpp
+  src/internal/pipe_reader.cpp
   src/internal/port_mapping.cpp
   src/internal/process_runner.cpp
   src/internal/tcp_http.cpp

@@ -224,7 +224,7 @@ public sealed class WslContainerBuilder
 
         _configuration = _configuration with
         {
-            Files = Append(_configuration.Files, new WslFileCopy(hostPath, containerPath)),
+            Files = Append(_configuration.Files, new WslFileCopy(Path.GetFullPath(hostPath), containerPath)),
         };
         return this;
     }
@@ -519,17 +519,23 @@ public sealed class WslContainerBuilder
             throw new ArgumentException("Environment variable name must not be empty.", nameof(name));
         }
 
-        if (!char.IsLetter(name[0]) && name[0] != '_')
+        if (!IsAsciiLetter(name[0]) && name[0] != '_')
         {
             throw new ArgumentException($"Environment variable name '{name}' must start with a letter or underscore.", nameof(name));
         }
 
         foreach (var character in name)
         {
-            if (!char.IsLetterOrDigit(character) && character != '_')
+            if (!IsAsciiLetterOrDigit(character) && character != '_')
             {
                 throw new ArgumentException($"Environment variable name '{name}' contains invalid character '{character}'.", nameof(name));
             }
         }
     }
+
+    private static bool IsAsciiLetter(char character) =>
+        character is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
+
+    private static bool IsAsciiLetterOrDigit(char character) =>
+        IsAsciiLetter(character) || character is >= '0' and <= '9';
 }

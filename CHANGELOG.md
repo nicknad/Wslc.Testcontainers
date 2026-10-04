@@ -65,6 +65,14 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 - `WslContainerBuilder.FromImage` renamed `WithImage` (matches module builders and Testcontainers).
 - `WslModuleBuilder<TBuilder>.WithStartupTimeout` renamed `WithWaitTimeout`: the value is the per-wait timeout; the startup budget is derived as `2*t+30s`.
 - README quickstart now uses `PostgreSqlBuilder`; docs call out that the image ENTRYPOINT/CMD is never started automatically.
+- Environment variable names now follow the ASCII rule `[A-Za-z_][A-Za-z0-9_]*` in C# as well as
+  C++: names starting with or containing non-ASCII letters/digits (e.g. `café`, `Ωmega`) are
+  rejected with `ArgumentException`. This is an intentional breaking change: the Unicode
+  `char.IsLetter`/`char.IsLetterOrDigit` checks accepted them while the C++ port already rejected
+  them; both languages now report the same message.
+- `WithFile` absolutizes the host source path when the builder call runs, matching `WithVolume`
+  and the C++ port. A current-directory change between `Build()` and `StartAsync()` can no longer
+  redirect the copy, and the reuse hash now matches C++ for the same relative input.
 
 ### Removed
 

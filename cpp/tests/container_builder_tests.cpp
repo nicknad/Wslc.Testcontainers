@@ -32,6 +32,36 @@ std::filesystem::path CreateTempFile(const std::string& content)
     return path;
 }
 
+class ScopedEnvironmentVariable
+{
+public:
+    ScopedEnvironmentVariable(const wchar_t* Name, const wchar_t* value) : m_name(Name)
+    {
+        const DWORD length = GetEnvironmentVariableW(Name, nullptr, 0);
+        if (length > 0)
+        {
+            std::wstring buffer(length, L'\0');
+            const DWORD written = GetEnvironmentVariableW(Name, buffer.data(), length);
+            buffer.resize(written);
+            m_previous = std::move(buffer);
+        }
+
+        SetEnvironmentVariableW(Name, value);
+    }
+
+    ~ScopedEnvironmentVariable()
+    {
+        SetEnvironmentVariableW(m_name.c_str(), m_previous.empty() ? nullptr : m_previous.c_str());
+    }
+
+    ScopedEnvironmentVariable(const ScopedEnvironmentVariable&) = delete;
+    ScopedEnvironmentVariable& operator=(const ScopedEnvironmentVariable&) = delete;
+
+private:
+    std::wstring m_name;
+    std::wstring m_previous;
+};
+
 } // namespace
 
 TEST(ContainerBuilder, BuildRequiresAnImageSource)
@@ -198,11 +228,72 @@ TEST(ContainerBuilder, WithEnvironmentRejectsInvalidNames)
     EXPECT_THROW(builder.WithEnvironment("HAS-DASH", "value"), WslcException);
 }
 
+TEST(ContainerBuilder, WithEnvironmentRejectsNonAsciiNames)
+{
+    WslContainerBuilder builder;
+    builder.WithImage("alpine");
+
+    EXPECT_THROW(builder.WithEnvironment("café", "value"), WslcException);
+    EXPECT_THROW(builder.WithEnvironment("Ωmega", "value"), WslcException);
+    EXPECT_THROW(builder.WithEnvironment("Aé", "value"), WslcException);
+
+    EXPECT_NO_THROW(WslContainerBuilder{}.WithImage("alpine").WithEnvironment("A_B", "value").Build());
+    EXPECT_NO_THROW(WslContainerBuilder{}.WithImage("alpine").WithEnvironment("_x1", "value").Build());
+}
+
 TEST(ContainerBuilder, WithFileRequiresAnExistingFile)
 {
     WslContainerBuilder builder;
 
     EXPECT_THROW(builder.WithFile("missing.txt", "/tmp/missing.txt"), WslcException);
+}
+
+TEST(ContainerBuilder, WithFileAbsolutizesTheHostPathAtBuildTime)
+{
+    // Reuse names are hashes of the stored configuration, which includes the host file path;
+    // forcing reuse on exposes whether WithFile absolutized the path when it ran.
+    ScopedEnvironmentVariable reuseInCi(L"WSLC_REUSE_IN_CI", L"1");
+
+    const std::filesystem::path original = std::filesystem::current_path();
+    const std::filesystem::path root = std::filesystem::temp_directory_path() / "wslc-absolutize-test";
+    std::filesystem::remove_all(root);
+    std::filesystem::create_directories(root / "first");
+    std::filesystem::create_directories(root / "second");
+    std::ofstream(root / "first" / "payload.txt") << "payload";
+    std::ofstream(root / "second" / "payload.txt") << "payload";
+
+    try
+    {
+        std::filesystem::current_path(root / "first");
+        const auto relative = WslContainerBuilder{}
+                                  .WithImage("alpine")
+                                  .WithReuse(true)
+                                  .WithFile("payload.txt", "/tmp/payload.txt")
+                                  .Build();
+        const auto absolute = WslContainerBuilder{}
+                                  .WithImage("alpine")
+                                  .WithReuse(true)
+                                  .WithFile(root / "first" / "payload.txt", "/tmp/payload.txt")
+                                  .Build();
+        EXPECT_EQ(relative.Name(), absolute.Name());
+
+        std::filesystem::current_path(root / "second");
+        const auto other = WslContainerBuilder{}
+                               .WithImage("alpine")
+                               .WithReuse(true)
+                               .WithFile("payload.txt", "/tmp/payload.txt")
+                               .Build();
+        EXPECT_NE(relative.Name(), other.Name());
+    }
+    catch (...)
+    {
+        std::filesystem::current_path(original);
+        std::filesystem::remove_all(root);
+        throw;
+    }
+
+    std::filesystem::current_path(original);
+    std::filesystem::remove_all(root);
 }
 
 TEST(ContainerBuilder, WithVolumeRequiresAnExistingDirectory)

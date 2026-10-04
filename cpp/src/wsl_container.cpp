@@ -48,20 +48,20 @@ void ValidateEnvironmentName(const std::string& Name)
 {
     if (internal::IsBlank(Name))
     {
-        throw WslcException("Environment variable Name must not be empty.");
+        throw WslcException("Environment variable name must not be empty.");
     }
 
     const char first = Name[0];
     if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
     {
-        throw WslcException("Environment variable Name '" + Name + "' must Start with a letter or underscore.");
+        throw WslcException("Environment variable name '" + Name + "' must start with a letter or underscore.");
     }
 
     for (const char character : Name)
     {
         if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
         {
-            throw WslcException(std::string("Environment variable Name '") + Name + "' contains invalid character '" +
+            throw WslcException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
                                 character + "'.");
         }
     }

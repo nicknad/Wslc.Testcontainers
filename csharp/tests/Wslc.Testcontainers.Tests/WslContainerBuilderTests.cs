@@ -210,12 +210,134 @@ public sealed class WslContainerBuilderTests
         Assert.Throws<ArgumentException>(() => builder.WithEnvironment(name, "value"));
     }
 
+    [Theory]
+    [InlineData("café")]
+    [InlineData("Ωmega")]
+    [InlineData("Aé")]
+    public void WithEnvironment_rejects_non_ascii_names(string name)
+    {
+        var builder = new WslContainerBuilder();
+
+        Assert.Throws<ArgumentException>(() => builder.WithEnvironment(name, "value"));
+    }
+
+    [Theory]
+    [InlineData("A_B")]
+    [InlineData("_x1")]
+    public void WithEnvironment_accepts_ascii_names(string name)
+    {
+        var container = new WslContainerBuilder().WithImage("alpine").WithEnvironment(name, "value").Build();
+
+        Assert.Equal("value", container.Configuration.Environment[name]);
+    }
+
+    [Theory]
+    [InlineData("café")]
+    [InlineData("Ωmega")]
+    [InlineData("Aé")]
+    public async Task Exec_rejects_non_ascii_environment_names(string name)
+    {
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => container.ExecAsync(
+                "echo",
+                new ExecOptions { Environment = new Dictionary<string, string> { [name] = "value" } },
+                CancellationToken.None));
+    }
+
     [Fact]
     public void WithFile_requires_an_existing_file()
     {
         var builder = new WslContainerBuilder();
 
         Assert.Throws<WslcException>(() => builder.WithFile("missing.txt", "/tmp/missing.txt"));
+    }
+
+    [Fact]
+    public void WithFile_stores_an_absolute_source_at_build_time()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-absolutize-file");
+        var original = Directory.GetCurrentDirectory();
+        try
+        {
+            var file = Path.Combine(directory.FullName, "payload.txt");
+            File.WriteAllText(file, "payload");
+            Directory.SetCurrentDirectory(directory.FullName);
+
+            var container = new WslContainerBuilder()
+                .WithImage("alpine")
+                .WithFile("payload.txt", "/tmp/payload.txt")
+                .Build();
+
+            var copy = Assert.Single(container.Configuration.Files);
+            Assert.True(Path.IsPathFullyQualified(copy.Source));
+            Assert.Equal(Path.GetFullPath(file), copy.Source);
+
+            // The source is captured when WithFile runs; a later current-directory change must
+            // not alter the file a subsequent Start would copy.
+            Directory.SetCurrentDirectory(original);
+            Assert.Equal(Path.GetFullPath(file), Assert.Single(container.Configuration.Files).Source);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(original);
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void WithFile_relative_and_absolute_sources_hash_identically()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-absolutize-hash");
+        var original = Directory.GetCurrentDirectory();
+        try
+        {
+            var file = Path.Combine(directory.FullName, "payload.txt");
+            File.WriteAllText(file, "payload");
+            Directory.SetCurrentDirectory(directory.FullName);
+
+            var relative = new WslContainerBuilder().WithImage("alpine").WithFile("payload.txt", "/tmp/payload.txt").Build();
+            var absolute = new WslContainerBuilder().WithImage("alpine").WithFile(file, "/tmp/payload.txt").Build();
+
+            Assert.Equal(
+                WslConfigHasher.Compute(relative.Configuration),
+                WslConfigHasher.Compute(absolute.Configuration));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(original);
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void WithVolume_stores_an_absolute_host_path_at_build_time()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-absolutize-volume");
+        var original = Directory.GetCurrentDirectory();
+        try
+        {
+            var mount = Directory.CreateDirectory(Path.Combine(directory.FullName, "data")).FullName;
+            Directory.SetCurrentDirectory(directory.FullName);
+
+            var container = new WslContainerBuilder()
+                .WithImage("alpine")
+                .WithVolume("data", "/data")
+                .Build();
+
+            var volume = Assert.Single(container.Configuration.Volumes);
+            Assert.True(Path.IsPathFullyQualified(volume.HostPath));
+            Assert.Equal(Path.GetFullPath(mount), volume.HostPath);
+
+            Directory.SetCurrentDirectory(original);
+            Assert.Equal(Path.GetFullPath(mount), Assert.Single(container.Configuration.Volumes).HostPath);
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(original);
+            directory.Delete(recursive: true);
+        }
     }
 
     [Fact]

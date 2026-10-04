@@ -453,6 +453,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         // configuration across processes, so serialize owners with a fixed retry budget.
         // 100 attempts cover 30s @ 300ms, capped earlier by the startup timeout token.
         const int MaxAttempts = 100;
+        Exception? lastError = null;
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -461,17 +462,24 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 _reuseLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
                 return;
             }
-            catch (IOException)
+            catch (Exception exception) when (IsRetryableReuseLockError(exception))
             {
                 // Another process owns the reuse instance; retry until the budget is spent.
+                lastError = exception;
             }
 
             await Task.Delay(300, cancellationToken).ConfigureAwait(false);
         }
 
         throw new WslProvisioningException(
-            $"Reuse instance '{Name}' is locked by another process and was not released within 30s.");
+            lastError is UnauthorizedAccessException
+                ? $"Reuse instance '{Name}' lock could not be acquired within 30s because access was denied."
+                : $"Reuse instance '{Name}' is locked by another process and was not released within 30s.",
+            lastError);
     }
+
+    internal static bool IsRetryableReuseLockError(Exception exception) =>
+        exception is IOException or UnauthorizedAccessException;
 
     private void ReleaseReuseLock()
     {

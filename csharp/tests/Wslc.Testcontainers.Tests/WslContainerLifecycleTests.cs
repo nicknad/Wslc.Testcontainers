@@ -27,6 +27,18 @@ public sealed class WslContainerLifecycleTests
         Assert.Empty(await DrainAsync(container));
     }
 
+    [Theory]
+    [InlineData(typeof(IOException), true)]
+    [InlineData(typeof(UnauthorizedAccessException), true)]
+    [InlineData(typeof(OperationCanceledException), false)]
+    [InlineData(typeof(InvalidOperationException), false)]
+    public void Reuse_lock_retries_only_transient_file_errors(Type exceptionType, bool expected)
+    {
+        var exception = (Exception)Activator.CreateInstance(exceptionType)!;
+
+        Assert.Equal(expected, WslContainer.IsRetryableReuseLockError(exception));
+    }
+
     private static WslContainer CreateContainer()
     {
         var store = new WslInstanceStore(

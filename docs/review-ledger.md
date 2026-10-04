@@ -39,7 +39,7 @@ items are already fixed here; verify against this ledger before starting.
 | F18 | Builders uncapped (VHD, args, files, waits, CPUs, memory, timeouts) | UNVERIFIED | Some caps may exist; enumerate per property before changing. |
 | F19 | `HttpWaitStrategy` follows container redirects by default | OPEN | The explicit `AllowAutoRedirect = true` was removed, but `new HttpClient()` (`HttpWaitStrategy.cs:9`) still follows redirects via the default handler. |
 | F20 | `ci.yml`/`integration.yml` have no `permissions:` | FIXED | Top-level `permissions: contents: read` added to both workflows; YAML parsed and verified. |
-| F21 | Container retry loop catches `IOException` only | OPEN | `WslContainer.cs:471`; ACL failures are not retried. |
+| F21 | Container retry loop catches `IOException` only | FIXED | Reuse-lock acquisition retries `IOException` and `UnauthorizedAccessException` through `IsRetryableReuseLockError` with the same 100x300ms budget; cancellation and non-transient errors still propagate. C++ already retried every failure. |
 | F22 | UTF-16 ordinal compare, `strtol`/`double` truncation, silent `{}` hashing | UNVERIFIED | Hash/port parity claims need golden vectors. |
 | F23 | `char.IsLetter` vs `isalpha`; Build vs Start absolutize timing | UNVERIFIED | Decide one ASCII rule and one validation point. |
 | F24 | Custom waits bypass the no-network rule and ignore CT past startup | UNVERIFIED | `WslContainerBuilder.cs:390-404`, `wsl_container_builder.cpp:383-396`. |

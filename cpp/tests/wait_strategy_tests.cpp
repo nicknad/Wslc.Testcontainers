@@ -251,6 +251,18 @@ TEST(WaitStrategy, InvalidConfigurationIsRejected)
     EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080), WslcException);
     EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("health", 8080), WslcException);
 
+    // Raw request lines must not carry spaces or CR/LF that would inject headers.
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health HTTP/1.1\r\nX-Evil: 1", 8080), WslcException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/he alth", 8080), WslcException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health\tx", 8080), WslcException);
+
+    // Container paths cannot escape via '..' or target kernel pseudo-filesystems.
+    EXPECT_THROW(ForWsl().UntilFileExists("/tmp/../etc/passwd"), WslcException);
+    EXPECT_THROW(ForWsl().UntilFileExists("/./proc/self/environ"), WslcException);
+    EXPECT_THROW(ForWsl().UntilFileExists("//sys/kernel"), WslcException);
+    EXPECT_THROW(ForWsl().UntilFileExists("/dev/sda"), WslcException);
+    EXPECT_THROW(ForWsl().UntilFileExists(std::string("/tmp/bad\x01name")), WslcException);
+
     EXPECT_THROW(ForWsl().UntilMessageIsLogged("ready", 0), WslcException);
     EXPECT_THROW(ForWsl().UntilMessageIsLogged(" ", 2), WslcException);
 }

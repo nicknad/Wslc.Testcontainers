@@ -28,6 +28,18 @@ bool IsBlank(std::string_view value);
 /// <summary>Trims leading/trailing whitespace.</summary>
 std::string trim(std::string_view value);
 
+/// <summary>
+/// Requires an absolute Linux path that is safe to pass to the WSLC runtime as a working
+/// directory, volume target, or copy destination. Throws WslcException otherwise.
+/// </summary>
+void ValidateContainerPath(std::string_view path);
+
+/// <summary>
+/// Requires an origin-form path-and-query for the raw HTTP probe. Throws WslcException when
+/// the value is a full URL, is relative, or contains spaces/control characters.
+/// </summary>
+void ValidateHttpPath(std::string_view value);
+
 /// <summary>Lowercases ASCII characters.</summary>
 std::string ToLower(std::string_view value);
 
@@ -102,5 +114,17 @@ std::optional<std::string> NormalizeIpAddress(std::string_view value);
 
 /// <summary>Returns true for the IPv4/IPv6 unspecified (wildcard) addresses.</summary>
 bool IsWildcardAddress(std::string_view value);
+
+/// <summary>Throws when a copy destination is a directory or a reparse point (symlink/junction).</summary>
+void EnsureReplaceableDestination(const std::filesystem::path& destination);
+
+/// <summary>Creates a unique empty temp file next to the destination and returns its path.</summary>
+std::filesystem::path CreateAdjacentTempFile(const std::filesystem::path& destination);
+
+/// <summary>Atomically replaces the destination with the finished temp file.</summary>
+void CommitFileReplace(const std::filesystem::path& temp, const std::filesystem::path& destination);
+
+/// <summary>Deletes a file, ignoring failures.</summary>
+void BestEffortDeleteFile(const std::filesystem::path& path);
 
 } // namespace wslc::internal

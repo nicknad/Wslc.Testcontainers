@@ -318,6 +318,7 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
     auto State = Prepare(std::move(observer), false);
     CreateNative(container, settings, *State, ErrorKind::Process);
 
+    std::filesystem::path tempFile;
     try
     {
         IoHandle stdoutHandle;
@@ -327,51 +328,59 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
         stdoutHandle = IoHandle(Handle);
 
         const std::filesystem::path fullDestination = std::filesystem::absolute(Destination);
+        EnsureReplaceableDestination(fullDestination);
         if (fullDestination.has_parent_path())
         {
             std::error_code error;
             std::filesystem::create_directories(fullDestination.parent_path(), error);
         }
 
-        std::ofstream output(fullDestination, std::ios::binary | std::ios::trunc);
-        if (!output)
-        {
-            throw WslProcessException("Failed to create Host file '" + ToUtf8(fullDestination.wstring()) + "'.");
-        }
+        // Write to a sibling temp file; the destination is only replaced after the container
+        // command exits successfully, so failures cannot truncate existing host data.
+        tempFile = CreateAdjacentTempFile(fullDestination);
 
-        std::array<char, c_copyChunkSize> buffer{};
-        std::uint64_t total = 0;
-        for (;;)
         {
-            ThrowIfStopped(token);
-            DWORD read = 0;
-            if (ReadFile(stdoutHandle.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &read, nullptr) == 0)
+            std::ofstream output(tempFile, std::ios::binary | std::ios::trunc);
+            if (!output)
             {
-                const DWORD last_error = GetLastError();
-                if (last_error == ERROR_BROKEN_PIPE || last_error == ERROR_HANDLE_EOF)
+                throw WslProcessException("Failed to create temporary file '" + ToUtf8(tempFile.wstring()) + "'.");
+            }
+
+            std::array<char, c_copyChunkSize> buffer{};
+            std::uint64_t total = 0;
+            for (;;)
+            {
+                ThrowIfStopped(token);
+                DWORD read = 0;
+                if (ReadFile(stdoutHandle.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &read, nullptr) == 0)
+                {
+                    const DWORD last_error = GetLastError();
+                    if (last_error == ERROR_BROKEN_PIPE || last_error == ERROR_HANDLE_EOF)
+                    {
+                        break;
+                    }
+
+                    throw WslProcessException("Failed to read the process standard output.");
+                }
+
+                if (read == 0)
                 {
                     break;
                 }
 
-                throw WslProcessException("Failed to read the process standard output.");
+                total += read;
+                if (total > c_maxCopyBytes)
+                {
+                    throw WslProcessException("Copying '" + Source + "' to '" + ToUtf8(fullDestination.wstring()) +
+                                              "' exceeded 1 GiB limit.");
+                }
+
+                output.write(buffer.data(), static_cast<std::streamsize>(read));
             }
 
-            if (read == 0)
-            {
-                break;
-            }
-
-            total += read;
-            if (total > c_maxCopyBytes)
-            {
-                throw WslProcessException("Copying '" + Source + "' to '" + ToUtf8(fullDestination.wstring()) +
-                                          "' exceeded 1 GiB limit.");
-            }
-
-            output.write(buffer.data(), static_cast<std::streamsize>(read));
+            output.close();
         }
 
-        output.close();
         stdoutHandle.reset();
         State->WaitForExit(token);
 
@@ -381,10 +390,12 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
                                       "' failed: " + trim(State->StderrText()));
         }
 
+        CommitFileReplace(tempFile, fullDestination);
         State->Dispose();
     }
     catch (...)
     {
+        BestEffortDeleteFile(tempFile);
         State->Kill(c_abortGracePeriod, std::stop_token{});
         State->Dispose();
         throw;

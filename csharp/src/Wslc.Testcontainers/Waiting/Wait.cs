@@ -1,3 +1,5 @@
+using Wslc.Testcontainers.Internal;
+
 namespace Wslc.Testcontainers.Waiting;
 
 /// <summary>Entry point for declaratively describing readiness conditions.</summary>
@@ -41,7 +43,7 @@ public sealed class WslWaitBuilder
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health?ready=1</c>). Not a full URL.</param>
     /// <param name="port">Linux container port to probe via its mapped host port.</param>
     public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery, int port) =>
-        Configure(new HttpWaitStrategy(RequirePath(pathAndQuery, nameof(pathAndQuery)), ValidatePort(port)));
+        Configure(new HttpWaitStrategy(Validation.RequireHttpPath(pathAndQuery, nameof(pathAndQuery)), ValidatePort(port)));
 
     /// <summary>Waits until an HTTP GET against Linux port 80 succeeds.</summary>
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health</c>). Not a full URL.</param>
@@ -78,7 +80,7 @@ public sealed class WslWaitBuilder
 
     /// <summary>Waits until an absolute Linux path exists inside the environment (e.g. <c>/tmp/ready</c>).</summary>
     public IWaitStrategy UntilFileExists(string path) =>
-        Configure(new FileExistsWaitStrategy(RequireContainerPath(path, nameof(path))));
+        Configure(new FileExistsWaitStrategy(Validation.RequireContainerPath(path, nameof(path))));
 
     /// <summary>
     /// Waits until a custom condition returns <c>true</c>. The delegate receives the environment
@@ -123,31 +125,4 @@ public sealed class WslWaitBuilder
         string.IsNullOrWhiteSpace(value)
             ? throw new ArgumentException("Value must not be empty.", parameterName)
             : value;
-
-    private static string RequirePath(string value, string parameterName)
-    {
-        RequireText(value, parameterName);
-        if (value.Contains("://", StringComparison.Ordinal) || value.StartsWith("http:", StringComparison.OrdinalIgnoreCase) || value.StartsWith("https:", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"HTTP wait path '{value}' must be a path-and-query (e.g. /health), not a full URL.", parameterName);
-        }
-
-        if (!value.StartsWith('/'))
-        {
-            throw new ArgumentException($"HTTP wait path '{value}' must start with '/'.", parameterName);
-        }
-
-        return value;
-    }
-
-    private static string RequireContainerPath(string value, string parameterName)
-    {
-        RequireText(value, parameterName);
-        if (!value.StartsWith('/'))
-        {
-            throw new ArgumentException($"Container path '{value}' must be an absolute Linux path starting with '/'.", parameterName);
-        }
-
-        return value;
-    }
 }

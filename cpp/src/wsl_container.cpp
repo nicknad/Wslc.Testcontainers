@@ -77,18 +77,9 @@ void ValidateExecOptions(const ExecOptions& options)
         ValidateEnvironmentName(pair.first);
     }
 
-    if (options.WorkingDirectory && internal::IsBlank(*options.WorkingDirectory))
+    if (options.WorkingDirectory)
     {
-        throw WslcException("Working directory must not be empty when set.");
-    }
-}
-
-void RequireContainerPath(const std::string& path)
-{
-    if (internal::IsBlank(path) || path[0] != '/')
-    {
-        throw WslcException("Container path '" + path +
-                            "' must be an absolute Linux path starting with '/' (e.g. /tmp/file).");
+        internal::ValidateContainerPath(*options.WorkingDirectory);
     }
 }
 
@@ -1314,7 +1305,7 @@ void WslContainer::Impl::CopyTo(const std::filesystem::path& HostPath, std::stri
         throw WslcException("Host path must not be empty.");
     }
 
-    RequireContainerPath(ContainerPath);
+    internal::ValidateContainerPath(ContainerPath);
     auto containerHandle = RequireContainer();
 
     std::error_code error;
@@ -1338,7 +1329,7 @@ void WslContainer::Impl::CopyFrom(std::string ContainerPath, const std::filesyst
                                   std::stop_token token)
 {
     internal::EnsureComInitialized();
-    RequireContainerPath(ContainerPath);
+    internal::ValidateContainerPath(ContainerPath);
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
     if (internal::IsBlank(hostText))
     {

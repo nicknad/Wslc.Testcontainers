@@ -226,6 +226,32 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
+    public void Container_paths_reject_injection_across_builder_methods()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-builder-test");
+        var file = Path.Combine(directory.FullName, "payload.txt");
+        File.WriteAllText(file, "payload");
+        try
+        {
+            var builder = new WslContainerBuilder().WithImage("alpine");
+            Assert.Throws<ArgumentException>(() => builder.WithFile(file, "/proc/self/environ"));
+            Assert.Throws<ArgumentException>(() => builder.WithVolume(directory.FullName, "/sys/kernel"));
+            Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "/dev/sda", 100));
+            Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "/a/../b", 100));
+            Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithWorkingDirectory("/tmp/../etc"));
+            Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithWorkingDirectory("/tmp/bad\u0007name"));
+            Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithWorkingDirectory("/./proc/self"));
+
+            // Spaces are legal inside container paths even though the HTTP probe rejects them.
+            builder.WithWorkingDirectory("/mnt/c/Program Files/data");
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Container_guards_access_before_start()
     {
         await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();

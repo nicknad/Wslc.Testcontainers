@@ -169,7 +169,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     public Task CopyToAsync(string hostPath, string containerPath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(hostPath);
-        RequireContainerPath(containerPath, nameof(containerPath));
+        Validation.RequireContainerPath(containerPath, nameof(containerPath));
         var container = RequireContainer();
         var fullHostPath = Path.GetFullPath(hostPath);
         if (!File.Exists(fullHostPath))
@@ -190,7 +190,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     /// <inheritdoc />
     public Task CopyFromAsync(string containerPath, string hostPath, CancellationToken cancellationToken = default)
     {
-        RequireContainerPath(containerPath, nameof(containerPath));
+        Validation.RequireContainerPath(containerPath, nameof(containerPath));
         ArgumentException.ThrowIfNullOrWhiteSpace(hostPath);
         var container = RequireContainer();
         return WslcProcessRunner.CopyFromAsync(container, containerPath, hostPath, cancellationToken, _logs.Publish);
@@ -971,19 +971,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
     }
 
-    private static void RequireContainerPath(string path, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).", parameterName);
-        }
-
-        if (!path.StartsWith('/'))
-        {
-            throw new ArgumentException($"Container path '{path}' must be an absolute Linux path starting with '/'.", parameterName);
-        }
-    }
-
     private static void ValidateExecOptions(ExecOptions? options)
     {
         if (options is null)
@@ -1008,9 +995,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             }
         }
 
-        if (options.WorkingDirectory is { } workingDirectory && string.IsNullOrWhiteSpace(workingDirectory))
+        if (options.WorkingDirectory is { } workingDirectory)
         {
-            throw new ArgumentException("Working directory must not be empty when set.", nameof(options));
+            Validation.RequireContainerPath(workingDirectory, nameof(ExecOptions.WorkingDirectory));
         }
     }
 

@@ -86,6 +86,121 @@ std::string trim(std::string_view value)
     return std::string(value.substr(Start, end - Start));
 }
 
+namespace
+{
+
+bool HasControlCharacter(std::string_view value)
+{
+    for (const char character : value)
+    {
+        const unsigned char byte = static_cast<unsigned char>(character);
+        if (byte < 0x20 || byte == 0x7F)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/// <summary>First segment that names a real directory, skipping leading '/' runs and '.' entries.</summary>
+std::string_view FirstPathSegment(std::string_view path)
+{
+    std::size_t index = 0;
+    for (;;)
+    {
+        const std::size_t next = path.find('/', index);
+        const std::size_t end = next == std::string_view::npos ? path.size() : next;
+        const std::string_view segment = path.substr(index, end - index);
+        if (!segment.empty() && segment != ".")
+        {
+            return segment;
+        }
+
+        if (next == std::string_view::npos)
+        {
+            return {};
+        }
+
+        index = next + 1;
+    }
+}
+
+} // namespace
+
+void ValidateContainerPath(std::string_view path)
+{
+    if (IsBlank(path))
+    {
+        throw WslcException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).");
+    }
+
+    if (path[0] != '/')
+    {
+        throw WslcException("Container path '" + std::string(path) +
+                            "' must be an absolute Linux path starting with '/'.");
+    }
+
+    if (HasControlCharacter(path))
+    {
+        throw WslcException("Container path '" + std::string(path) + "' must not contain control characters.");
+    }
+
+    std::size_t index = 0;
+    for (;;)
+    {
+        const std::size_t next = path.find('/', index);
+        const std::size_t end = next == std::string_view::npos ? path.size() : next;
+        if (path.substr(index, end - index) == "..")
+        {
+            throw WslcException("Container path '" + std::string(path) + "' must not contain '..' segments.");
+        }
+
+        if (next == std::string_view::npos)
+        {
+            break;
+        }
+
+        index = next + 1;
+    }
+
+    const std::string_view first = FirstPathSegment(path);
+    if (first == "proc" || first == "sys" || first == "dev")
+    {
+        throw WslcException("Container path '" + std::string(path) + "' targets the protected '/" + std::string(first) +
+                            "' filesystem.");
+    }
+}
+
+void ValidateHttpPath(std::string_view value)
+{
+    if (IsBlank(value))
+    {
+        throw WslcException("HTTP wait path must not be empty.");
+    }
+
+    if (value.find("://") != std::string_view::npos || value.rfind("http:", 0) == 0 || value.rfind("https:", 0) == 0)
+    {
+        throw WslcException("HTTP wait path '" + std::string(value) +
+                            "' must be a path-and-query (e.g. /health), not a full URL.");
+    }
+
+    if (value[0] != '/')
+    {
+        throw WslcException("HTTP wait path '" + std::string(value) + "' must start with '/'.");
+    }
+
+    for (const char character : value)
+    {
+        const unsigned char byte = static_cast<unsigned char>(character);
+        if (byte <= 0x20 || byte == 0x7F)
+        {
+            throw WslcException("HTTP wait path '" + std::string(value) +
+                                "' must not contain spaces or control characters; percent-encode them.");
+        }
+    }
+}
+
 std::string ToLower(std::string_view value)
 {
     std::string result(value);
@@ -580,6 +695,55 @@ bool IsWildcardAddress(std::string_view value)
 {
     const auto normalized = NormalizeIpAddress(value);
     return normalized && (*normalized == "0.0.0.0" || *normalized == "::");
+}
+
+void EnsureReplaceableDestination(const std::filesystem::path& destination)
+{
+    const DWORD attributes = GetFileAttributesW(destination.c_str());
+    if (attributes == INVALID_FILE_ATTRIBUTES)
+    {
+        return;
+    }
+
+    const std::string text = ToUtf8(destination.wstring());
+    if ((attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+    {
+        throw WslProcessException("Refusing to write '" + text +
+                                  "': the destination is a reparse point (symlink or junction).");
+    }
+
+    if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+    {
+        throw WslProcessException("Refusing to write '" + text + "': the destination is a directory.");
+    }
+}
+
+std::filesystem::path CreateAdjacentTempFile(const std::filesystem::path& destination)
+{
+    const std::filesystem::path parent =
+        destination.has_parent_path() ? destination.parent_path() : std::filesystem::path(L".");
+    wchar_t buffer[MAX_PATH] = {};
+    if (GetTempFileNameW(parent.c_str(), L"wsl", 0, buffer) == 0)
+    {
+        throw WslProcessException("Failed to create a temporary file next to '" + ToUtf8(destination.wstring()) +
+                                  "': " + FormatWindowsError(GetLastError()));
+    }
+
+    return std::filesystem::path(buffer);
+}
+
+void CommitFileReplace(const std::filesystem::path& temp, const std::filesystem::path& destination)
+{
+    if (MoveFileExW(temp.c_str(), destination.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0)
+    {
+        throw WslProcessException("Failed to replace '" + ToUtf8(destination.wstring()) +
+                                  "': " + FormatWindowsError(GetLastError()));
+    }
+}
+
+void BestEffortDeleteFile(const std::filesystem::path& path)
+{
+    DeleteFileW(path.c_str());
 }
 
 } // namespace wslc::internal

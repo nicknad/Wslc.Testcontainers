@@ -6,7 +6,10 @@ namespace Wslc.Testcontainers.Waiting;
 /// <summary>Waits until an HTTP request against a mapped port succeeds.</summary>
 internal sealed record HttpWaitStrategy(string Path, int Port) : PollingWaitStrategyBase
 {
-    private static readonly HttpClient Client = new() { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+    // Redirects are not followed: a container can point Location at host-only or link-local
+    // addresses, turning the readiness probe into an SSRF primitive. 3xx still counts as success.
+    private static readonly HttpClient Client =
+        new(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
 
     private readonly string _normalizedPath = Path.StartsWith('/') ? Path : "/" + Path;
 

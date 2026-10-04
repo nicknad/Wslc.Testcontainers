@@ -1,4 +1,5 @@
 using System.Net;
+using Wslc.Testcontainers.Internal;
 using Wslc.Testcontainers.Provisioning;
 using Wslc.Testcontainers.Waiting;
 
@@ -82,7 +83,7 @@ public sealed class WslContainerBuilder
     /// <summary>Sets the working directory used by the init process and command executions.</summary>
     public WslContainerBuilder WithWorkingDirectory(string workingDirectory)
     {
-        RequireText(workingDirectory, nameof(workingDirectory));
+        Validation.RequireContainerPath(workingDirectory, nameof(workingDirectory));
         _configuration = _configuration with { WorkingDirectory = workingDirectory };
         return this;
     }
@@ -191,7 +192,7 @@ public sealed class WslContainerBuilder
     public WslContainerBuilder WithFile(string hostPath, string containerPath)
     {
         RequireText(hostPath, nameof(hostPath));
-        RequireContainerPath(containerPath, nameof(containerPath));
+        Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (!File.Exists(hostPath))
         {
             throw new WslcException($"File source '{hostPath}' does not exist. Only files are supported by WithFile.");
@@ -224,7 +225,7 @@ public sealed class WslContainerBuilder
     public WslContainerBuilder WithVolume(string hostPath, string containerPath, VolumeAccess access)
     {
         RequireText(hostPath, nameof(hostPath));
-        RequireContainerPath(containerPath, nameof(containerPath));
+        Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (!Directory.Exists(hostPath))
         {
             throw new WslcException($"Volume host path '{hostPath}' does not exist or is not a directory.");
@@ -262,7 +263,7 @@ public sealed class WslContainerBuilder
         VhdAllocationType type = VhdAllocationType.Dynamic)
     {
         RequireVolumeName(name, nameof(name));
-        RequireContainerPath(containerPath, nameof(containerPath));
+        Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (sizeBytes == 0)
         {
             throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Session volume size must be positive.");
@@ -475,19 +476,6 @@ public sealed class WslContainerBuilder
         if (string.IsNullOrWhiteSpace(value))
         {
             throw new ArgumentException("Value must not be empty.", parameterName);
-        }
-    }
-
-    private static void RequireContainerPath(string path, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            throw new ArgumentException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).", parameterName);
-        }
-
-        if (!path.StartsWith('/'))
-        {
-            throw new ArgumentException($"Container path '{path}' must be an absolute Linux path starting with '/'.", parameterName);
         }
     }
 

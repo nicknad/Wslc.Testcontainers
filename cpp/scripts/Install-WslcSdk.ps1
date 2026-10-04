@@ -14,10 +14,24 @@
 #>
 param(
   [string]$Version = '3.0.1',
-  [string]$Destination = (Join-Path $PSScriptRoot '..\.packages')
+  [string]$Destination = (Join-Path $PSScriptRoot '..\.packages'),
+  [string]$Sha512 = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+# SHA512 pin for each supported SDK version (hex, verified against nuget.org).
+$pinnedHashes = @{
+  '3.0.1' = 'AE6836D4AEF1CAF172A8782BB42EF1B2B3980240B818F61A23229CB0A8B286D6FDD3998F86FBE9ADDBAA4D24F63BCF7919FD75235ADFD5E749C9B750869FDDEC'
+}
+
+if (-not $Sha512) {
+  $Sha512 = $pinnedHashes[$Version]
+}
+
+if (-not $Sha512) {
+  throw "No pinned SHA512 for Microsoft.WSL.Containers $Version. Pass -Sha512 <hex> to verify the download."
+}
 
 $root = Join-Path $Destination "Microsoft.WSL.Containers.$Version"
 if (Test-Path (Join-Path $root 'cmake/Microsoft.WSL.ContainersConfig.cmake')) {
@@ -31,6 +45,13 @@ $url = "https://api.nuget.org/v3-flatcontainer/microsoft.wsl.containers/$Version
 $temp = Join-Path ([System.IO.Path]::GetTempPath()) "wslc-sdk-$Version-$(New-Guid).zip"
 Write-Host "Downloading $url"
 Invoke-WebRequest -Uri $url -OutFile $temp
+
+$actual = (Get-FileHash -LiteralPath $temp -Algorithm SHA512).Hash
+if ($actual -ne $Sha512.ToUpperInvariant()) {
+  Remove-Item -Force $temp -ErrorAction SilentlyContinue
+  throw "SHA512 mismatch for $url`nExpected: $($Sha512.ToUpperInvariant())`nActual:   $actual"
+}
+
 try {
   Remove-Item -Recurse -Force $root -ErrorAction SilentlyContinue
   Expand-Archive -LiteralPath $temp -DestinationPath $root

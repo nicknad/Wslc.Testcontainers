@@ -109,6 +109,25 @@ public sealed class WaitStrategyTests
     }
 
     [Fact]
+    public async Task Http_wait_does_not_follow_redirects()
+    {
+        using var destination = new TinyHttpServer();
+        using var redirect = new TinyHttpServer(statusCode: 302, location: $"http://127.0.0.1:{destination.Port}/final");
+        var target = new FakeWaitTarget { Host = "127.0.0.1", ProbeHost = "127.0.0.1", MappedPort = redirect.Port };
+
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromSeconds(2))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(10))
+            .UntilHttpRequestIsSucceeded("/start", 8080);
+
+        // 302 is below 500, so the probe succeeds without chasing Location to another host.
+        await strategy.WaitAsync(target, CancellationToken.None);
+
+        Assert.True(redirect.RequestCount >= 1);
+        Assert.Equal(0, destination.RequestCount);
+    }
+
+    [Fact]
     public async Task Log_message_strategy_matches_captured_logs()
     {
         var target = new FakeWaitTarget();
@@ -285,6 +304,18 @@ public sealed class WaitStrategyTests
         // HTTP waits take a path-and-query, never a full URL or a relative path.
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080));
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("health", 8080));
+
+        // Raw request lines must not carry spaces or CR/LF that would inject headers.
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("/health HTTP/1.1\r\nX-Evil: 1", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("/he alth", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("/health\tx", 8080));
+
+        // Container paths cannot escape via '..' or target kernel pseudo-filesystems.
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists("/tmp/../etc/passwd"));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists("/./proc/self/environ"));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists("//sys/kernel"));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists("/dev/sda"));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists("/tmp/bad\u0001name"));
 
         Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().UntilMessageIsLogged("ready", 0));
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilMessageIsLogged(" ", 2));

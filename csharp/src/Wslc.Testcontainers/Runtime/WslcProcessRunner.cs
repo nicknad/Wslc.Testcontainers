@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.WSL.Containers;
 using Windows.Storage.Streams;
+using Wslc.Testcontainers.Internal;
 
 namespace Wslc.Testcontainers.Runtime;
 
@@ -174,55 +175,70 @@ internal static class WslcProcessRunner
         CancellationToken cancellationToken,
         Action<LogLine>? observer)
     {
+        var destinationPath = Path.GetFullPath(destination);
+        AtomicFile.EnsureReplaceable(destinationPath);
+        var destinationDirectory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(destinationDirectory))
+        {
+            Directory.CreateDirectory(destinationDirectory);
+        }
+
+        // The transfer writes a sibling temp file; the destination is only replaced after the
+        // container command exits successfully, so failures cannot truncate existing host data.
+        var tempPath = AtomicFile.CreateTempPath(destinationPath);
+
         var settings = CreateSettings(
             new List<string>(5) { "/bin/sh", "-c", "cat -- \"$1\"", "sh", source },
             workingDirectory: null,
             environment: null,
             outputMode: ProcessOutputMode.Stream);
 
-        return ExecuteCopyAsync(container, settings, observer, source, destination, cancellationToken, async process =>
-        {
-            var destinationPath = Path.GetFullPath(destination);
-            var destinationDirectory = Path.GetDirectoryName(destinationPath);
-            if (!string.IsNullOrEmpty(destinationDirectory))
+        return ExecuteCopyAsync(
+            container,
+            settings,
+            observer,
+            source,
+            destination,
+            cancellationToken,
+            async process =>
             {
-                Directory.CreateDirectory(destinationDirectory);
-            }
+                await using var output = new FileStream(
+                    tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 64 * 1024, FileOptions.Asynchronous);
 
-            await using var output = File.Create(destinationPath);
+                // The WinRT stream adapter rejects InputStreamOptions::Partial, so read
+                // explicitly through a DataReader instead of AsStreamForRead().
+                using IInputStream stdout = process.NativeProcess.GetOutputStream(ProcessOutputHandle.StandardOutput);
+                using var reader = new DataReader(stdout) { InputStreamOptions = InputStreamOptions.None };
 
-            // The WinRT stream adapter rejects InputStreamOptions::Partial, so read
-            // explicitly through a DataReader instead of AsStreamForRead().
-            using IInputStream stdout = process.NativeProcess.GetOutputStream(ProcessOutputHandle.StandardOutput);
-            using var reader = new DataReader(stdout) { InputStreamOptions = InputStreamOptions.None };
-
-            // Per ADR bounded loops we don't allow while(true): copy the container stdout
-            // in fixed 64 KiB chunks up to 1 GiB, then fail. The cap bounds both bytes and iterations.
-            const ulong MaxBytes = 1024u * 1024u * 1024u;
-            const uint ChunkSize = 64 * 1024;
-            const int MaxChunks = (int)(MaxBytes / ChunkSize) + 1;
-            ulong total = 0;
-            for (var chunk = 0; chunk < MaxChunks; chunk++)
-            {
-                var loaded = await reader.LoadAsync(ChunkSize);
-                if (loaded == 0)
+                // Per ADR bounded loops we don't allow while(true): copy the container stdout
+                // in fixed 64 KiB chunks up to 1 GiB, then fail. The cap bounds both bytes and iterations.
+                const ulong MaxBytes = 1024u * 1024u * 1024u;
+                const uint ChunkSize = 64 * 1024;
+                const int MaxChunks = (int)(MaxBytes / ChunkSize) + 1;
+                ulong total = 0;
+                for (var chunk = 0; chunk < MaxChunks; chunk++)
                 {
-                    break;
-                }
+                    var loaded = await reader.LoadAsync(ChunkSize);
+                    if (loaded == 0)
+                    {
+                        break;
+                    }
 
-                total += loaded;
-                if (total > MaxBytes)
-                {
-                    throw new WslProcessException($"Copying '{source}' to '{destination}' exceeded 1 GiB limit.");
-                }
+                    total += loaded;
+                    if (total > MaxBytes)
+                    {
+                        throw new WslProcessException($"Copying '{source}' to '{destination}' exceeded 1 GiB limit.");
+                    }
 
-                // DataReader.ReadBytes(byte[]) requires an exact-length array, so each
-                // chunk allocates exactly the loaded size instead of sharing a buffer.
-                var buffer = new byte[loaded];
-                reader.ReadBytes(buffer);
-                await output.WriteAsync(buffer.AsMemory(0, (int)loaded), cancellationToken).ConfigureAwait(false);
-            }
-        });
+                    // DataReader.ReadBytes(byte[]) requires an exact-length array, so each
+                    // chunk allocates exactly the loaded size instead of sharing a buffer.
+                    var buffer = new byte[loaded];
+                    reader.ReadBytes(buffer);
+                    await output.WriteAsync(buffer.AsMemory(0, (int)loaded), cancellationToken).ConfigureAwait(false);
+                }
+            },
+            commit: () => AtomicFile.Commit(tempPath, destinationPath),
+            rollback: () => AtomicFile.Discard(tempPath));
     }
 
     private static async Task ExecuteCopyAsync(
@@ -232,7 +248,9 @@ internal static class WslcProcessRunner
         string source,
         string destination,
         CancellationToken cancellationToken,
-        Func<ContainerProcess, Task> transfer)
+        Func<ContainerProcess, Task> transfer,
+        Action? commit = null,
+        Action? rollback = null)
     {
         var process = Start(container, settings, observer);
 
@@ -241,9 +259,11 @@ internal static class WslcProcessRunner
             await transfer(process).ConfigureAwait(false);
             await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
             ThrowIfCopyFailed(process, source, destination);
+            commit?.Invoke();
         }
         catch
         {
+            rollback?.Invoke();
             await process.KillAsync(ContainerProcess.AbortGracePeriod, CancellationToken.None).ConfigureAwait(false);
             throw;
         }

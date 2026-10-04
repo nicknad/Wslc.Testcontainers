@@ -323,33 +323,6 @@ std::string RequireText(std::string value, const char* what)
     return value;
 }
 
-std::string RequirePath(std::string value)
-{
-    RequireText(value, "HTTP Wait path");
-    if (value.find("://") != std::string::npos || value.rfind("http:", 0) == 0 || value.rfind("https:", 0) == 0)
-    {
-        throw WslcException("HTTP Wait path '" + value + "' must be a path-and-query (e.g. /health), not a full URL.");
-    }
-
-    if (value.empty() || value[0] != '/')
-    {
-        throw WslcException("HTTP Wait path '" + value + "' must Start with '/'.");
-    }
-
-    return value;
-}
-
-std::string RequireContainerPath(std::string value)
-{
-    RequireText(value, "Container path");
-    if (value[0] != '/')
-    {
-        throw WslcException("Container path '" + value + "' must be an absolute Linux path starting with '/'.");
-    }
-
-    return value;
-}
-
 } // namespace
 
 WslWaitBuilder& WslWaitBuilder::WithTimeout(std::chrono::milliseconds Timeout)
@@ -385,7 +358,8 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilTcpPortIsAvailable(int port)
 
 std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestIsSucceeded(std::string pathAndQuery, int port) const
 {
-    const std::string path = RequirePath(std::move(pathAndQuery));
+    internal::ValidateHttpPath(pathAndQuery);
+    const std::string path = std::move(pathAndQuery);
     const int validated = ValidatePort(port);
     return Configure(std::make_shared<PollingStrategy>(
         "HTTP request to '" + path + "' on port " + std::to_string(validated) + " to succeed",
@@ -461,7 +435,8 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilMessageIsLogged(std::string 
 
 std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilFileExists(std::string path) const
 {
-    const std::string ContainerPath = RequireContainerPath(std::move(path));
+    internal::ValidateContainerPath(path);
+    const std::string ContainerPath = std::move(path);
     return Configure(std::make_shared<PollingStrategy>("path '" + ContainerPath + "' to exist",
                                                        [ContainerPath](IWaitTarget& target, std::stop_token token)
                                                        {

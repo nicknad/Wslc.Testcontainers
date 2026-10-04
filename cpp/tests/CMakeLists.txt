@@ -9,6 +9,7 @@ if(NOT GTest_FOUND)
   set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
   FetchContent_Declare(googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
+    URL_HASH SHA512=9046841044A2BF7EDFD96854AD9C44FFAE4FCB9FB59A075B367507C0762A98EB32CB6968D46663228272E26321E96F4DD287C95BAA22C6AF9BAD902B8B6EDE4E
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
   FetchContent_MakeAvailable(googletest)
 
@@ -24,6 +25,7 @@ if(NOT GTest_FOUND)
 endif()
 
 add_executable(wslc_tests
+  atomic_file_tests.cpp
   capture_buffer_tests.cpp
   config_hasher_tests.cpp
   container_builder_tests.cpp

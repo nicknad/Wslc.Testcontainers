@@ -33,15 +33,6 @@ void RequireText(const std::string& value, const char* what)
     }
 }
 
-void RequireContainerPath(const std::string& path)
-{
-    if (internal::IsBlank(path) || path[0] != '/')
-    {
-        throw WslcException("Container path '" + path +
-                            "' must be an absolute Linux path starting with '/' (e.g. /tmp/file).");
-    }
-}
-
 void RequireEnvironmentName(const std::string& Name)
 {
     if (internal::IsBlank(Name))
@@ -153,7 +144,7 @@ WslContainerBuilder& WslContainerBuilder::WithCommand(std::string command, std::
 
 WslContainerBuilder& WslContainerBuilder::WithWorkingDirectory(std::string WorkingDirectory)
 {
-    RequireText(WorkingDirectory, "Working directory");
+    internal::ValidateContainerPath(WorkingDirectory);
     m_state->configuration.WorkingDirectory = std::move(WorkingDirectory);
     return *this;
 }
@@ -239,7 +230,7 @@ WslContainerBuilder& WslContainerBuilder::WithFile(std::filesystem::path HostPat
 {
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
     RequireText(hostText, "File Source");
-    RequireContainerPath(ContainerPath);
+    internal::ValidateContainerPath(ContainerPath);
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || std::filesystem::is_directory(HostPath, error))
     {
@@ -268,7 +259,7 @@ WslContainerBuilder& WslContainerBuilder::WithVolume(std::filesystem::path HostP
 {
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
     RequireText(hostText, "Volume Host path");
-    RequireContainerPath(ContainerPath);
+    internal::ValidateContainerPath(ContainerPath);
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || !std::filesystem::is_directory(HostPath, error))
     {
@@ -290,7 +281,7 @@ WslContainerBuilder& WslContainerBuilder::WithSessionVolume(std::string Name, st
                                                             VhdAllocationType type)
 {
     RequireVolumeName(Name);
-    RequireContainerPath(ContainerPath);
+    internal::ValidateContainerPath(ContainerPath);
     if (SizeBytes == 0)
     {
         throw WslcException("Session volume size must be positive.");

@@ -253,3 +253,23 @@ TEST(ContainerBuilder, NetworkWaitsAcceptNonLoopbackBindAddresses)
                         .WithWaitStrategy(ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
                         .Build());
 }
+
+TEST(ContainerBuilder, ContainerPathsRejectInjectionAcrossMethods)
+{
+    const std::string invalid[] = {"/proc/self/environ", "/sys/kernel", "/dev/sda", "/a/../b",
+                                   "/./proc/self",       "//sys/kernel"};
+    for (const std::string& path : invalid)
+    {
+        EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(path), WslcException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithSessionVolume("data", path, 100), WslcException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithFile("missing.txt", path), WslcException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithVolume("missing", path), WslcException) << path;
+    }
+
+    EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory("relative"), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(std::string("/tmp/bad\x01name")), WslcException);
+
+    // Spaces are legal inside container paths even though the HTTP probe rejects them.
+    EXPECT_NO_THROW(
+        WslContainerBuilder{}.WithImage("alpine").WithWorkingDirectory("/mnt/c/Program Files/data").Build());
+}

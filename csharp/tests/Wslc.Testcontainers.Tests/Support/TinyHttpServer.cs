@@ -9,11 +9,14 @@ internal sealed class TinyHttpServer : IDisposable
 {
     private readonly TcpListener _listener;
     private readonly int _statusCode;
+    private readonly string? _location;
     private readonly CancellationTokenSource _lifetime = new();
+    private int _requestCount;
 
-    public TinyHttpServer(int statusCode = 200)
+    public TinyHttpServer(int statusCode = 200, string? location = null)
     {
         _statusCode = statusCode;
+        _location = location;
         _listener = new TcpListener(IPAddress.Loopback, 0);
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
@@ -21,6 +24,8 @@ internal sealed class TinyHttpServer : IDisposable
     }
 
     public int Port { get; }
+
+    public int RequestCount => Volatile.Read(ref _requestCount);
 
     public void Dispose()
     {
@@ -63,9 +68,11 @@ internal sealed class TinyHttpServer : IDisposable
                 var stream = client.GetStream();
                 var buffer = new byte[4096];
                 await stream.ReadAsync(buffer, _lifetime.Token).ConfigureAwait(false);
+                Interlocked.Increment(ref _requestCount);
                 const string body = "ok";
+                var location = _location is null ? string.Empty : $"Location: {_location}\r\n";
                 var response =
-                    $"HTTP/1.1 {_statusCode} Status\r\nContent-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}";
+                    $"HTTP/1.1 {_statusCode} Status\r\n{location}Content-Length: {body.Length}\r\nConnection: close\r\n\r\n{body}";
                 await stream.WriteAsync(Encoding.ASCII.GetBytes(response), _lifetime.Token).ConfigureAwait(false);
             }
             catch

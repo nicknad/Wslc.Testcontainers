@@ -14,7 +14,7 @@ public sealed record ExecOptions
     /// <summary>Linux working directory for the command. Must be non-empty when set.</summary>
     public string? WorkingDirectory { get; init; }
 
-    /// <summary>Text written to the command standard input (ExecAsync only).</summary>
+    /// <summary>Text written to the command standard input (ExecAsync only). Must not exceed 64 MiB when UTF-8 encoded.</summary>
     public string? StandardInput { get; init; }
 
     /// <summary>Maximum execution time. Must be positive when set. When exceeded a <see cref="WslTimeoutException"/> is thrown.</summary>

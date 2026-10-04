@@ -11,6 +11,18 @@ namespace Wslc.Testcontainers.Runtime;
 /// </summary>
 internal static class WslcProcessRunner
 {
+    /// <summary>Maximum UTF-8 size of a single exec standard input payload.</summary>
+    internal const long MaxStandardInputBytes = 64L * 1024L * 1024L;
+
+    /// <summary>Throws <see cref="WslProcessException"/> when the payload exceeds the cap.</summary>
+    internal static void ValidateStandardInputSize(long byteCount)
+    {
+        if (byteCount > MaxStandardInputBytes)
+        {
+            throw new WslProcessException($"Standard input exceeds the 64 MiB limit ({byteCount} bytes).");
+        }
+    }
+
     public static ProcessSettings CreateSettings(
         IReadOnlyList<string> commandLine,
         string? workingDirectory,
@@ -99,6 +111,13 @@ internal static class WslcProcessRunner
         CancellationToken cancellationToken,
         Action<LogLine>? observer)
     {
+        if (standardInput is not null)
+        {
+            // Count first so an oversized payload fails before a process is started or a
+            // second copy is allocated; the cap bounds the array built below.
+            ValidateStandardInputSize(Encoding.UTF8.GetByteCount(standardInput));
+        }
+
         var process = Start(container, settings, observer);
 
         try

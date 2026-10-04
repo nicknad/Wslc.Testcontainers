@@ -86,6 +86,14 @@ std::string trim(std::string_view value)
     return std::string(value.substr(Start, end - Start));
 }
 
+void ValidateStandardInputSize(std::size_t byteCount)
+{
+    if (byteCount > c_maxStandardInputBytes)
+    {
+        throw WslProcessException("Standard input exceeds the 64 MiB limit (" + std::to_string(byteCount) + " bytes).");
+    }
+}
+
 namespace
 {
 

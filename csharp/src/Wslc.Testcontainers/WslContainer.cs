@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Text;
 using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Internal;
 using Wslc.Testcontainers.Networking;
@@ -971,6 +972,13 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         if (options.Timeout is { } timeout && timeout <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(options), timeout, "Exec timeout must be positive.");
+        }
+
+        if (options.StandardInput is { } standardInput)
+        {
+            // Reject an oversized payload before RequireContainer(), so the error surfaces
+            // without starting or touching container state.
+            WslcProcessRunner.ValidateStandardInputSize(Encoding.UTF8.GetByteCount(standardInput));
         }
 
         if (options.Environment is not null)

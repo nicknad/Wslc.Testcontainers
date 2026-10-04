@@ -104,8 +104,17 @@ internal sealed class ContainerProcess : IWslProcess
 
     internal async Task WriteStandardInputAsync(byte[] data, CancellationToken cancellationToken)
     {
+        // Write in fixed 64 KiB chunks so cancellation is observed between writes instead of
+        // only once for the whole payload.
+        const int ChunkBytes = 64 * 1024;
         await using var stream = _process.GetInputStream().AsStreamForWrite();
-        await stream.WriteAsync(data, cancellationToken).ConfigureAwait(false);
+        for (var offset = 0; offset < data.Length; offset += ChunkBytes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var count = Math.Min(ChunkBytes, data.Length - offset);
+            await stream.WriteAsync(data.AsMemory(offset, count), cancellationToken).ConfigureAwait(false);
+        }
+
         await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 

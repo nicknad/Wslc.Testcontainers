@@ -167,6 +167,11 @@ ExecResult ProcessRunner::Run(WslcContainer container, const ProcessSettings& se
                               std::optional<std::chrono::milliseconds> Timeout, std::stop_token token,
                               std::function<void(LogLine)> observer)
 {
+    if (StandardInput)
+    {
+        ValidateStandardInputSize(StandardInput->size());
+    }
+
     auto State = Prepare(std::move(observer), true);
     CreateNative(container, settings, *State, ErrorKind::Process);
 
@@ -188,6 +193,12 @@ ExecResult ProcessRunner::Run(WslcContainer container, const ProcessSettings& se
                 DWORD written = 0;
                 if (WriteFile(stdinHandle.get(), StandardInput->data() + offset, static_cast<DWORD>(chunk), &written,
                               nullptr) == 0)
+                {
+                    throw WslProcessException("Failed to write to the process standard input.");
+                }
+
+                // A successful WriteFile that reports zero bytes would otherwise spin forever.
+                if (written == 0)
                 {
                     throw WslProcessException("Failed to write to the process standard input.");
                 }
@@ -326,6 +337,12 @@ void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path&
                 DWORD written = 0;
                 if (WriteFile(stdinHandle.get(), buffer.data() + offset, static_cast<DWORD>(read - offset), &written,
                               nullptr) == 0)
+                {
+                    throw WslProcessException("Failed to write to the process standard input.");
+                }
+
+                // A successful WriteFile that reports zero bytes would otherwise spin forever.
+                if (written == 0)
                 {
                     throw WslProcessException("Failed to write to the process standard input.");
                 }

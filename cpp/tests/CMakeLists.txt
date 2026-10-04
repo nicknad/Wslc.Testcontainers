@@ -41,6 +41,7 @@ add_executable(wslc_tests
   port_mapping_tests.cpp
   process_registry_tests.cpp
   resource_reaper_tests.cpp
+  stdin_limit_tests.cpp
   wait_strategy_tests.cpp
   integration_tests.cpp
   support/integration.cpp

@@ -28,6 +28,12 @@ bool IsBlank(std::string_view value);
 /// <summary>Trims leading/trailing whitespace.</summary>
 std::string trim(std::string_view value);
 
+/// <summary>Maximum size of a single exec standard input payload.</summary>
+inline constexpr std::size_t c_maxStandardInputBytes = 64u * 1024u * 1024u;
+
+/// <summary>Throws WslProcessException when standard input exceeds the 64 MiB limit.</summary>
+void ValidateStandardInputSize(std::size_t byteCount);
+
 /// <summary>
 /// Requires an absolute Linux path that is safe to pass to the WSLC runtime as a working
 /// directory, volume target, or copy destination. Throws WslcException otherwise.

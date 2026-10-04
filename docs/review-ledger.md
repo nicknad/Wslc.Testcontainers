@@ -44,7 +44,7 @@ items are already fixed here; verify against this ledger before starting.
 | F23 | `char.IsLetter` vs `isalpha`; Build vs Start absolutize timing | UNVERIFIED | Decide one ASCII rule and one validation point. |
 | F24 | Custom waits bypass the no-network rule and ignore CT past startup | UNVERIFIED | `WslContainerBuilder.cs:390-404`, `wsl_container_builder.cpp:383-396`. |
 | F25 | Assembler state mutated from native threads without a lock | UNVERIFIED | `ContainerProcess.cs:165-287`, `line_assembler.hpp`, `container_process.cpp:376-410`. |
-| F26 | stdin unbounded; `written == 0` can spin | OPEN | C# writes the whole string in one call (`WslcProcessRunner.cs:107`); C++ loop only exits on failure (`process_runner.cpp:183-196`). |
+| F26 | stdin unbounded; `written == 0` can spin | FIXED | 64 MiB cap validated before any process exists in both languages (`WslcProcessRunner.cs:15,118`, `util.hpp:31-32`, `process_runner.cpp:170-173`); C# writes 64 KiB chunks with cancellation checks; C++ `Run` and `CopyTo` write loops throw on a zero-byte successful write. Zero-write paths need a live WSL handle to exercise. |
 | F27 | `Describe` can emit ~12 MiB including secrets/paths | UNVERIFIED | `Exceptions.cs:110-157`, `exceptions.cpp:52-96`. |
 
 ## MED / API and quality

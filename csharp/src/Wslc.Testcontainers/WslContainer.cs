@@ -801,7 +801,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         var failures = new List<Exception>(4);
 
-        foreach (var process in _processes.Snapshot())
+        foreach (var process in _processes.TakeAll())
         {
             try
             {
@@ -812,8 +812,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 failures.Add(exception);
             }
         }
-
-        _processes.Clear();
 
         await DisposeMainProcessAsync(failures).ConfigureAwait(false);
         StopAndDeleteContainer(failures);

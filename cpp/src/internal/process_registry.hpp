@@ -42,6 +42,31 @@ public:
     std::vector<std::shared_ptr<ContainerProcessState>> Snapshot()
     {
         std::lock_guard lock(m_gate);
+        return SnapshotLocked();
+    }
+
+    /// <summary>
+    /// Atomically removes and returns the live processes. Returning and clearing under one lock
+    /// guarantees a process added concurrently is kept for the next Stop instead of being dropped.
+    /// </summary>
+    std::vector<std::shared_ptr<ContainerProcessState>> TakeAll()
+    {
+        std::lock_guard lock(m_gate);
+        PruneLocked();
+        auto result = SnapshotLocked();
+        m_processes.clear();
+        return result;
+    }
+
+    void Clear()
+    {
+        std::lock_guard lock(m_gate);
+        m_processes.clear();
+    }
+
+private:
+    std::vector<std::shared_ptr<ContainerProcessState>> SnapshotLocked()
+    {
         std::vector<std::shared_ptr<ContainerProcessState>> result;
         result.reserve(m_processes.size());
         for (const auto& weak : m_processes)
@@ -55,13 +80,6 @@ public:
         return result;
     }
 
-    void Clear()
-    {
-        std::lock_guard lock(m_gate);
-        m_processes.clear();
-    }
-
-private:
     void PruneLocked()
     {
         for (auto it = m_processes.begin(); it != m_processes.end();)

@@ -872,7 +872,7 @@ void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool
 {
     std::vector<std::string> failures;
 
-    for (const auto& process : processes.Snapshot())
+    for (const auto& process : processes.TakeAll())
     {
         try
         {
@@ -885,7 +885,6 @@ void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool
         }
     }
 
-    processes.Clear();
     DisposeMainProcess(failures);
     StopAndDeleteContainer(failures);
     TerminateSession(failures);

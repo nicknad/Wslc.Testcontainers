@@ -1,0 +1,20 @@
+# Microsoft C++ style (Allman braces, 4-space indent, PascalCase API).
+BasedOnStyle: Microsoft
+Language: Cpp
+Standard: c++20
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+BreakBeforeBraces: Allman
+PointerAlignment: Left
+ReferenceAlignment: Left
+# Windows headers have ordering constraints (winsock2 before windows, windows before
+# bcrypt/wslcsdk); never reorder includes automatically.
+SortIncludes: Never
+IncludeBlocks: Preserve

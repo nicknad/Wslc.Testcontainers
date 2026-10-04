@@ -1,5 +1,29 @@
 # Project Conventions
 
+## Repository layout
+
+- `csharp/` — the .NET solution (sources, tests, examples, packaging). Build files
+  (`Directory.Build.props/targets`, `Directory.Packages.props`, `global.json`) live here.
+- `cpp/` — the CMake/C++20 port. `include/wslc` is the public surface, `src/` the
+  implementation, `modules/` the typed modules, `tests/` the GoogleTest suite.
+- `docs/` — shared operational documentation; `docs/adr/` — architecture decisions that apply
+  to both implementations (bounded loops, comments, strict builds, best-effort cleanup).
+- Root CI workflows build and test both languages.
+
+## C++ conventions
+
+- Microsoft C++ style: PascalCase types and functions, camelCase parameters/locals, `m_` class
+  members, `c_` file-scope constants, Allman braces. Formatting is enforced by `cpp/.clang-format`.
+- The build is strict: `/W4 /WX /permissive- /utf-8 /EHsc`; do not add warning suppressions
+  without a comment explaining why.
+- clang-tidy (`.clang-tidy`, warnings are errors), AddressSanitizer
+  (`-DWSLC_ENABLE_SANITIZERS=ON`), and MSVC `/analyze` (`-DWSLC_ENABLE_CODE_ANALYSIS=ON`) are
+  part of the analysis baseline. Keep them clean.
+- Windows header ordering matters (`winsock2.h` before `windows.h`; `windows.h` before
+  `bcrypt.h`/`wslcsdk.h`); `.clang-format` must keep `SortIncludes: Never`.
+- Public headers document the consumer API with `<summary>` XML comments; implementation
+  comments explain the current snippet or abstraction, not history.
+
 ## API Design / Maintainability
 
 - **Minimize public API surface:**

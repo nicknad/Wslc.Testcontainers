@@ -1,10 +1,21 @@
 # Changelog
 
-All notable changes to the `Wslc.Testcontainers*` packages.
+All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ## Unreleased
 
 ### Added
+
+- Monorepo layout: the .NET implementation moved to `csharp/`; a full C++20 port now lives in
+  `cpp/` and builds on the native `wslcsdk` C API with CMake.
+- C++ port parity: mutable `WslContainerBuilder`/`WslContainer`, exec/start-process with captured
+  stdio, file copy in/out, log streaming with bounded history, wait strategies (TCP, HTTP,
+  process, log message, file, custom), dynamic port mappings, bind mounts and session VHD
+  volumes, reuse hashing/locking, orphan reaper, and the PostgreSql/Redis modules.
+- C++ analysis baseline: `.clang-format` (Microsoft style), `.clang-tidy` (warnings as errors),
+  AddressSanitizer option, MSVC `/analyze` option, and CI format/tidy/ASan jobs.
+- GoogleTest-based C++ suite (unit tests ported from the C# suite plus real-runtime integration
+  tests gated by `WSLC_RUN_INTEGRATION=1`).
 
 - `Wait.ForWsl().Until(name, condition)`: poll a custom readiness delegate with the builder's timeout/retry settings.
 - `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `LogsAsync` stream.

@@ -44,6 +44,9 @@ jobs:
   unit:
     needs: resolve-version
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: csharp
     env:
       NUGET_PACKAGES: D:\a\.nuget\packages
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
@@ -64,9 +67,28 @@ jobs:
             10.0.x
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} -v minimal -- --filter "FullyQualifiedName!~Integration"
 
+  cpp-unit:
+    needs: resolve-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch WSL Containers SDK
+        shell: pwsh
+        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Configure
+        shell: pwsh
+        run: cmake -S cpp -B cpp/build -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+      - name: Build
+        run: cmake --build cpp/build --config Release --parallel
+      - name: Unit tests
+        run: ctest --test-dir cpp/build -C Release --output-on-failure
+
   guard-linux:
     needs: resolve-version
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: csharp
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -75,12 +97,15 @@ jobs:
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
 
   integration:
-    needs: [unit, guard-linux]
+    needs: [unit, cpp-unit, guard-linux]
     uses: ./.github/workflows/integration.yml
 
   publish:
     needs: [resolve-version, integration]
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: csharp
     env:
       VERSION: ${{ needs.resolve-version.outputs.version }}
       NUGET_PACKAGES: D:\a\.nuget\packages
@@ -123,4 +148,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = '${{ github.ref_type }}' -eq 'tag' ? '${{ github.ref_name }}' : "v$env:VERSION"
-          gh release create "$tag" --title "$tag" --notes "NuGet: Wslc.Testcontainers $env:VERSION (+ PostgreSql/Redis modules). See CHANGELOG.md." artifacts/packages/*.nupkg artifacts/packages/*.snupkg --latest=false
+          gh release create "$tag" --title "$tag" --notes "NuGet: Wslc.Testcontainers $env:VERSION (+ PostgreSql/Redis modules); C++ port in cpp/. See CHANGELOG.md." artifacts/packages/*.nupkg artifacts/packages/*.snupkg --latest=false

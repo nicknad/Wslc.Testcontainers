@@ -8,6 +8,9 @@ on:
 jobs:
   unit-windows:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: csharp
     env:
       NUGET_PACKAGES: D:\a\.nuget\packages
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
@@ -33,6 +36,9 @@ jobs:
     # Proves early, actionable failure off Windows. Only WslPlatformTests run here;
     # the rest of the suite is Windows-only by design (Build() throws PlatformNotSupported).
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: csharp
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -42,6 +48,9 @@ jobs:
 
   unit-arm64:
     runs-on: windows-11-arm
+    defaults:
+      run:
+        working-directory: csharp
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -50,9 +59,79 @@ jobs:
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName!~Integration"
 
-  packages:
-    needs: [unit-windows, guard-linux]
+  cpp-windows:
     runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch WSL Containers SDK
+        shell: pwsh
+        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Configure
+        shell: pwsh
+        run: cmake -S cpp -B cpp/build -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+      - name: Build
+        run: cmake --build cpp/build --config Release --parallel
+      - name: Unit tests
+        run: ctest --test-dir cpp/build -C Release --output-on-failure
+
+  cpp-lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Ensure clang-format/clang-tidy
+        shell: pwsh
+        run: |
+          if (-not (Get-Command clang-format -ErrorAction SilentlyContinue)) { choco install llvm -y --no-progress }
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem cpp -Recurse -File -Include *.hpp,*.cpp |
+            Where-Object { $_.FullName -notmatch '\\build' -and $_.FullName -notmatch '\\\.packages' }
+          $failed = @()
+          foreach ($file in $files) {
+            & clang-format --dry-run --Werror $file.FullName
+            if ($LASTEXITCODE -ne 0) { $failed += $file.FullName }
+          }
+          if ($failed.Count -gt 0) {
+            $failed | ForEach-Object { Write-Host "needs formatting: $_" }
+            throw 'clang-format check failed'
+          }
+      - name: Fetch WSL Containers SDK
+        shell: pwsh
+        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: clang-tidy (warnings are errors)
+        shell: pwsh
+        run: |
+          cmake -S cpp -B cpp/build-tidy -G Ninja -DCMAKE_BUILD_TYPE=Release `
+            -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_CLANG_TIDY=ON `
+            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+          cmake --build cpp/build-tidy --target wslc wslc_postgresql wslc_redis wslc_tests
+
+  cpp-asan:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Fetch WSL Containers SDK
+        shell: pwsh
+        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure (AddressSanitizer)
+        shell: pwsh
+        run: |
+          cmake -S cpp -B cpp/build-asan -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_SANITIZERS=ON `
+            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+      - name: Build
+        run: cmake --build cpp/build-asan --config Release --target wslc_tests --parallel
+      - name: Unit tests under ASan
+        run: ctest --test-dir cpp/build-asan/tests -C Release --output-on-failure
+
+  packages:
+    needs: [unit-windows, guard-linux, cpp-windows, cpp-lint, cpp-asan]
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: csharp
     env:
       NUGET_PACKAGES: D:\a\.nuget\packages
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
@@ -68,5 +147,5 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: packages
-          path: artifacts/packages
+          path: csharp/artifacts/packages
           if-no-files-found: error

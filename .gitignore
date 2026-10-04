@@ -1,7 +1,26 @@
+# .NET
 bin/
 obj/
-.vs/
-*.user
 TestResults/
 artifacts/
 *.binlog
+.vs/
+.vscode/
+*.user
+
+# C++ / CMake
+build/
+out/
+cpp/build*/
+cpp/.packages/
+CMakeFiles/
+CMakeUserPresets.json
+_deps/
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+
+# Logs and OS noise
+*.log
+Thumbs.db
+.DS_Store

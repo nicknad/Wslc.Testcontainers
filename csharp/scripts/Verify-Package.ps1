@@ -15,6 +15,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# The script lives in csharp/scripts; paths below are relative to csharp/.
+Push-Location (Split-Path $PSScriptRoot -Parent)
+try {
+
 # Native commands (dotnet/wsl) do not throw on non-zero exit under WinPS 5.1,
 # so every invocation goes through here. Without this the gate can report
 # "passed" while tests actually failed.
@@ -110,3 +114,7 @@ if ($RunIntegration) {
 }
 
 Write-Host "`nPre-release gate passed for $Version." -ForegroundColor Green
+
+} finally {
+  Pop-Location
+}

@@ -1,0 +1,1538 @@
+#include "wslc/wsl_container.hpp"
+
+#include "internal/api.hpp"
+#include "internal/configuration.hpp"
+#include "internal/container_host.hpp"
+#include "internal/container_process.hpp"
+#include "internal/image_resolver.hpp"
+#include "internal/instance_store.hpp"
+#include "internal/log_broadcaster.hpp"
+#include "internal/port_mapping.hpp"
+#include "internal/process_registry.hpp"
+#include "internal/process_runner.hpp"
+#include "internal/util.hpp"
+#include "wslc/environment.hpp"
+#include "wslc/exceptions.hpp"
+#include "wslc/platform.hpp"
+
+#include <windows.h>
+
+#include <algorithm>
+#include <condition_variable>
+#include <cctype>
+#include <memory>
+#include <thread>
+#include <vector>
+
+namespace wslc
+{
+
+namespace
+{
+
+constexpr std::chrono::milliseconds c_abortGracePeriod{2000};
+constexpr std::chrono::milliseconds c_mainProcessGracePeriod{2000};
+constexpr std::chrono::milliseconds c_containerStopTimeout{10000};
+constexpr int c_maxReuseLockAttempts = 100;
+constexpr std::chrono::milliseconds c_reuseLockRetryDelay{300};
+constexpr int c_maxPortResolveAttempts = 200;
+constexpr std::chrono::milliseconds c_portResolveDelay{50};
+constexpr std::size_t c_maxRecentLogs = 50;
+constexpr int c_maxStartAttempts = 200;
+constexpr std::chrono::milliseconds c_startPollDelay{50};
+constexpr std::chrono::milliseconds c_startThreadJoinTimeout{5000};
+
+void ValidateEnvironmentName(const std::string& Name)
+{
+    if (internal::IsBlank(Name))
+    {
+        throw WslcException("Environment variable Name must not be empty.");
+    }
+
+    const char first = Name[0];
+    if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
+    {
+        throw WslcException("Environment variable Name '" + Name + "' must Start with a letter or underscore.");
+    }
+
+    for (const char character : Name)
+    {
+        if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
+        {
+            throw WslcException(std::string("Environment variable Name '") + Name + "' contains invalid character '" +
+                                character + "'.");
+        }
+    }
+}
+
+void ValidateExecOptions(const ExecOptions& options)
+{
+    if (options.Timeout && *options.Timeout <= std::chrono::milliseconds::zero())
+    {
+        throw WslcException("Exec Timeout must be positive.");
+    }
+
+    for (const auto& pair : options.Environment)
+    {
+        ValidateEnvironmentName(pair.first);
+    }
+
+    if (options.WorkingDirectory && internal::IsBlank(*options.WorkingDirectory))
+    {
+        throw WslcException("Working directory must not be empty when set.");
+    }
+}
+
+void RequireContainerPath(const std::string& path)
+{
+    if (internal::IsBlank(path) || path[0] != '/')
+    {
+        throw WslcException("Container path '" + path +
+                            "' must be an absolute Linux path starting with '/' (e.g. /tmp/file).");
+    }
+}
+
+std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
+{
+    if (Logs.size() <= maxLines)
+    {
+        return Logs;
+    }
+
+    return std::vector<LogLine>(Logs.end() - static_cast<std::ptrdiff_t>(maxLines), Logs.end());
+}
+
+std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines)
+{
+    std::vector<std::string> selected;
+    for (const auto& line : Logs)
+    {
+        if (line.Source != Source)
+        {
+            continue;
+        }
+
+        selected.push_back(line.Text);
+        if (selected.size() > maxLines)
+        {
+            selected.erase(selected.begin());
+        }
+    }
+
+    if (selected.empty())
+    {
+        return std::nullopt;
+    }
+
+    return internal::join(selected, "\n");
+}
+
+std::string DescribeException(const std::exception_ptr& error)
+{
+    try
+    {
+        std::rethrow_exception(error);
+    }
+    catch (const std::exception& exception)
+    {
+        return exception.what();
+    }
+    catch (...)
+    {
+        return "unknown error";
+    }
+}
+
+} // namespace
+
+struct WslContainer::Impl
+{
+    internal::Configuration configuration;
+    internal::InstanceStore& store;
+    bool Reuse = false;
+    std::string Name;
+    std::string owner_pid;
+
+    std::shared_ptr<internal::LogBroadcaster> Logs = std::make_shared<internal::LogBroadcaster>();
+    std::mutex lifecycle;
+    mutable std::mutex state_gate;
+    std::atomic<bool> disposed{false};
+    std::atomic<bool> started{false};
+    std::atomic<bool> storage_created{false};
+    std::atomic<bool> dispose_requested{false};
+
+    std::shared_ptr<internal::SessionHandle> session;
+    std::shared_ptr<internal::ContainerHandle> container;
+    std::shared_ptr<internal::PortMapping> network;
+    std::shared_ptr<internal::ContainerProcessState> main_process;
+    std::optional<internal::InstanceMetadata> metadata;
+    HANDLE reuse_lock = INVALID_HANDLE_VALUE;
+    internal::ProcessRegistry processes;
+
+    // WslcStartContainer with ATTACH streams the init process IO and blocks until that process
+    // exits, so the attached call runs on a worker thread while Start waits for the running
+    // state and Stop joins the thread after tearing the container down. The completion state is
+    // shared so a detached thread can never touch a destroyed Impl.
+    struct StartState
+    {
+        std::mutex gate;
+        std::condition_variable condition;
+        bool finished = true;
+        bool succeeded = false;
+        std::string error;
+    };
+
+    std::shared_ptr<StartState> start_state = std::make_shared<StartState>();
+    std::thread start_thread;
+
+    explicit Impl(internal::Configuration config)
+        : configuration(std::move(config)), store(internal::InstanceStore::DefaultStore()),
+          Reuse((configuration.Reuse.value_or(WslcEnvironment::ReuseByDefault())) && WslcEnvironment::ReuseAllowed()),
+          Name(Reuse ? internal::WslNaming::CreateReuseName(internal::WslConfigHasher::Compute(configuration))
+                     : internal::WslNaming::CreateInstanceName(store.SessionId())),
+          owner_pid(std::to_string(internal::CurrentProcessId()))
+    {
+    }
+
+    ~Impl()
+    {
+        Dispose();
+        JoinStartThread();
+    }
+
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+
+    void Publish(LogLine line) { Logs->Publish(line); }
+    void publish_diagnostic(std::string Text) { Logs->Publish(LogLine::Diagnostic(std::move(Text))); }
+
+    void Start(WslContainer& target, std::stop_token caller);
+    void Stop(std::stop_token token);
+    void Dispose();
+
+    ExecResult Exec(std::string command, std::vector<std::string> arguments, ExecOptions options,
+                    std::stop_token token);
+
+    std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments,
+                                              ExecOptions options, std::stop_token token);
+
+    void CopyTo(const std::filesystem::path& HostPath, std::string ContainerPath, std::stop_token token);
+    void CopyFrom(std::string ContainerPath, const std::filesystem::path& HostPath, std::stop_token token);
+    std::vector<LogLine> RecentLogs(int maxLines) const;
+    int MappedPort(int port) const;
+    std::string mapped_host(int port) const;
+    bool tcp_port_open(int ContainerPort, std::stop_token token) const;
+    bool process_running(std::string processName, std::stop_token token);
+
+    std::optional<std::string> Image() const
+    {
+        if (configuration.Image)
+        {
+            return configuration.Image;
+        }
+
+        return configuration.TarballImageName;
+    }
+
+    std::shared_ptr<internal::ContainerHandle> get_container() const
+    {
+        std::lock_guard lock(state_gate);
+        return container;
+    }
+
+    std::shared_ptr<internal::SessionHandle> get_session() const
+    {
+        std::lock_guard lock(state_gate);
+        return session;
+    }
+
+    std::shared_ptr<internal::PortMapping> get_network() const
+    {
+        std::lock_guard lock(state_gate);
+        return network;
+    }
+
+    std::shared_ptr<internal::ContainerProcessState> get_main_process() const
+    {
+        std::lock_guard lock(state_gate);
+        return main_process;
+    }
+
+    std::shared_ptr<internal::ContainerHandle> RequireContainer() const
+    {
+        auto Handle = get_container();
+        if (!Handle)
+        {
+            throw WslcException("Container '" + Name + "' has not been started. Call Start() first.");
+        }
+
+        return Handle;
+    }
+
+private:
+    std::string CreateSessionAndContainer(std::stop_token token);
+    std::filesystem::path EnsureStorageAndMetadata();
+    void StartSession(const std::filesystem::path& storagePath);
+    void CreateSessionVolumes();
+    void DeleteVolumeIfPresent(const std::string& volume_name);
+    void CreateAndStartContainer(const std::string& Image);
+    void StartContainerAttached(WslcContainer handle, const std::string& image);
+    void JoinStartThread();
+    void ResolveMappedPortsIfNeeded(std::stop_token token);
+    std::string InspectContainer(internal::ContainerHandle& Handle);
+    void CopyConfiguredFiles(std::stop_token token);
+    void WaitForReadiness(WslContainer& target, std::stop_token token);
+    std::string FormatMappedPorts();
+    void AcquireReuseLock(std::stop_token token);
+    void ReleaseReuseLock();
+    void StopLocked(std::stop_token token, bool throw_on_error);
+    void CleanupLocked(bool throw_on_error);
+    void CleanupSynchronously();
+    void UpdateState(const std::string& State);
+    void UpdateImageMetadata(const std::string& Image);
+    void StopAndDeleteContainer(std::vector<std::string>& failures);
+    void TerminateSession(std::vector<std::string>& failures);
+    void DisposeMainProcess(std::vector<std::string>& failures);
+    void TranslateAndThrow(std::stop_token caller, const std::stop_source& startup_source);
+    WslReadinessException enrich(const WslReadinessException& readiness);
+    std::map<std::string, std::string> BuildEnvironment(const std::map<std::string, std::string>& overrides);
+    internal::ProcessSettings BuildProcessSettings(const std::string& command,
+                                                   const std::vector<std::string>& arguments,
+                                                   const ExecOptions& options, bool EnableStandardInput);
+};
+
+void WslContainer::Impl::Start(WslContainer& target, std::stop_token caller)
+{
+    internal::EnsureComInitialized();
+    WslPlatform::ThrowIfUnsupported();
+    std::unique_lock lifecycle_lock(lifecycle);
+    if (disposed)
+    {
+        throw WslcException("Container '" + Name + "' has been disposed.");
+    }
+
+    if (started)
+    {
+        return;
+    }
+
+    std::stop_source startup_source;
+    std::stop_callback caller_callback(caller, [&startup_source] { startup_source.request_stop(); });
+    std::jthread timer(
+        [this, &startup_source](std::stop_token timer_token)
+        {
+            if (internal::SleepFor(configuration.StartupTimeout, timer_token))
+            {
+                startup_source.request_stop();
+            }
+        });
+    const std::stop_token token = startup_source.get_token();
+
+    try
+    {
+        internal::ContainerHost::EnsureInitialized(token);
+        internal::ThrowIfStopped(token);
+
+        if (configuration.Reuse == true && !Reuse)
+        {
+            publish_diagnostic("Reuse was requested but is disabled (default off, or blocked under CI without "
+                               "WSLC_REUSE_IN_CI); using ephemeral instance");
+        }
+
+        publish_diagnostic("creating WSL container '" + Name + "' (runtime " + internal::WslcHost::GetVersion() + ")");
+        const std::string Image = CreateSessionAndContainer(token);
+
+        CopyConfiguredFiles(token);
+        WaitForReadiness(target, token);
+
+        started = true;
+        UpdateState("Running");
+        internal::ContainerHost::RegisterCleanup(Name, [this] { CleanupSynchronously(); });
+        publish_diagnostic("container '" + Name + "' is ready (Image '" + Image + "')");
+    }
+    catch (...)
+    {
+        const auto error = std::current_exception();
+        publish_diagnostic("startup failed: " + DescribeException(error));
+        CleanupLocked(false);
+        TranslateAndThrow(caller, startup_source);
+    }
+}
+
+std::string WslContainer::Impl::CreateSessionAndContainer(std::stop_token token)
+{
+    AcquireReuseLock(token);
+    const std::filesystem::path storagePath = EnsureStorageAndMetadata();
+    StartSession(storagePath);
+    CreateSessionVolumes();
+
+    internal::ImageResolver resolver(get_session()->get(), configuration,
+                                     [this](LogLine line) { Logs->Publish(line); });
+    const std::string Image = resolver.Resolve(Name + ":local", token);
+    internal::ThrowIfStopped(token);
+    UpdateImageMetadata(Image);
+
+    CreateAndStartContainer(Image);
+    ResolveMappedPortsIfNeeded(token);
+    return Image;
+}
+
+std::filesystem::path WslContainer::Impl::EnsureStorageAndMetadata()
+{
+    const std::filesystem::path storagePath = store.GetSessionStorageDirectory(Name);
+    if (!Reuse && std::filesystem::exists(storagePath))
+    {
+        internal::InstanceStore::BestEffortDeleteDirectory(storagePath);
+    }
+
+    std::error_code error;
+    std::filesystem::create_directories(storagePath, error);
+    storage_created = true;
+
+    internal::InstanceMetadata instance;
+    instance.SessionId = store.SessionId();
+    instance.InstanceId = Name;
+    instance.OwnerProcessId = static_cast<int>(internal::CurrentProcessId());
+    instance.CreatedAt = std::chrono::system_clock::now();
+    instance.State = "Creating";
+    instance.Owner = internal::CurrentUserName();
+    instance.Image = configuration.Image;
+    instance.Reuse = Reuse;
+    store.WriteMetadata(instance);
+    {
+        std::lock_guard lock(state_gate);
+        metadata = instance;
+    }
+
+    return storagePath;
+}
+
+void WslContainer::Impl::StartSession(const std::filesystem::path& storagePath)
+{
+    WslcSessionSettings settings{};
+    const std::wstring wideName = internal::ToUtf16(Name);
+    const std::wstring wideStorage = storagePath.wstring();
+    internal::check(WslcInitSessionSettings(wideName.c_str(), wideStorage.c_str(), &settings),
+                    internal::ErrorKind::Provisioning, "Failed to create WSL container session '" + Name + "'",
+                    nullptr);
+
+    if (configuration.CpuCount)
+    {
+        internal::check(WslcSetSessionSettingsCpuCount(&settings, *configuration.CpuCount),
+                        internal::ErrorKind::Provisioning, "Failed to set the session CPU count", nullptr);
+    }
+
+    if (configuration.MemoryMb)
+    {
+        internal::check(WslcSetSessionSettingsMemory(&settings, *configuration.MemoryMb),
+                        internal::ErrorKind::Provisioning, "Failed to set the session memory", nullptr);
+    }
+
+    WslcSession Handle = nullptr;
+    PWSTR error = nullptr;
+    internal::check(WslcCreateSession(&settings, &Handle, &error), internal::ErrorKind::Provisioning,
+                    "Failed to Start WSL container session '" + Name + "'", &error);
+    std::lock_guard lock(state_gate);
+    session = std::make_shared<internal::SessionHandle>(Handle);
+}
+
+void WslContainer::Impl::CreateSessionVolumes()
+{
+    if (configuration.SessionVolumes.empty())
+    {
+        return;
+    }
+
+    auto sessionHandle = get_session();
+    for (const auto& volume : configuration.SessionVolumes)
+    {
+        try
+        {
+            if (Reuse)
+            {
+                // The previous Run's storage VHD survives for Reuse, so its named volume VHDs
+                // do too. CreateVhdVolume rejects an existing Name, and session Volumes are
+                // documented as recreated empty on every Start.
+                DeleteVolumeIfPresent(volume.Name);
+            }
+
+            WslcVhdRequirements requirements{};
+            requirements.name = volume.Name.c_str();
+            requirements.sizeBytes = volume.SizeBytes;
+            requirements.type = volume.type == VhdAllocationType::Fixed ? WSLC_VHD_TYPE_FIXED : WSLC_VHD_TYPE_DYNAMIC;
+            requirements.flags = WSLC_VHD_REQ_FLAG_NONE;
+            requirements.uid = 0;
+            requirements.gid = 0;
+            PWSTR error = nullptr;
+            internal::check(WslcCreateSessionVhdVolume(sessionHandle->get(), &requirements, &error),
+                            internal::ErrorKind::Provisioning, "Failed to create session volume '" + volume.Name + "'",
+                            &error);
+            publish_diagnostic("created session volume '" + volume.Name + "' (" + std::to_string(volume.SizeBytes) +
+                               " bytes)");
+        }
+        catch (const WslcException& exception)
+        {
+            throw WslProvisioningException("Failed to create session volume '" + volume.Name +
+                                           "': " + exception.what());
+        }
+    }
+}
+
+void WslContainer::Impl::DeleteVolumeIfPresent(const std::string& volume_name)
+{
+    auto sessionHandle = get_session();
+    PWSTR error = nullptr;
+    const HRESULT result = WslcDeleteSessionVhdVolume(sessionHandle->get(), volume_name.c_str(), &error);
+    if (error != nullptr)
+    {
+        CoTaskMemFree(error);
+    }
+
+    if (SUCCEEDED(result))
+    {
+        publish_diagnostic("recreated session volume '" + volume_name + "': deleted the previous VHD");
+    }
+}
+
+void WslContainer::Impl::CreateAndStartContainer(const std::string& Image)
+{
+    {
+        std::lock_guard lock(state_gate);
+        network = std::make_shared<internal::PortMapping>(internal::PortMapping::Create(configuration.PortMappings));
+    }
+
+    WslcContainerSettings settings{};
+    internal::check(WslcInitContainerSettings(Image.c_str(), &settings), internal::ErrorKind::Provisioning,
+                    "Failed to initialize container settings", nullptr);
+    internal::check(WslcSetContainerSettingsName(&settings, Name.c_str()), internal::ErrorKind::Provisioning,
+                    "Failed to set the container Name", nullptr);
+
+    const WslcContainerNetworkingMode NetworkingMode = configuration.NetworkingMode == ContainerNetworkMode::None
+                                                           ? WSLC_CONTAINER_NETWORKING_MODE_NONE
+                                                           : WSLC_CONTAINER_NETWORKING_MODE_BRIDGED;
+    internal::check(WslcSetContainerSettingsNetworkingMode(&settings, NetworkingMode),
+                    internal::ErrorKind::Provisioning, "Failed to set the container networking mode", nullptr);
+
+    // Init process: declare the service command, or keep the Environment alive so Exec works.
+    // WSLC never runs the Image ENTRYPOINT/CMD automatically.
+    WslcProcessSettings initSettings{};
+    internal::check(WslcInitProcessSettings(&initSettings), internal::ErrorKind::Provisioning,
+                    "Failed to initialize the init process settings", nullptr);
+
+    std::vector<std::string> CommandLine;
+    if (configuration.Command)
+    {
+        CommandLine.push_back(*configuration.Command);
+        CommandLine.insert(CommandLine.end(), configuration.CommandArguments.begin(),
+                           configuration.CommandArguments.end());
+    }
+    else
+    {
+        CommandLine = {"/bin/sh", "-c", "while true; do sleep 3600; done"};
+    }
+
+    std::vector<PCSTR> argv;
+    argv.reserve(CommandLine.size());
+    for (const auto& argument : CommandLine)
+    {
+        argv.push_back(argument.c_str());
+    }
+
+    internal::check(WslcSetProcessSettingsCmdLine(&initSettings, argv.data(), argv.size()),
+                    internal::ErrorKind::Provisioning, "Failed to set the init process command line", nullptr);
+
+    if (configuration.WorkingDirectory)
+    {
+        internal::check(WslcSetProcessSettingsWorkingDirectory(&initSettings, configuration.WorkingDirectory->c_str()),
+                        internal::ErrorKind::Provisioning, "Failed to set the init process working directory", nullptr);
+    }
+
+    // The SDK takes an array of "KEY=VALUE" strings.
+    const std::map<std::string, std::string> Environment = BuildEnvironment({});
+    std::vector<std::string> environmentStrings;
+    environmentStrings.reserve(Environment.size());
+    for (const auto& pair : Environment)
+    {
+        environmentStrings.push_back(pair.first + "=" + pair.second);
+    }
+
+    std::vector<PCSTR> environmentValues;
+    environmentValues.reserve(environmentStrings.size());
+    for (const auto& entry : environmentStrings)
+    {
+        environmentValues.push_back(entry.c_str());
+    }
+
+    if (!environmentValues.empty())
+    {
+        internal::check(
+            WslcSetProcessSettingsEnvVariables(&initSettings, environmentValues.data(), environmentValues.size()),
+            internal::ErrorKind::Provisioning, "Failed to set the init process Environment", nullptr);
+    }
+
+    auto mainProcessState = internal::ProcessRunner::Prepare([this](LogLine line) { Logs->Publish(line); }, true);
+    internal::check(WslcSetProcessSettingsCallbacks(&initSettings, mainProcessState->NativeCallbacks(),
+                                                    mainProcessState->NativeContext()),
+                    internal::ErrorKind::Provisioning, "Failed to set the init process callbacks", nullptr);
+
+    internal::check(WslcSetContainerSettingsInitProcess(&settings, &initSettings), internal::ErrorKind::Provisioning,
+                    "Failed to set the init process", nullptr);
+
+    std::vector<sockaddr_storage> addressStorage;
+    const std::vector<WslcContainerPortMapping> PortMappings = network->ToNativeMappings(addressStorage);
+    if (!PortMappings.empty())
+    {
+        internal::check(WslcSetContainerSettingsPortMappings(&settings, PortMappings.data(),
+                                                             static_cast<std::uint32_t>(PortMappings.size())),
+                        internal::ErrorKind::Provisioning, "Failed to set the container port mappings", nullptr);
+    }
+
+    std::vector<std::wstring> volumeHosts;
+    std::vector<WslcContainerVolume> Volumes;
+    volumeHosts.reserve(configuration.Volumes.size());
+    Volumes.reserve(configuration.Volumes.size());
+    for (const auto& volume : configuration.Volumes)
+    {
+        volumeHosts.push_back(volume.HostPath.wstring());
+        WslcContainerVolume native{};
+        native.windowsPath = volumeHosts.back().c_str();
+        native.containerPath = volume.ContainerPath.c_str();
+        native.readOnly = volume.ReadOnly ? TRUE : FALSE;
+        Volumes.push_back(native);
+    }
+
+    if (!Volumes.empty())
+    {
+        internal::check(
+            WslcSetContainerSettingsVolumes(&settings, Volumes.data(), static_cast<std::uint32_t>(Volumes.size())),
+            internal::ErrorKind::Provisioning, "Failed to set the container Volumes", nullptr);
+    }
+
+    std::vector<WslcContainerNamedVolume> namedVolumes;
+    namedVolumes.reserve(configuration.SessionVolumes.size());
+    for (const auto& volume : configuration.SessionVolumes)
+    {
+        WslcContainerNamedVolume native{};
+        native.name = volume.Name.c_str();
+        native.containerPath = volume.ContainerPath.c_str();
+        native.readOnly = volume.ReadOnly ? TRUE : FALSE;
+        namedVolumes.push_back(native);
+    }
+
+    if (!namedVolumes.empty())
+    {
+        internal::check(WslcSetContainerSettingsNamedVolumes(&settings, namedVolumes.data(),
+                                                             static_cast<std::uint32_t>(namedVolumes.size())),
+                        internal::ErrorKind::Provisioning, "Failed to set the container named Volumes", nullptr);
+    }
+
+    WslcContainer Handle = nullptr;
+    PWSTR error = nullptr;
+    internal::check(WslcCreateContainer(get_session()->get(), &settings, &Handle, &error),
+                    internal::ErrorKind::Provisioning, "Failed to create the container from Image '" + Image + "'",
+                    &error);
+    {
+        std::lock_guard lock(state_gate);
+        container = std::make_shared<internal::ContainerHandle>(Handle);
+    }
+
+    error = nullptr;
+    StartContainerAttached(Handle, Image);
+
+    WslcProcess initProcess = nullptr;
+    if (SUCCEEDED(WslcGetContainerInitProcess(Handle, &initProcess)))
+    {
+        mainProcessState->SetHandle(initProcess);
+    }
+
+    {
+        std::lock_guard lock(state_gate);
+        main_process = std::move(mainProcessState);
+    }
+
+    CHAR containerId[WSLC_CONTAINER_ID_BUFFER_SIZE] = {};
+    std::string idText = "unknown";
+    if (SUCCEEDED(WslcGetContainerID(Handle, containerId)))
+    {
+        idText = containerId;
+    }
+
+    publish_diagnostic("container started (Id " + idText + ")");
+}
+
+void WslContainer::Impl::StartContainerAttached(WslcContainer handle, const std::string& image)
+{
+    const std::shared_ptr<StartState> state = start_state;
+    {
+        std::lock_guard lock(state->gate);
+        state->finished = false;
+        state->succeeded = false;
+        state->error.clear();
+    }
+
+    start_thread = std::thread(
+        [state, handle]
+        {
+            PWSTR error = nullptr;
+            const HRESULT result = WslcStartContainer(handle, WSLC_CONTAINER_START_FLAG_ATTACH, &error);
+            std::string message;
+            if (FAILED(result))
+            {
+                message = internal::ConsumeCoTaskString(error);
+            }
+            else if (error != nullptr)
+            {
+                CoTaskMemFree(error);
+            }
+
+            {
+                std::lock_guard lock(state->gate);
+                state->succeeded = SUCCEEDED(result);
+                state->error = std::move(message);
+                state->finished = true;
+            }
+
+            state->condition.notify_all();
+        });
+
+    // The attached call blocks until the init process exits; the container itself is running
+    // while it blocks, so wait for the running state instead of the call.
+    WslcContainerState containerState = WSLC_CONTAINER_STATE_INVALID;
+    for (int attempt = 0; attempt < c_maxStartAttempts; attempt++)
+    {
+        const HRESULT stateResult = WslcGetContainerState(handle, &containerState);
+        if (SUCCEEDED(stateResult) && containerState == WSLC_CONTAINER_STATE_RUNNING)
+        {
+            return;
+        }
+
+        {
+            std::lock_guard lock(state->gate);
+            if (state->finished && !state->succeeded)
+            {
+                break;
+            }
+        }
+
+        internal::SleepFor(c_startPollDelay, std::stop_token{});
+    }
+
+    std::string detail;
+    {
+        std::lock_guard lock(state->gate);
+        detail = state->error;
+    }
+
+    throw WslProvisioningException("Failed to start the container from image '" + image + "'" +
+                                   (detail.empty() ? "." : ": " + detail));
+}
+
+void WslContainer::Impl::JoinStartThread()
+{
+    if (!start_thread.joinable())
+    {
+        return;
+    }
+
+    const std::shared_ptr<StartState> state = start_state;
+    std::unique_lock lock(state->gate);
+    if (state->condition.wait_for(lock, c_startThreadJoinTimeout, [&state] { return state->finished; }))
+    {
+        lock.unlock();
+        start_thread.join();
+    }
+    else
+    {
+        // The attached call did not return after the container was torn down; detach so it can
+        // never outlive the process (it only touches the shared StartState).
+        start_thread.detach();
+    }
+}
+
+void WslContainer::Impl::ResolveMappedPortsIfNeeded(std::stop_token token)
+{
+    if (configuration.PortMappings.empty())
+    {
+        return;
+    }
+
+    for (int attempt = 0; attempt < c_maxPortResolveAttempts; attempt++)
+    {
+        auto containerHandle = RequireContainer();
+        network->ResolveFromInspect(InspectContainer(*containerHandle));
+        if (network->UnresolvedCount() == 0)
+        {
+            publish_diagnostic("mapped ports: " + FormatMappedPorts());
+            return;
+        }
+
+        if (!internal::SleepFor(c_portResolveDelay, token))
+        {
+            throw OperationCanceledException();
+        }
+    }
+
+    throw WslNetworkException("The WSL runtime did not assign Host ports for container port(s): " +
+                              internal::join(network->UnresolvedPorts(), ", ") + ".");
+}
+
+std::string WslContainer::Impl::InspectContainer(internal::ContainerHandle& Handle)
+{
+    PSTR data = nullptr;
+    internal::check(WslcInspectContainer(Handle.get(), &data), internal::ErrorKind::Provisioning,
+                    "Failed to inspect the container", nullptr);
+    std::string result = data != nullptr ? data : "";
+    if (data != nullptr)
+    {
+        CoTaskMemFree(data);
+    }
+
+    return result;
+}
+
+void WslContainer::Impl::CopyConfiguredFiles(std::stop_token token)
+{
+    for (const auto& file : configuration.Files)
+    {
+        publish_diagnostic("copying '" + internal::ToUtf8(file.Source.wstring()) + "' to '" + file.Destination + "'");
+        internal::ProcessRunner::CopyTo(RequireContainer()->get(), file.Source, file.Destination, token,
+                                        [this](LogLine line) { Logs->Publish(line); });
+    }
+}
+
+void WslContainer::Impl::WaitForReadiness(WslContainer& target, std::stop_token token)
+{
+    for (const auto& strategy : configuration.WaitStrategies)
+    {
+        publish_diagnostic("waiting for " + strategy->Name() + " (Timeout " +
+                           internal::FormatMilliseconds(strategy->Timeout()) + "s)");
+        strategy->Wait(target, token);
+    }
+}
+
+std::string WslContainer::Impl::FormatMappedPorts()
+{
+    std::vector<std::string> parts;
+    parts.reserve(configuration.PortMappings.size());
+    for (const auto& mapping : configuration.PortMappings)
+    {
+        parts.push_back(std::to_string(mapping.ContainerPort) + "->" +
+                        std::to_string(network->GetMappedPort(mapping.ContainerPort)));
+    }
+
+    return internal::join(parts, ", ");
+}
+
+void WslContainer::Impl::AcquireReuseLock(std::stop_token token)
+{
+    if (!Reuse)
+    {
+        return;
+    }
+
+    const std::filesystem::path instanceDirectory = store.GetInstanceDirectory(Name);
+    std::error_code error;
+    std::filesystem::create_directories(instanceDirectory, error);
+    const std::filesystem::path lockPath = instanceDirectory / L"wslc.lock";
+
+    for (int attempt = 0; attempt < c_maxReuseLockAttempts; attempt++)
+    {
+        internal::ThrowIfStopped(token);
+        const HANDLE Handle = CreateFileW(lockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_ALWAYS,
+                                          FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (Handle != INVALID_HANDLE_VALUE)
+        {
+            reuse_lock = Handle;
+            return;
+        }
+
+        if (!internal::SleepFor(c_reuseLockRetryDelay, token))
+        {
+            throw OperationCanceledException();
+        }
+    }
+
+    throw WslProvisioningException("Reuse instance '" + Name +
+                                   "' is locked by another process and was not released within 30s.");
+}
+
+void WslContainer::Impl::ReleaseReuseLock()
+{
+    if (reuse_lock != INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(reuse_lock);
+        reuse_lock = INVALID_HANDLE_VALUE;
+    }
+}
+
+void WslContainer::Impl::Stop(std::stop_token token)
+{
+    internal::EnsureComInitialized();
+    std::unique_lock lifecycle_lock(lifecycle);
+    if (disposed)
+    {
+        throw WslcException("Container '" + Name + "' has been disposed.");
+    }
+
+    StopLocked(token, true);
+}
+
+void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool throw_on_error)
+{
+    std::vector<std::string> failures;
+
+    for (const auto& process : processes.Snapshot())
+    {
+        try
+        {
+            process->Kill(c_abortGracePeriod, std::stop_token{});
+            process->Dispose();
+        }
+        catch (const std::exception& exception)
+        {
+            failures.push_back(exception.what());
+        }
+    }
+
+    processes.Clear();
+    DisposeMainProcess(failures);
+    StopAndDeleteContainer(failures);
+    TerminateSession(failures);
+
+    {
+        std::lock_guard lock(state_gate);
+        network.reset();
+    }
+
+    started = false;
+    UpdateState("Stopped");
+    internal::ContainerHost::UnregisterCleanup(Name);
+
+    if (!failures.empty() && throw_on_error)
+    {
+        throw WslCleanupException("Failed to Stop container '" + Name + "': " + failures.front());
+    }
+}
+
+void WslContainer::Impl::DisposeMainProcess(std::vector<std::string>& failures)
+{
+    auto process = get_main_process();
+    if (!process)
+    {
+        return;
+    }
+
+    try
+    {
+        process->Kill(c_mainProcessGracePeriod, std::stop_token{});
+        process->Dispose();
+    }
+    catch (const std::exception& exception)
+    {
+        failures.push_back(exception.what());
+    }
+
+    std::lock_guard lock(state_gate);
+    main_process.reset();
+}
+
+void WslContainer::Impl::StopAndDeleteContainer(std::vector<std::string>& failures)
+{
+    auto containerHandle = get_container();
+    if (!containerHandle)
+    {
+        return;
+    }
+
+    PWSTR error = nullptr;
+    HRESULT result = WslcStopContainer(containerHandle->get(), WSLC_SIGNAL_SIGTERM,
+                                       static_cast<std::uint32_t>(c_containerStopTimeout.count() / 1000), &error);
+    if (error != nullptr)
+    {
+        CoTaskMemFree(error);
+        error = nullptr;
+    }
+
+    if (FAILED(result) && !internal::IsBenignRuntimeError(result))
+    {
+        failures.push_back("Failed to Stop the container (HRESULT " + internal::HresultHex(result) + ").");
+    }
+
+    // Stopping the init process releases the attached WslcStartContainer call.
+    JoinStartThread();
+
+    result = WslcDeleteContainer(containerHandle->get(), WSLC_DELETE_CONTAINER_FLAG_FORCE, &error);
+    if (error != nullptr)
+    {
+        CoTaskMemFree(error);
+    }
+
+    if (FAILED(result) && !internal::IsBenignRuntimeError(result))
+    {
+        failures.push_back("Failed to delete the container (HRESULT " + internal::HresultHex(result) + ").");
+    }
+
+    std::lock_guard lock(state_gate);
+    container.reset();
+}
+
+void WslContainer::Impl::TerminateSession([[maybe_unused]] std::vector<std::string>& failures)
+{
+    auto sessionHandle = get_session();
+    if (!sessionHandle)
+    {
+        return;
+    }
+
+    WslcTerminateSession(sessionHandle->get());
+    std::lock_guard lock(state_gate);
+    session.reset();
+}
+
+void WslContainer::Impl::CleanupLocked(bool throw_on_error)
+{
+    std::string failure;
+    try
+    {
+        StopLocked(std::stop_token{}, false);
+    }
+    catch (const std::exception& exception)
+    {
+        failure = exception.what();
+    }
+
+    ReleaseReuseLock();
+
+    if (!Reuse && storage_created.exchange(false))
+    {
+        store.DeleteInstanceDirectory(Name);
+    }
+
+    if (!failure.empty() && throw_on_error)
+    {
+        throw WslCleanupException("Failed to clean up container '" + Name + "': " + failure);
+    }
+}
+
+void WslContainer::Impl::Dispose()
+{
+    internal::EnsureComInitialized();
+    if (dispose_requested.exchange(true))
+    {
+        Logs->Complete();
+        return;
+    }
+
+    disposed = true;
+    {
+        std::unique_lock lifecycle_lock(lifecycle);
+        CleanupLocked(false);
+    }
+
+    Logs->Complete();
+}
+
+void WslContainer::Impl::CleanupSynchronously()
+{
+    internal::EnsureComInitialized();
+    // The exit hook can race an in-flight Dispose; only the first caller tears down.
+    if (dispose_requested.exchange(true))
+    {
+        return;
+    }
+
+    disposed = true;
+    started = false;
+
+    if (auto process = get_main_process())
+    {
+        process->TrySignal(WSLC_SIGNAL_SIGKILL);
+    }
+
+    if (auto containerHandle = get_container())
+    {
+        WslcStopContainer(containerHandle->get(), WSLC_SIGNAL_SIGTERM, 2, nullptr);
+        JoinStartThread();
+        WslcDeleteContainer(containerHandle->get(), WSLC_DELETE_CONTAINER_FLAG_FORCE, nullptr);
+    }
+
+    if (auto sessionHandle = get_session())
+    {
+        WslcTerminateSession(sessionHandle->get());
+    }
+
+    {
+        std::lock_guard lock(state_gate);
+        container.reset();
+        session.reset();
+        network.reset();
+        main_process.reset();
+    }
+
+    UpdateState("Stopped");
+    ReleaseReuseLock();
+
+    if (!Reuse && storage_created.exchange(false))
+    {
+        store.DeleteInstanceDirectory(Name);
+    }
+
+    internal::ContainerHost::UnregisterCleanup(Name);
+    Logs->Complete();
+}
+
+void WslContainer::Impl::UpdateState(const std::string& State)
+{
+    std::lock_guard lock(state_gate);
+    if (!metadata)
+    {
+        return;
+    }
+
+    metadata->State = State;
+    try
+    {
+        store.WriteMetadata(*metadata);
+    }
+    catch (...)
+    {
+        // State updates are best effort.
+    }
+}
+
+void WslContainer::Impl::UpdateImageMetadata(const std::string& Image)
+{
+    // In-memory only: the running/stopped State transition persists this with the Next write.
+    std::lock_guard lock(state_gate);
+    if (metadata)
+    {
+        metadata->Image = Image;
+    }
+}
+
+void WslContainer::Impl::TranslateAndThrow(std::stop_token caller, const std::stop_source& startup_source)
+{
+    const auto error = std::current_exception();
+    try
+    {
+        std::rethrow_exception(error);
+    }
+    catch (const OperationCanceledException&)
+    {
+        if (caller.stop_requested())
+        {
+            throw;
+        }
+
+        if (startup_source.stop_requested())
+        {
+            throw WslTimeoutException(
+                "Container '" + Name + "' did not Complete startup within " +
+                internal::FormatMilliseconds(configuration.StartupTimeout) + "s." +
+                (configuration.Command
+                     ? std::string()
+                     : " No init command was configured, so only a keep-alive shell is running; WSLC never runs the "
+                       "Image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder."));
+        }
+
+        throw;
+    }
+    catch (const WslReadinessException& readiness)
+    {
+        throw enrich(readiness);
+    }
+    catch (const WslcException&)
+    {
+        throw;
+    }
+    catch (const std::exception& exception)
+    {
+        throw WslProvisioningException("Failed to Start container '" + Name + "': " + exception.what());
+    }
+}
+
+WslReadinessException WslContainer::Impl::enrich(const WslReadinessException& readiness)
+{
+    std::optional<int> ExitCode = readiness.ExitCode();
+    if (!ExitCode)
+    {
+        if (auto process = get_main_process(); process && process->HasExited())
+        {
+            ExitCode = process->ExitCode();
+        }
+    }
+
+    const auto logs_snapshot = Logs->Snapshot();
+    const std::optional<std::string> Image =
+        readiness.Image()
+            ? readiness.Image()
+            : (configuration.Image
+                   ? configuration.Image
+                   : (configuration.TarballPath
+                          ? std::optional<std::string>(internal::ToUtf8(configuration.TarballPath->wstring()))
+                          : std::nullopt));
+    const std::optional<std::string> command = readiness.command() ? readiness.command() : configuration.Command;
+    const std::optional<std::string> StdoutText =
+        readiness.StdoutText() ? readiness.StdoutText() : JoinLast(*logs_snapshot, LogSource::Stdout, c_maxRecentLogs);
+    const std::optional<std::string> StderrText =
+        readiness.StderrText() ? readiness.StderrText() : JoinLast(*logs_snapshot, LogSource::Stderr, c_maxRecentLogs);
+    return readiness.WithDiagnostics(Image, command, ExitCode, StdoutText, StderrText);
+}
+
+std::map<std::string, std::string> WslContainer::Impl::BuildEnvironment(
+    const std::map<std::string, std::string>& overrides)
+{
+    for (const auto& pair : overrides)
+    {
+        ValidateEnvironmentName(pair.first);
+    }
+
+    std::map<std::string, std::string> Environment = configuration.Environment;
+    Environment["WSLC_SESSION_ID"] = store.SessionId();
+    Environment["WSLC_INSTANCE_ID"] = Name;
+    Environment["WSLC_OWNER_PID"] = owner_pid;
+
+    std::chrono::system_clock::time_point CreatedAt = std::chrono::system_clock::now();
+    {
+        std::lock_guard lock(state_gate);
+        if (metadata)
+        {
+            CreatedAt = metadata->CreatedAt;
+        }
+    }
+
+    Environment["WSLC_CREATED_AT"] = internal::FormatIso8601(CreatedAt);
+    for (const auto& pair : overrides)
+    {
+        Environment[pair.first] = pair.second;
+    }
+
+    return Environment;
+}
+
+internal::ProcessSettings WslContainer::Impl::BuildProcessSettings(const std::string& command,
+                                                                   const std::vector<std::string>& arguments,
+                                                                   const ExecOptions& options, bool EnableStandardInput)
+{
+    internal::ProcessSettings settings;
+    settings.CommandLine.reserve(arguments.size() + 1);
+    settings.CommandLine.push_back(command);
+    settings.CommandLine.insert(settings.CommandLine.end(), arguments.begin(), arguments.end());
+    if (options.WorkingDirectory)
+    {
+        settings.WorkingDirectory = options.WorkingDirectory;
+    }
+    else if (configuration.WorkingDirectory)
+    {
+        settings.WorkingDirectory = configuration.WorkingDirectory;
+    }
+
+    settings.Environment = BuildEnvironment(options.Environment);
+    settings.EnableStandardInput = EnableStandardInput;
+    return settings;
+}
+
+ExecResult WslContainer::Impl::Exec(std::string command, std::vector<std::string> arguments, ExecOptions options,
+                                    std::stop_token token)
+{
+    internal::EnsureComInitialized();
+    if (internal::IsBlank(command))
+    {
+        throw WslcException("Command must not be empty.");
+    }
+
+    ValidateExecOptions(options);
+    auto containerHandle = RequireContainer();
+    const internal::ProcessSettings settings =
+        BuildProcessSettings(command, arguments, options, options.StandardInput.has_value());
+
+    try
+    {
+        return internal::ProcessRunner::Run(containerHandle->get(), settings, options.StandardInput, options.Timeout,
+                                            token, [this](LogLine line) { Logs->Publish(line); });
+    }
+    catch (const WslcException&)
+    {
+        throw;
+    }
+    catch (const std::exception& exception)
+    {
+        throw WslProcessException("Command '" + command + "' failed: " + exception.what());
+    }
+}
+
+std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string command, std::vector<std::string> arguments,
+                                                              ExecOptions options, std::stop_token token)
+{
+    internal::EnsureComInitialized();
+    internal::ThrowIfStopped(token);
+    if (internal::IsBlank(command))
+    {
+        throw WslcException("Command must not be empty.");
+    }
+
+    if (options.StandardInput)
+    {
+        throw WslcException(
+            "StandardInput applies only to Exec, not to long-running StartProcess. Use Exec for stdin.");
+    }
+
+    if (options.Timeout)
+    {
+        throw WslcException(
+            "Timeout applies only to Exec, not to long-running StartProcess. Kill the process when done.");
+    }
+
+    ValidateExecOptions(options);
+    auto containerHandle = RequireContainer();
+    const internal::ProcessSettings settings = BuildProcessSettings(command, arguments, options, false);
+
+    // Register before starting: a concurrent Stop snapshots this list and would otherwise miss
+    // (and leak) a process that was started but not yet added.
+    auto State = internal::ProcessRunner::Prepare([this](LogLine line) { Logs->Publish(line); }, true);
+    processes.Add(State);
+    try
+    {
+        internal::ProcessRunner::CreateNative(containerHandle->get(), settings, *State, internal::ErrorKind::Process);
+    }
+    catch (...)
+    {
+        processes.Remove(State);
+        State->Dispose();
+        throw;
+    }
+
+    return std::make_unique<internal::ContainerProcess>(std::move(State));
+}
+
+void WslContainer::Impl::CopyTo(const std::filesystem::path& HostPath, std::string ContainerPath, std::stop_token token)
+{
+    internal::EnsureComInitialized();
+    const std::string hostText = internal::ToUtf8(HostPath.wstring());
+    if (internal::IsBlank(hostText))
+    {
+        throw WslcException("Host path must not be empty.");
+    }
+
+    RequireContainerPath(ContainerPath);
+    auto containerHandle = RequireContainer();
+
+    std::error_code error;
+    if (!std::filesystem::exists(HostPath, error) || std::filesystem::is_directory(HostPath, error))
+    {
+        throw WslcException("Host file '" + hostText + "' does not exist. Only file copies are supported.");
+    }
+
+    const std::uintmax_t length = std::filesystem::file_size(HostPath, error);
+    if (!error && length > 1024ull * 1024ull * 1024ull)
+    {
+        throw WslcException("Copying '" + hostText + "' to '" + ContainerPath + "' exceeds 1 GiB limit (" +
+                            std::to_string(length) + " bytes).");
+    }
+
+    internal::ProcessRunner::CopyTo(containerHandle->get(), std::filesystem::absolute(HostPath), ContainerPath, token,
+                                    [this](LogLine line) { Logs->Publish(line); });
+}
+
+void WslContainer::Impl::CopyFrom(std::string ContainerPath, const std::filesystem::path& HostPath,
+                                  std::stop_token token)
+{
+    internal::EnsureComInitialized();
+    RequireContainerPath(ContainerPath);
+    const std::string hostText = internal::ToUtf8(HostPath.wstring());
+    if (internal::IsBlank(hostText))
+    {
+        throw WslcException("Host path must not be empty.");
+    }
+
+    auto containerHandle = RequireContainer();
+    internal::ProcessRunner::CopyFrom(containerHandle->get(), ContainerPath, HostPath, token,
+                                      [this](LogLine line) { Logs->Publish(line); });
+}
+
+std::vector<LogLine> WslContainer::Impl::RecentLogs(int maxLines) const
+{
+    if (maxLines <= 0)
+    {
+        throw WslcException("maxLines must be positive.");
+    }
+
+    return TakeLast(*Logs->Snapshot(), static_cast<std::size_t>(maxLines));
+}
+
+int WslContainer::Impl::MappedPort(int port) const
+{
+    const auto networkSnapshot = get_network();
+    if (!networkSnapshot)
+    {
+        throw WslcException("Container '" + Name + "' has not been started, so port " + std::to_string(port) +
+                            " is not mapped yet. Call Start() first.");
+    }
+
+    return networkSnapshot->GetMappedPort(port);
+}
+
+std::string WslContainer::Impl::mapped_host(int port) const
+{
+    const auto networkSnapshot = get_network();
+    return networkSnapshot ? networkSnapshot->GetProbeHost(port) : "127.0.0.1";
+}
+
+bool WslContainer::Impl::tcp_port_open(int ContainerPort, std::stop_token token) const
+{
+    const auto networkSnapshot = get_network();
+    return networkSnapshot ? networkSnapshot->IsPortOpen(ContainerPort, token) : false;
+}
+
+bool WslContainer::Impl::process_running(std::string processName, std::stop_token token)
+{
+    const ExecResult result =
+        Exec("sh",
+             {"-c", "for p in /proc/[0-9]*; do [ \"$(cat \"$p/comm\" 2>/dev/null)\" = \"$1\" ] && exit 0; done; exit 1",
+              "sh", processName},
+             ExecOptions{}, token);
+    return result.ExitCode == 0;
+}
+
+// ---------------------------------------------------------------------------
+// WslContainer facade
+// ---------------------------------------------------------------------------
+
+WslContainer WslContainer::Create(internal::Configuration configuration)
+{
+    return WslContainer(std::make_unique<Impl>(std::move(configuration)));
+}
+
+WslContainer::WslContainer(std::unique_ptr<Impl> impl) : m_impl(std::move(impl)) {}
+
+WslContainer::~WslContainer()
+{
+    if (m_impl)
+    {
+        m_impl->Dispose();
+    }
+}
+
+WslContainer::WslContainer(WslContainer&& other) noexcept = default;
+
+WslContainer& WslContainer::operator=(WslContainer&& other) noexcept
+{
+    if (this != &other)
+    {
+        if (m_impl)
+        {
+            m_impl->Dispose();
+        }
+
+        m_impl = std::move(other.m_impl);
+    }
+
+    return *this;
+}
+
+const std::string& WslContainer::Name() const
+{
+    return m_impl->Name;
+}
+
+std::optional<std::string> WslContainer::Image() const
+{
+    return m_impl->Image();
+}
+
+bool WslContainer::IsStarted() const
+{
+    return m_impl->started;
+}
+
+std::string WslContainer::Host() const
+{
+    return "127.0.0.1";
+}
+
+int WslContainer::GetMappedPort(int port) const
+{
+    return m_impl->MappedPort(port);
+}
+
+std::string WslContainer::GetMappedHost(int port) const
+{
+    return m_impl->mapped_host(port);
+}
+
+std::string WslContainer::GetProbeHost(int port) const
+{
+    return m_impl->mapped_host(port);
+}
+
+void WslContainer::Start(std::stop_token token)
+{
+    m_impl->Start(*this, token);
+}
+
+void WslContainer::Stop(std::stop_token token)
+{
+    m_impl->Stop(token);
+}
+
+ExecResult WslContainer::Exec(std::string command, std::vector<std::string> arguments, ExecOptions options,
+                              std::stop_token token)
+{
+    return m_impl->Exec(std::move(command), std::move(arguments), std::move(options), token);
+}
+
+ExecResult WslContainer::Exec(std::string command, std::vector<std::string> arguments, std::stop_token token)
+{
+    return m_impl->Exec(std::move(command), std::move(arguments), ExecOptions{}, token);
+}
+
+std::unique_ptr<IWslProcess> WslContainer::StartProcess(std::string command, std::vector<std::string> arguments,
+                                                        ExecOptions options, std::stop_token token)
+{
+    return m_impl->StartProcess(std::move(command), std::move(arguments), std::move(options), token);
+}
+
+void WslContainer::CopyTo(const std::filesystem::path& HostPath, std::string ContainerPath, std::stop_token token)
+{
+    m_impl->CopyTo(HostPath, std::move(ContainerPath), token);
+}
+
+void WslContainer::CopyFrom(std::string ContainerPath, const std::filesystem::path& HostPath, std::stop_token token)
+{
+    m_impl->CopyFrom(std::move(ContainerPath), HostPath, token);
+}
+
+LogStream WslContainer::Logs()
+{
+    return LogStream::FromBroadcaster(m_impl->Logs);
+}
+
+std::vector<LogLine> WslContainer::GetRecentLogs() const
+{
+    return GetRecentLogs(static_cast<int>(c_maxRecentLogs));
+}
+
+std::vector<LogLine> WslContainer::GetRecentLogs(int maxLines) const
+{
+    return m_impl->RecentLogs(maxLines);
+}
+
+void WslContainer::Dispose()
+{
+    if (m_impl)
+    {
+        m_impl->Dispose();
+    }
+}
+
+bool WslContainer::IsTcpPortOpen(int ContainerPort, std::stop_token token)
+{
+    return m_impl->tcp_port_open(ContainerPort, token);
+}
+
+bool WslContainer::IsProcessRunning(std::string processName, std::stop_token token)
+{
+    return m_impl->process_running(std::move(processName), token);
+}
+
+} // namespace wslc

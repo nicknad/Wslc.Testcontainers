@@ -1,0 +1,9 @@
+add_executable(wslc_quickstart quickstart.cpp)
+target_link_libraries(wslc_quickstart PRIVATE wslc)
+wslc_apply_strict_options(wslc_quickstart)
+wslc_copy_sdk_runtime(wslc_quickstart)
+
+add_executable(wslc_postgres postgres.cpp)
+target_link_libraries(wslc_postgres PRIVATE wslc_postgresql)
+wslc_apply_strict_options(wslc_postgres)
+wslc_copy_sdk_runtime(wslc_postgres)

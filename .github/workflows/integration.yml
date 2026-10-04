@@ -22,12 +22,28 @@ jobs:
         run: wsl --update
       - name: WSL version
         run: wsl --version
-      - run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
-      - name: Run integration tests
+      - name: Build C# tests
+        working-directory: csharp
+        run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
+      - name: Run C# integration tests
+        working-directory: csharp
         run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName~Integration"
         env:
           WSLC_RUN_INTEGRATION: "1"
       - name: Run Postgres module tests (real container)
+        working-directory: csharp
         run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal
+        env:
+          WSLC_RUN_INTEGRATION: "1"
+      - name: Fetch WSL Containers SDK
+        shell: pwsh
+        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Configure C++ tests
+        shell: pwsh
+        run: cmake -S cpp -B cpp/build -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+      - name: Build C++ tests
+        run: cmake --build cpp/build --config Release --parallel
+      - name: Run C++ integration tests
+        run: ctest --test-dir cpp/build/tests -C Release -R "Integration" --output-on-failure
         env:
           WSLC_RUN_INTEGRATION: "1"

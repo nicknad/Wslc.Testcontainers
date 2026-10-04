@@ -1,0 +1,133 @@
+#pragma once
+
+#include "wslc/exec.hpp"
+#include "wslc/log_line.hpp"
+#include "wslc/log_stream.hpp"
+#include "wslc/process.hpp"
+#include "wslc/waiting/i_wait_target.hpp"
+
+#include <chrono>
+#include <filesystem>
+#include <memory>
+#include <optional>
+#include <stop_token>
+#include <string>
+#include <vector>
+
+namespace wslc
+{
+
+class WslContainerBuilder;
+
+namespace internal
+{
+struct Configuration;
+}
+
+/// <summary>
+/// A disposable, isolated WSL container managed by WSLC on top of the official
+/// wslcsdk API. Create instances through <see cref="WslContainerBuilder"/>, then call
+/// <c>Start</c>. The type is move-only; destroying it performs the same Cleanup as
+/// <c>Dispose</c>.
+/// </summary>
+/// <remarks>
+/// Lifecycle transitions (Start/Stop/Dispose) are serialized. Commands, copies and
+/// long-running processes are intentionally not gated: starting one while the container stops
+/// aborts that operation with an exception instead of corrupting State.
+/// </remarks>
+class WslContainer final : public waiting::IWaitTarget
+{
+public:
+    WslContainer(const WslContainer&) = delete;
+    WslContainer& operator=(const WslContainer&) = delete;
+    WslContainer(WslContainer&& other) noexcept;
+    WslContainer& operator=(WslContainer&& other) noexcept;
+    ~WslContainer() override;
+
+    /// <summary>Gets the unique Name of the underlying WSLC instance (IWslContainer.Name).</summary>
+    const std::string& Name() const override;
+
+    /// <summary>Gets the container Image reference, when one was configured.</summary>
+    std::optional<std::string> Image() const;
+
+    /// <summary>Gets a value indicating whether the container has been started.</summary>
+    bool IsStarted() const;
+
+    /// <summary>Gets the Windows loopback address (127.0.0.1) for mapped ports.</summary>
+    std::string Host() const override;
+
+    /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
+    int GetMappedPort(int port) const override;
+
+    /// <summary>
+    /// Gets the Windows address to connect to for a mapped Linux TCP port: the port's configured
+    /// bind address, or loopback for the default/wildcard binding. Before Start this is loopback.
+    /// </summary>
+    std::string GetMappedHost(int port) const;
+
+    /// <summary>IWaitTarget surface: same as <c>GetMappedHost</c>.</summary>
+    std::string GetProbeHost(int port) const override;
+
+    /// <summary>Creates and provisions the Environment, then waits until all readiness Strategies pass.</summary>
+    void Start(std::stop_token token = {});
+
+    /// <summary>
+    /// Stops all processes and terminates the WSLC session. On-disk session storage and metadata
+    /// are preserved so a subsequent Start restarts the same instance Name from a clean storage
+    /// directory. Destruction deletes ephemeral storage; reusable instances are preserved.
+    /// </summary>
+    void Stop(std::stop_token token = {});
+
+    /// <summary>Executes a command and captures its exit code, stdout and stderr.</summary>
+    ExecResult Exec(std::string command, std::vector<std::string> arguments = {}, ExecOptions options = {},
+                    std::stop_token token = {});
+
+    /// <summary>IWaitTarget surface: executes a command with container defaults.</summary>
+    ExecResult Exec(std::string command, std::vector<std::string> arguments, std::stop_token token) override;
+
+    /// <summary>
+    /// Starts a long-running process inside the Environment. The caller owns the returned
+    /// Handle; destroying it terminates a still-running process. StandardInput/Timeout are
+    /// rejected and unset them throws WslcException.
+    /// </summary>
+    std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments = {},
+                                              ExecOptions options = {}, std::stop_token token = {});
+
+    /// <summary>
+    /// Copies a Windows file into the Environment. Fails when the Source is missing or larger
+    /// than 1 GiB. The container path must be an absolute Linux path.
+    /// </summary>
+    void CopyTo(const std::filesystem::path& HostPath, std::string ContainerPath, std::stop_token token = {});
+
+    /// <summary>Copies a Linux file out of the Environment to a Windows path. Creates parent directories.</summary>
+    void CopyFrom(std::string ContainerPath, const std::filesystem::path& HostPath, std::stop_token token = {});
+
+    /// <summary>Streams all Logs captured by the Environment, replaying retained history first.</summary>
+    LogStream Logs();
+
+    /// <summary>Returns a bounded Snapshot of the most recent log lines, oldest first.</summary>
+    std::vector<LogLine> GetRecentLogs() const override;
+
+    /// <summary>Returns the trailing <paramref name="maxLines"/> lines, oldest first.</summary>
+    std::vector<LogLine> GetRecentLogs(int maxLines) const;
+
+    /// <summary>
+    /// Stops and releases the container, deleting ephemeral storage. Idempotent; also runs from
+    /// the destructor.
+    /// </summary>
+    void Dispose();
+
+    // IWaitTarget surface used by Wait Strategies; not part of the primary API path.
+    bool IsTcpPortOpen(int ContainerPort, std::stop_token token) override;
+    bool IsProcessRunning(std::string processName, std::stop_token token) override;
+
+private:
+    friend class WslContainerBuilder;
+    struct Impl;
+    explicit WslContainer(std::unique_ptr<Impl> impl);
+    static WslContainer Create(internal::Configuration configuration);
+
+    std::unique_ptr<Impl> m_impl;
+};
+
+} // namespace wslc

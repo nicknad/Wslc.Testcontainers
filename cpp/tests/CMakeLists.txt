@@ -1,0 +1,53 @@
+include(FetchContent)
+
+# Prefer an installed GoogleTest; fall back to fetching the release tarball.
+find_package(GTest QUIET)
+if(NOT GTest_FOUND)
+  message(STATUS "GoogleTest not found; fetching googletest v1.15.2")
+  set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+  set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
+  set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
+  FetchContent_Declare(googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+  FetchContent_MakeAvailable(googletest)
+
+  # GoogleTest must be compiled with the same sanitizer settings as the tests; otherwise the
+  # MSVC annotate_* linker checks fail on the mismatch.
+  if(WSLC_ENABLE_SANITIZERS AND MSVC)
+    foreach(_gtest_target gtest gtest_main)
+      if(TARGET ${_gtest_target})
+        target_compile_options(${_gtest_target} PRIVATE /fsanitize=address /Z7 /wd5072)
+      endif()
+    endforeach()
+  endif()
+endif()
+
+add_executable(wslc_tests
+  capture_buffer_tests.cpp
+  config_hasher_tests.cpp
+  container_builder_tests.cpp
+  container_lifecycle_tests.cpp
+  image_resolver_tests.cpp
+  instance_store_tests.cpp
+  line_assembler_tests.cpp
+  log_broadcaster_tests.cpp
+  naming_tests.cpp
+  platform_tests.cpp
+  port_mapping_tests.cpp
+  process_registry_tests.cpp
+  resource_reaper_tests.cpp
+  wait_strategy_tests.cpp
+  integration_tests.cpp
+  support/integration.cpp
+  support/tiny_http_server.cpp)
+
+target_include_directories(wslc_tests PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}"
+  "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(wslc_tests PRIVATE wslc wslc_postgresql wslc_redis GTest::gtest_main)
+wslc_apply_strict_options(wslc_tests)
+wslc_copy_sdk_runtime(wslc_tests)
+
+include(GoogleTest)
+gtest_discover_tests(wslc_tests DISCOVERY_TIMEOUT 60)

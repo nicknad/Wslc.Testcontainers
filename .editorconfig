@@ -30,12 +30,17 @@ csharp_prefer_braces = when_multiline:suggestion
 csharp_style_prefer_primary_constructors = true:suggestion
 
 # xUnit uses underscores in test names; example/test code favors readability over array caching.
-[tests/**/*.cs]
+[csharp/tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1711.severity = none
 dotnet_diagnostic.CA1861.severity = none
 
-[examples/**/*.cs]
+[csharp/examples/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1711.severity = none
 dotnet_diagnostic.CA1861.severity = none
+
+[*.{cpp,hpp,h}]
+indent_size = 4
+charset = utf-8
+end_of_line = crlf

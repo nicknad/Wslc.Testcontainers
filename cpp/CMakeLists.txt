@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.25)
 
 project(Wslc.Testcontainers.Cpp VERSION 0.1.0 LANGUAGES CXX)
 
@@ -6,7 +6,7 @@ if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")
 endif()
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
@@ -54,7 +54,7 @@ find_package(Microsoft.WSL.Containers REQUIRED CONFIG PATHS "${WSLC_SDK_ROOT}" N
 # Strict compiler rules (zero warnings, ADR-0005) shared by every target.
 # ---------------------------------------------------------------------------
 function(wslc_apply_strict_options target)
-  target_compile_features(${target} PUBLIC cxx_std_20)
+  target_compile_features(${target} PUBLIC cxx_std_23)
   if(MSVC)
     target_compile_options(${target} PRIVATE
       /W4 /WX

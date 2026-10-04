@@ -9,8 +9,8 @@
 
 #include <array>
 #include <cctype>
-#include <cstdio>
 #include <ctime>
+#include <format>
 #include <limits>
 
 #pragma comment(lib, "bcrypt.lib")
@@ -179,7 +179,7 @@ void ValidateHttpPath(std::string_view value)
         throw WslcException("HTTP wait path must not be empty.");
     }
 
-    if (value.find("://") != std::string_view::npos || value.rfind("http:", 0) == 0 || value.rfind("https:", 0) == 0)
+    if (value.contains("://") || value.rfind("http:", 0) == 0 || value.rfind("https:", 0) == 0)
     {
         throw WslcException("HTTP wait path '" + std::string(value) +
                             "' must be a path-and-query (e.g. /health), not a full URL.");
@@ -374,6 +374,8 @@ void Sha256::Append(std::span<const std::uint8_t> data)
         return;
     }
 
+    // CNG declares the input as non-const PUCHAR but does not modify it.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
     if (BCryptHashData(static_cast<BCRYPT_HASH_HANDLE>(m_hash), const_cast<PUCHAR>(data.data()),
                        static_cast<ULONG>(data.size()), 0) < 0)
     {
@@ -436,10 +438,8 @@ std::string FormatIso8601(std::chrono::system_clock::time_point value)
     std::tm utc{};
     gmtime_s(&utc, &time);
 
-    char buffer[32];
-    std::snprintf(buffer, sizeof(buffer), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", utc.tm_year + 1900, utc.tm_mon + 1,
-                  utc.tm_mday, utc.tm_hour, utc.tm_min, utc.tm_sec, static_cast<int>(millis));
-    return buffer;
+    return std::format("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}.{:03}Z", utc.tm_year + 1900, utc.tm_mon + 1, utc.tm_mday,
+                       utc.tm_hour, utc.tm_min, utc.tm_sec, static_cast<int>(millis));
 }
 
 std::optional<std::chrono::system_clock::time_point> ParseIso8601(std::string_view value)
@@ -568,25 +568,18 @@ std::string FormatMilliseconds(std::chrono::milliseconds value)
     const auto total = value.count();
     const auto seconds = total / 1000;
     const auto millis = total % 1000;
-    std::string result = std::to_string(seconds);
-    if (millis != 0)
+    if (millis == 0)
     {
-        std::string fraction = std::to_string(millis < 0 ? -millis : millis);
-        while (fraction.size() < 3)
-        {
-            fraction.insert(fraction.begin(), '0');
-        }
-
-        while (!fraction.empty() && fraction.back() == '0')
-        {
-            fraction.pop_back();
-        }
-
-        result.push_back('.');
-        result += fraction;
+        return std::to_string(seconds);
     }
 
-    return result;
+    std::string fraction = std::format("{:03}", millis < 0 ? -millis : millis);
+    while (!fraction.empty() && fraction.back() == '0')
+    {
+        fraction.pop_back();
+    }
+
+    return std::format("{}.{}", seconds, fraction);
 }
 
 bool OrdinalLess(std::string_view left, std::string_view right)

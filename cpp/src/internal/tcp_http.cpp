@@ -208,7 +208,7 @@ bool TcpProbe(const std::string& Host, int port, std::chrono::milliseconds Timeo
     return ConnectSocket(Host, port, Timeout, token, socket);
 }
 
-bool HttpGetSucceeds(const std::string& Host, int port, const std::string& path_and_query, std::stop_token token)
+bool HttpGetSucceeds(const std::string& Host, int port, const std::string& pathAndQuery, std::stop_token token)
 {
     Socket socket;
     if (!ConnectSocket(Host, port, c_connectTimeout, token, socket))
@@ -216,10 +216,10 @@ bool HttpGetSucceeds(const std::string& Host, int port, const std::string& path_
         return false;
     }
 
-    const bool ipv6 = Host.find(':') != std::string::npos;
+    const bool ipv6 = Host.contains(':');
     const std::string authority = ipv6 ? "[" + Host + "]" : Host;
-    const std::string request = "GET " + path_and_query + " HTTP/1.1\r\nHost: " + authority + ":" +
-                                std::to_string(port) + "\r\nConnection: close\r\nAccept: */*\r\n\r\n";
+    const std::string request = "GET " + pathAndQuery + " HTTP/1.1\r\nHost: " + authority + ":" + std::to_string(port) +
+                                "\r\nConnection: close\r\nAccept: */*\r\n\r\n";
 
     const char* send_data = request.data();
     std::size_t remaining = request.size();

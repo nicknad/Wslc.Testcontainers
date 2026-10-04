@@ -155,7 +155,7 @@ build + `ctest` 125/125; `/analyze` build exit 0; `clang-format --dry-run --Werr
 |------|-----------|----------|
 | `std::format` | `log_line.cpp` (`ToString`), `internal/api.cpp` (`HresultHex`), `exceptions.cpp` (`Describe`), `internal/util.cpp` (`FormatIso8601`, `FormatMilliseconds`), `internal/json.cpp` (`Escape`), `internal/instance_store.cpp` (`RenderMetadata`) | Replaces `snprintf`/`ostringstream`/`+` chains; format specifiers preserve zero padding and widths, so rendered output is unchanged; `<cstdio>`/`<sstream>` dropped where no longer used |
 | `contains()` | `internal/util.cpp` (`ValidateHttpPath`), `internal/image_resolver.cpp` (x2), `internal/tcp_http.cpp`, `tests/integration_tests.cpp` | `find(...) != npos` -> `contains(...)` |
-| `std::unreachable()` | `log_line.cpp` (`SourceName`), `internal/api.cpp` (`CreateException`) | Exhaustive switches over closed enums; fallback returns removed |
+| `std::unreachable()` | `internal/api.cpp` (`CreateException`) only | Internal closed enum, all call sites pass literal enumerators. `log_line.cpp` (`SourceName`) was reverted to a `"system"` fallback after review: `LogSource` is public, so an out-of-range cast made the old path undefined behavior |
 | `std::jthread` | `tests/support/tiny_http_server.{hpp,cpp}`, `tests/wait_strategy_tests.cpp`, `tests/integration_tests.cpp` | Cancellation/timer threads; manual `join()` and the atomic stop flag removed in favor of `request_stop()` and member RAII joining |
 
 Already idiomatic and left alone: the startup timer is a `jthread` (`wsl_container.cpp:312`)
@@ -199,3 +199,5 @@ and `SleepFor` uses `std::stop_callback` (`util.cpp`).
 | MIG3 | ASan test runs fail with `0xc0000135` unless the MSVC ASan runtime DLL is on PATH | PROCESS | Local-only: run the ASan `ctest` under `vcvars64.bat`; CI's `msvc-dev-cmd` already does. Add a note if local ASan instructions are published |
 | MIG4 | Cosmetic: remaining startup-diagnostic `+` concatenation (`wsl_container.cpp`) | OPEN (low) | Cheap `std::format` follow-up; no behavior change |
 | MIG5 | New tests from the in-flight slice work were included in all four verification builds | PROCESS | Release/tidy/ASan/`analyze` all green together on the same tree |
+| MIG6 | `SourceName` used `std::unreachable()` for an out-of-range public `LogSource` cast (UB, crash at -O2) | FIXED | Reverted to the `"system"` fallback; regression test `LogLine.UnknownSourceFallsBackToSystem` |
+| MIG7 | CI LLVM pin could not resolve a fresh install in-step and lacked downgrade allowance | FIXED | `$env:PATH` prepend after install plus `--allow-downgrade` |

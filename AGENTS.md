@@ -4,7 +4,7 @@
 
 - `csharp/` — the .NET solution (sources, tests, examples, packaging). Build files
   (`Directory.Build.props/targets`, `Directory.Packages.props`, `global.json`) live here.
-- `cpp/` — the CMake/C++20 port. `include/wslc` is the public surface, `src/` the
+- `cpp/` — the CMake/C++23 port. `include/wslc` is the public surface, `src/` the
   implementation, `modules/` the typed modules, `tests/` the GoogleTest suite.
 - `docs/` — shared operational documentation; `docs/adr/` — architecture decisions that apply
   to both implementations (bounded loops, comments, strict builds, best-effort cleanup).

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <atomic>
+#include <stop_token>
 #include <thread>
 
 namespace wslc::test
@@ -18,13 +18,12 @@ public:
     int Port() const noexcept { return m_port; }
 
 private:
-    void AcceptLoop();
+    void AcceptLoop(std::stop_token token);
 
-    std::atomic<bool> m_stopped{false};
     unsigned long long m_listener = ~0ull;
     int m_statusCode = 200;
     int m_port = 0;
-    std::thread m_thread;
+    std::jthread m_thread;
 };
 
 } // namespace wslc::test

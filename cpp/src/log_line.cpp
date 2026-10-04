@@ -1,7 +1,8 @@
 #include "wslc/log_line.hpp"
 
-#include <cstdio>
 #include <ctime>
+#include <format>
+#include <utility>
 
 namespace wslc
 {
@@ -22,7 +23,10 @@ const char* SourceName(LogSource Source)
         return "stdout";
     case LogSource::Stderr:
         return "stderr";
+    case LogSource::System:
+        return "system";
     default:
+        // LogSource is a public enum, so callers can supply values outside the enumerator set.
         return "system";
     }
 }
@@ -42,16 +46,8 @@ std::string LogLine::ToString() const
     std::tm utc{};
     gmtime_s(&utc, &time);
 
-    char buffer[32];
-    std::snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d.%03d", utc.tm_hour, utc.tm_min, utc.tm_sec,
-                  static_cast<int>(millis));
-
-    std::string result(buffer);
-    result += " [";
-    result += SourceName(Source);
-    result += "] ";
-    result += Text;
-    return result;
+    return std::format("{:02}:{:02}:{:02}.{:03} [{}] {}", utc.tm_hour, utc.tm_min, utc.tm_sec, static_cast<int>(millis),
+                       SourceName(Source), Text);
 }
 
 } // namespace wslc

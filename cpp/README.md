@@ -36,7 +36,7 @@ const auto result = postgres.Exec("/bin/sh", {"-c", "psql -U postgres -c 'SELECT
 
 - Windows 10 2004+ or Windows 11 (x64 / ARM64)
 - WSL **2.9.3 or newer** with container support (`wsl --install` / `wsl --update`)
-- Visual Studio 2022+ with the C++ workload (C++20), CMake 3.24+, and the
+- Visual Studio 2022 17.10+ with the C++ workload (C++23), CMake 3.25+, and the
   `Microsoft.WSL.Containers` SDK
 
 ## Build

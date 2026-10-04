@@ -43,7 +43,7 @@ std::vector<LogLine> ReadLogHistory(WslContainer& container)
     std::vector<LogLine> lines;
     LogStream stream = container.Logs();
     std::stop_source source;
-    std::thread stopper(
+    std::jthread stopper(
         [&source]
         {
             std::this_thread::sleep_for(3s);
@@ -55,7 +55,6 @@ std::vector<LogLine> ReadLogHistory(WslContainer& container)
         lines.push_back(*line);
     }
 
-    stopper.join();
     return lines;
 }
 
@@ -63,7 +62,7 @@ bool ContainsInsensitive(const std::vector<LogLine>& lines, const std::string& n
 {
     const std::string loweredNeedle = wslc::internal::ToLower(needle);
     return std::any_of(lines.begin(), lines.end(), [&loweredNeedle](const LogLine& line)
-                       { return wslc::internal::ToLower(line.Text).find(loweredNeedle) != std::string::npos; });
+                       { return wslc::internal::ToLower(line.Text).contains(loweredNeedle); });
 }
 
 std::filesystem::path CreateTempFile(const std::string& content)

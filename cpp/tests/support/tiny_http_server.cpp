@@ -54,28 +54,23 @@ TinyHttpServer::TinyHttpServer(int statusCode) : m_statusCode(statusCode)
     getsockname(listener, reinterpret_cast<sockaddr*>(&address), &length);
     m_port = ntohs(address.sin_port);
     m_listener = static_cast<unsigned long long>(listener);
-    m_thread = std::thread([this] { AcceptLoop(); });
+    m_thread = std::jthread([this](std::stop_token token) { AcceptLoop(token); });
 }
 
 TinyHttpServer::~TinyHttpServer()
 {
-    m_stopped = true;
+    m_thread.request_stop();
     const SOCKET listener = static_cast<SOCKET>(m_listener);
     if (listener != INVALID_SOCKET)
     {
         closesocket(listener);
     }
-
-    if (m_thread.joinable())
-    {
-        m_thread.join();
-    }
 }
 
-void TinyHttpServer::AcceptLoop()
+void TinyHttpServer::AcceptLoop(std::stop_token token)
 {
     const SOCKET listener = static_cast<SOCKET>(m_listener);
-    while (!m_stopped)
+    while (!token.stop_requested())
     {
         const SOCKET client = accept(listener, nullptr, nullptr);
         if (client == INVALID_SOCKET)

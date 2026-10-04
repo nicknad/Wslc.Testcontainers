@@ -6,7 +6,7 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ### Added
 
-- Monorepo layout: the .NET implementation moved to `csharp/`; a full C++20 port now lives in
+- Monorepo layout: the .NET implementation moved to `csharp/`; a full C++23 port now lives in
   `cpp/` and builds on the native `wslcsdk` C API with CMake.
 - C++ port parity: mutable `WslContainerBuilder`/`WslContainer`, exec/start-process with captured
   stdio, file copy in/out, log streaming with bounded history, wait strategies (TCP, HTTP,

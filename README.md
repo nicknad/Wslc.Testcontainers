@@ -11,7 +11,7 @@ layout:
 | Implementation | Folder | Guide | Artifacts |
 | --- | --- | --- | --- |
 | C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`) |
-| C++20 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis` |
+| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis` |
 
 ```csharp
 using Wslc.Testcontainers.Modules.PostgreSql;
@@ -52,7 +52,7 @@ const std::string connectionString = postgres.GetConnectionString();
 - Windows 10 2004+ or Windows 11 (x64 / ARM64)
 - WSL **2.9.3 or newer** with container support: `wsl --install` (or `wsl --update`)
 - C#: .NET 8, 9 or 10 on Windows
-- C++: Visual Studio 2022+ (C++20) and CMake 3.24+
+- C++: Visual Studio 2022 17.10+ (C++23) and CMake 3.25+
 
 ## Repository layout
 

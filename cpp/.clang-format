@@ -1,7 +1,7 @@
 # Microsoft C++ style (Allman braces, 4-space indent, PascalCase API).
 BasedOnStyle: Microsoft
 Language: Cpp
-Standard: c++20
+Standard: Latest
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never

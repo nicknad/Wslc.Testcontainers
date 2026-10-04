@@ -2,7 +2,7 @@
 
 #include "internal/util.hpp"
 
-#include <sstream>
+#include <format>
 
 namespace wslc
 {
@@ -63,23 +63,20 @@ WslReadinessException WslReadinessException::WithDiagnostics(std::optional<std::
 
 std::string WslReadinessException::Describe() const
 {
-    std::ostringstream builder;
-    builder << "WSLC readiness failed\n\n";
-    builder << "Image:        " << (m_image ? *m_image : "<unknown>") << '\n';
-    builder << "Command:      " << (m_command ? *m_command : "<none>") << '\n';
+    std::string result = std::format("WSLC readiness failed\n\nImage:        {}\nCommand:      {}\n",
+                                     m_image.value_or("<unknown>"), m_command.value_or("<none>"));
     if (!m_command)
     {
-        builder << "Hint:         no init command was configured, so only a keep-alive shell is running.\n";
-        builder << "              WSLC never runs the Image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or "
-                   "use a module builder.\n";
+        result += "Hint:         no init command was configured, so only a keep-alive shell is running.\n"
+                  "              WSLC never runs the Image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or "
+                  "use a module builder.\n";
     }
 
-    builder << "Expected:     " << m_expectedCondition << '\n';
-    builder << "Timeout:      " << internal::FormatMilliseconds(m_timeout) << "s\n";
-
+    result += std::format("Expected:     {}\nTimeout:      {}s\n", m_expectedCondition,
+                          internal::FormatMilliseconds(m_timeout));
     if (m_exitCode)
     {
-        builder << "Exit code:    " << *m_exitCode << '\n';
+        result += std::format("Exit code:    {}\n", *m_exitCode);
     }
 
     const auto not_blank = [](const std::optional<std::string>& value)
@@ -87,24 +84,24 @@ std::string WslReadinessException::Describe() const
 
     if (not_blank(m_stdoutText))
     {
-        builder << "\nLast stdout:\n" << *m_stdoutText << '\n';
+        result += std::format("\nLast stdout:\n{}\n", *m_stdoutText);
     }
 
     if (not_blank(m_stderrText))
     {
-        builder << "\nLast stderr:\n" << *m_stderrText << '\n';
+        result += std::format("\nLast stderr:\n{}\n", *m_stderrText);
     }
 
     if (!m_logs.empty())
     {
-        builder << "\nRecent Logs:\n";
+        result += "\nRecent Logs:\n";
         for (const auto& line : m_logs)
         {
-            builder << line.ToString() << '\n';
+            result += std::format("{}\n", line.ToString());
         }
     }
 
-    return builder.str();
+    return result;
 }
 
 } // namespace wslc

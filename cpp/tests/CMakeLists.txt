@@ -3,13 +3,13 @@ include(FetchContent)
 # Prefer an installed GoogleTest; fall back to fetching the release tarball.
 find_package(GTest QUIET)
 if(NOT GTest_FOUND)
-  message(STATUS "GoogleTest not found; fetching googletest v1.15.2")
+  message(STATUS "GoogleTest not found; fetching googletest v1.18.0")
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
   set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
   FetchContent_Declare(googletest
-    URL https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
-    URL_HASH SHA512=9046841044A2BF7EDFD96854AD9C44FFAE4FCB9FB59A075B367507C0762A98EB32CB6968D46663228272E26321E96F4DD287C95BAA22C6AF9BAD902B8B6EDE4E
+    URL https://github.com/google/googletest/archive/refs/tags/v1.18.0.tar.gz
+    URL_HASH SHA512=BA0F5769CCF34ACF1BC72D1F7E9FFB8202176D02B64F6F3D9047ACCFC0CF9026FF5A653D24935E2705FFF8709566676452616C93CA0CA6277F1E21D79B58A10A
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
   FetchContent_MakeAvailable(googletest)
 
@@ -34,6 +34,7 @@ add_executable(wslc_tests
   instance_store_tests.cpp
   line_assembler_tests.cpp
   log_broadcaster_tests.cpp
+  log_line_tests.cpp
   naming_tests.cpp
   platform_tests.cpp
   port_mapping_tests.cpp

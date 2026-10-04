@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include <cctype>
+#include <format>
 #include <fstream>
 #include <sstream>
 
@@ -33,25 +34,22 @@ std::optional<std::string> ReadTextFile(const std::filesystem::path& path)
 
 std::string RenderMetadata(const InstanceMetadata& metadata)
 {
-    std::string json = "{\n";
-    json += "  \"sessionId\": \"" + json::Escape(metadata.SessionId) + "\",\n";
-    json += "  \"instanceId\": \"" + json::Escape(metadata.InstanceId) + "\",\n";
-    json += "  \"ownerProcessId\": " + std::to_string(metadata.OwnerProcessId) + ",\n";
-    json += "  \"createdAt\": \"" + FormatIso8601(metadata.CreatedAt) + "\",\n";
-    json += "  \"state\": \"" + json::Escape(metadata.State) + "\"";
+    std::string json =
+        std::format("{{\n  \"sessionId\": \"{}\",\n  \"instanceId\": \"{}\",\n  \"ownerProcessId\": {},"
+                    "\n  \"createdAt\": \"{}\",\n  \"state\": \"{}\"",
+                    json::Escape(metadata.SessionId), json::Escape(metadata.InstanceId), metadata.OwnerProcessId,
+                    FormatIso8601(metadata.CreatedAt), json::Escape(metadata.State));
     if (metadata.Owner)
     {
-        json += ",\n  \"owner\": \"" + json::Escape(*metadata.Owner) + "\"";
+        json += std::format(",\n  \"owner\": \"{}\"", json::Escape(*metadata.Owner));
     }
 
     if (metadata.Image)
     {
-        json += ",\n  \"image\": \"" + json::Escape(*metadata.Image) + "\"";
+        json += std::format(",\n  \"image\": \"{}\"", json::Escape(*metadata.Image));
     }
 
-    json += ",\n  \"reuse\": ";
-    json += metadata.Reuse ? "true" : "false";
-    json += "\n}\n";
+    json += std::format(",\n  \"reuse\": {}\n}}\n", metadata.Reuse ? "true" : "false");
     return json;
 }
 

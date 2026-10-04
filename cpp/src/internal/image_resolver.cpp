@@ -84,7 +84,7 @@ struct ImageReference
 
 std::optional<ImageReference> TryParseReference(std::string_view reference)
 {
-    if (IsBlank(reference) || reference.find('@') != std::string_view::npos)
+    if (IsBlank(reference) || reference.contains('@'))
     {
         return std::nullopt;
     }
@@ -114,9 +114,8 @@ std::optional<ImageReference> TryParseReference(std::string_view reference)
     else
     {
         const std::string first_segment = remaining.substr(0, first_slash);
-        const bool has_registry = first_segment.find('.') != std::string::npos ||
-                                  first_segment.find(':') != std::string::npos ||
-                                  EqualsIgnoreCase(first_segment, "localhost");
+        const bool has_registry =
+            first_segment.contains('.') || first_segment.contains(':') || EqualsIgnoreCase(first_segment, "localhost");
         repository = has_registry ? remaining : "docker.io/" + remaining;
     }
 

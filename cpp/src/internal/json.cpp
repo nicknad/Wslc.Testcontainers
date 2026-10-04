@@ -1,6 +1,7 @@
 #include "internal/json.hpp"
 
 #include <cstdlib>
+#include <format>
 
 namespace wslc::internal::json
 {
@@ -470,9 +471,7 @@ std::string Escape(std::string_view Text)
         default:
             if (static_cast<unsigned char>(character) < 0x20)
             {
-                char buffer[8];
-                std::snprintf(buffer, sizeof(buffer), "\\u%04x", static_cast<unsigned char>(character));
-                result += buffer;
+                result += std::format("\\u{:04x}", static_cast<unsigned char>(character));
             }
             else
             {

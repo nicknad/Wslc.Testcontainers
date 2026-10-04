@@ -75,7 +75,7 @@ TEST(WaitStrategy, HonorsCancellation)
     auto strategy = ForWsl().WithTimeout(30s).WithRetryInterval(10ms).UntilTcpPortIsAvailable(5432);
 
     std::stop_source source;
-    std::thread canceller(
+    std::jthread canceller(
         [&source]
         {
             std::this_thread::sleep_for(100ms);
@@ -83,8 +83,6 @@ TEST(WaitStrategy, HonorsCancellation)
         });
 
     EXPECT_THROW(strategy->Wait(target, source.get_token()), OperationCanceledException);
-
-    canceller.join();
 }
 
 TEST(WaitStrategy, ProcessRunningAndExitUseTheTarget)

@@ -3,8 +3,9 @@
 #include "internal/util.hpp"
 #include "wslc/exceptions.hpp"
 
-#include <cstdio>
+#include <format>
 #include <memory>
+#include <utility>
 
 namespace wslc::internal
 {
@@ -22,9 +23,7 @@ void EnsureComInitialized()
 
 std::string HresultHex(HRESULT hr)
 {
-    char buffer[16];
-    std::snprintf(buffer, sizeof(buffer), "0x%08lX", static_cast<unsigned long>(hr));
-    return buffer;
+    return std::format("0x{:08X}", static_cast<unsigned long>(hr));
 }
 
 namespace
@@ -46,7 +45,7 @@ std::unique_ptr<WslcException> CreateException(ErrorKind Kind, std::string messa
         return std::make_unique<WslCleanupException>(std::move(message));
     }
 
-    return std::make_unique<WslcException>(std::move(message));
+    std::unreachable();
 }
 
 } // namespace

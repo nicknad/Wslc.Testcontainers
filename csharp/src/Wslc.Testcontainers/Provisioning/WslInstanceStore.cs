@@ -13,10 +13,14 @@ internal sealed class WslInstanceStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    private static readonly Lazy<WslInstanceStore> DefaultStore = new(
+        () => new WslInstanceStore(WslcEnvironment.DataDirectory, WslcEnvironment.SessionId),
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
     private readonly string _dataDirectory;
     private readonly object _metadataGate = new();
 
-    public static WslInstanceStore Default { get; } = new(WslcEnvironment.DataDirectory, WslcEnvironment.SessionId);
+    public static WslInstanceStore Default => DefaultStore.Value;
 
     public WslInstanceStore(string dataDirectory, string sessionId)
     {
@@ -28,8 +32,25 @@ internal sealed class WslInstanceStore
 
     public string InstancesDirectory => Path.Combine(_dataDirectory, "instances");
 
-    public string GetInstanceDirectory(string instanceName) =>
-        Path.Combine(InstancesDirectory, Sanitize(instanceName));
+    public string GetInstanceDirectory(string instanceName)
+    {
+        var sanitized = Sanitize(instanceName);
+        if (sanitized.Length == 0)
+        {
+            throw new WslcException($"Instance name '{instanceName}' is not a valid directory name.");
+        }
+
+        var instancesDirectory = Path.GetFullPath(InstancesDirectory);
+        var directory = Path.GetFullPath(Path.Combine(instancesDirectory, sanitized));
+        var prefix = Path.TrimEndingDirectorySeparator(instancesDirectory) + Path.DirectorySeparatorChar;
+        if (!directory.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new WslcException(
+                $"Instance name '{instanceName}' resolves outside the instances directory '{instancesDirectory}'.");
+        }
+
+        return directory;
+    }
 
     /// <summary>
     /// Session VM storage. The runtime creates its session VHD (<c>storage.vhdx</c>) and its
@@ -97,15 +118,24 @@ internal sealed class WslInstanceStore
     public void DeleteInstanceDirectory(string instanceName) =>
         BestEffortDeleteDirectory(GetInstanceDirectory(instanceName));
 
-    internal static string Sanitize(string value) =>
-        string.Create(value.Length, value, static (span, source) =>
+    internal static string Sanitize(string value)
+    {
+        var characters = new char[value.Length];
+        for (var i = 0; i < value.Length; i++)
         {
-            for (var i = 0; i < source.Length; i++)
-            {
-                var c = source[i];
-                span[i] = char.IsLetterOrDigit(c) || c is '-' or '_' or '.' ? c : '_';
-            }
-        });
+            var c = value[i];
+            characters[i] = char.IsLetterOrDigit(c) || c is '-' or '_' or '.' ? c : '_';
+        }
+
+        // Windows strips trailing dots and spaces from path components, so "a." would alias
+        // "a"; map them to '_' so distinct names stay distinct instead of collapsing.
+        for (var i = characters.Length - 1; i >= 0 && (characters[i] == '.' || characters[i] == ' '); i--)
+        {
+            characters[i] = '_';
+        }
+
+        return new string(characters);
+    }
 
     internal static void BestEffortDeleteDirectory(string path)
     {

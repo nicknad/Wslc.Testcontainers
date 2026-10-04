@@ -2,8 +2,6 @@
 
 #include "internal/util.hpp"
 
-#include <windows.h>
-
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -13,42 +11,6 @@ namespace wslc
 
 namespace
 {
-
-std::filesystem::path ResolveDataDirectory()
-{
-    const auto configured = WslcEnvironment::GetNonEmpty(WslcEnvironment::DataDirectoryVariable);
-    if (configured)
-    {
-        return std::filesystem::path(internal::ToUtf16(*configured));
-    }
-
-    std::wstring buffer(MAX_PATH, L'\0');
-    for (;;)
-    {
-        const DWORD written =
-            GetEnvironmentVariableW(L"LOCALAPPDATA", buffer.data(), static_cast<DWORD>(buffer.size()));
-        if (written == 0)
-        {
-            break;
-        }
-
-        if (written < buffer.size())
-        {
-            buffer.resize(written);
-            return std::filesystem::path(buffer) / L"Wslc";
-        }
-
-        buffer.resize(buffer.size() * 2);
-    }
-
-    const std::filesystem::path profile(internal::ToUtf16(internal::ReadEnvironmentVariable("USERPROFILE")));
-    return profile / L"AppData" / L"Local" / L"Wslc";
-}
-
-std::string CreateSessionId()
-{
-    return internal::ExecutableName() + "-" + std::to_string(internal::CurrentProcessId());
-}
 
 bool IsContinuousIntegration()
 {
@@ -241,7 +203,7 @@ std::optional<std::string> WslcEnvironment::DefaultImage()
 
 const std::filesystem::path& WslcEnvironment::DataDirectory()
 {
-    static const std::filesystem::path value = ResolveDataDirectory();
+    static const std::filesystem::path value = internal::ResolveDataDirectory(GetNonEmpty(DataDirectoryVariable));
     return value;
 }
 
@@ -257,7 +219,7 @@ bool WslcEnvironment::CleanupEnabled()
 
 const std::string& WslcEnvironment::SessionId()
 {
-    static const std::string value = GetNonEmpty(SessionIdVariable).value_or(CreateSessionId());
+    static const std::string value = internal::ResolveSessionId(GetNonEmpty(SessionIdVariable));
     return value;
 }
 

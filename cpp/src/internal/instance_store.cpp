@@ -3,6 +3,7 @@
 #include "internal/json.hpp"
 #include "internal/util.hpp"
 #include "wslc/environment.hpp"
+#include "wslc/exceptions.hpp"
 
 #include <windows.h>
 
@@ -114,7 +115,42 @@ std::filesystem::path InstanceStore::InstancesDirectory() const
 
 std::filesystem::path InstanceStore::GetInstanceDirectory(const std::string& instanceName) const
 {
-    return InstancesDirectory() / ToUtf16(Sanitize(instanceName));
+    std::error_code error;
+    const std::filesystem::path instances = std::filesystem::absolute(InstancesDirectory(), error).lexically_normal();
+    if (error)
+    {
+        throw WslcException("Unable to resolve the instances directory for instance '" + instanceName + "'.");
+    }
+
+    const std::string sanitizedName = Sanitize(instanceName);
+    if (sanitizedName.empty())
+    {
+        throw WslcException("Instance name '" + instanceName + "' is not a valid directory name.");
+    }
+
+    const std::filesystem::path directory =
+        std::filesystem::absolute(instances / ToUtf16(sanitizedName), error).lexically_normal();
+    if (error)
+    {
+        throw WslcException("Instance name '" + instanceName + "' is not a valid directory name.");
+    }
+
+    std::wstring prefix = instances.native();
+    if (!prefix.empty() && prefix.back() != L'\\' && prefix.back() != L'/')
+    {
+        prefix.push_back(L'\\');
+    }
+    const std::wstring& candidate = directory.native();
+    const bool contained = candidate.size() >= prefix.size() &&
+                           CompareStringOrdinal(candidate.c_str(), static_cast<int>(prefix.size()), prefix.c_str(),
+                                                static_cast<int>(prefix.size()), TRUE) == CSTR_EQUAL;
+    if (!contained)
+    {
+        throw WslcException("Instance name '" + instanceName + "' resolves outside the instances directory '" +
+                            ToUtf8(instances.native()) + "'.");
+    }
+
+    return directory;
 }
 
 std::filesystem::path InstanceStore::GetSessionStorageDirectory(const std::string& instanceName) const
@@ -227,6 +263,14 @@ std::string InstanceStore::Sanitize(std::string_view value)
         {
             character = '_';
         }
+    }
+
+    // Windows strips trailing dots and spaces from path components, so "a." would alias "a";
+    // map them to '_' so distinct names stay distinct instead of collapsing.
+    for (std::size_t index = result.size(); index > 0 && (result[index - 1] == '.' || result[index - 1] == ' ');
+         index--)
+    {
+        result[index - 1] = '_';
     }
 
     return result;

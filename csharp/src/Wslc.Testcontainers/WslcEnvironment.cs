@@ -8,7 +8,8 @@ namespace Wslc.Testcontainers;
 /// Truthy values are <c>1/true/yes/on</c>; falsy are <c>0/false/no/off</c> (case-insensitive).
 /// Any other non-empty value is treated as unset (falls back to defaults) — check spelling if
 /// a flag seems ignored. Snapshots (<see cref="DataDirectory"/>, <see cref="SessionId"/>) are
-/// captured on first use; changing env vars afterwards has no effect.
+/// captured on first use; changing env vars afterwards has no effect. Invalid configured paths
+/// or session ids raise <see cref="WslcException"/> on access until the environment is corrected.
 /// </summary>
 public static class WslcEnvironment
 {
@@ -35,13 +36,17 @@ public static class WslcEnvironment
 
     internal static readonly TimeSpan DefaultWaitTimeoutValue = TimeSpan.FromSeconds(60);
 
+    /// <summary>Maximum length of a session identifier.</summary>
+    internal const int MaxSessionIdLength = 64;
+
+    private static string? _dataDirectory;
+    private static string? _sessionId;
+
     /// <summary>Gets the configured default image, when any.</summary>
     public static string? DefaultImage => GetNonEmpty(DefaultImageVariable);
 
     /// <summary>Gets the data directory used for instance metadata and caches. Snapshotted on first use.</summary>
-    public static string DataDirectory { get; } =
-        GetNonEmpty(DataDirectoryVariable)
-        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wslc");
+    public static string DataDirectory => _dataDirectory ??= ResolveDataDirectory(GetNonEmpty(DataDirectoryVariable));
 
     /// <summary>Gets a value indicating whether reuse is enabled by default.</summary>
     public static bool ReuseByDefault => ParseBool(GetNonEmpty(ReuseVariable)) ?? false;
@@ -49,8 +54,107 @@ public static class WslcEnvironment
     /// <summary>Gets a value indicating whether automatic cleanup (including the orphan reaper) is enabled.</summary>
     public static bool CleanupEnabled => ParseBool(GetNonEmpty(CleanupVariable)) ?? true;
 
-    /// <summary>Gets the session identifier, generating a process-unique value when unset.</summary>
-    public static string SessionId { get; } = GetNonEmpty(SessionIdVariable) ?? CreateSessionId();
+    /// <summary>Gets the session identifier, generating a process-unique value when unset. Snapshotted on first use.</summary>
+    public static string SessionId => _sessionId ??= ResolveSessionId(GetNonEmpty(SessionIdVariable));
+
+    /// <summary>
+    /// Resolves a configured data directory to an absolute local path, or the LOCALAPPDATA
+    /// default when unset. Relative values are resolved against the current directory; UNC and
+    /// device paths are rejected. Throws <see cref="WslcException"/> for invalid configuration.
+    /// </summary>
+    internal static string ResolveDataDirectory(string? configured)
+    {
+        if (configured is null)
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Wslc");
+        }
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(configured);
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or IOException or NotSupportedException or System.Security.SecurityException)
+        {
+            throw new WslcException($"{DataDirectoryVariable} is not a valid directory path: '{configured}'.", exception);
+        }
+
+        if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))
+        {
+            throw new WslcException(
+                $"{DataDirectoryVariable} must be a local absolute directory path; UNC and device paths are not supported: '{configured}'.");
+        }
+
+        return fullPath;
+    }
+
+    /// <summary>
+    /// Validates a configured session identifier or generates a sanitized process-unique value
+    /// when unset. Throws <see cref="WslcException"/> for invalid configuration.
+    /// </summary>
+    internal static string ResolveSessionId(string? configured)
+    {
+        if (configured is not null)
+        {
+            if (!IsValidSessionId(configured))
+            {
+                throw new WslcException(
+                    $"{SessionIdVariable} must be 1-{MaxSessionIdLength} characters using only [A-Za-z0-9_-]: '{configured}'.");
+            }
+
+            return configured;
+        }
+
+        var entry = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "wslc";
+        var suffix = "-" + Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
+        var name = SanitizeSessionId(entry);
+        var available = MaxSessionIdLength - suffix.Length;
+        if (name.Length > available)
+        {
+            name = name[..available];
+        }
+
+        return name + suffix;
+    }
+
+    /// <summary>Returns true when the value matches <c>[A-Za-z0-9_-]{1,64}</c>.</summary>
+    internal static bool IsValidSessionId(string value)
+    {
+        if (value.Length is 0 or > MaxSessionIdLength)
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            if (!IsSessionIdCharacter(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Replaces characters outside <c>[A-Za-z0-9_-]</c> and truncates to 64 characters.</summary>
+    internal static string SanitizeSessionId(string value)
+    {
+        var length = Math.Min(value.Length, MaxSessionIdLength);
+        return string.Create(length, value, static (span, source) =>
+        {
+            for (var i = 0; i < span.Length; i++)
+            {
+                var character = source[i];
+                span[i] = IsSessionIdCharacter(character) ? character : '_';
+            }
+        });
+    }
+
+    private static bool IsSessionIdCharacter(char character) =>
+        character is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '-' or '_';
 
     internal static TimeSpan DefaultWaitTimeout => ParseTimeout(GetNonEmpty(TimeoutVariable)) ?? DefaultWaitTimeoutValue;
 
@@ -59,12 +163,6 @@ public static class WslcEnvironment
 
     private static readonly string[] ContinuousIntegrationVariables =
         { "CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL", "TEAMCITY_VERSION" };
-
-    private static string CreateSessionId()
-    {
-        var entry = System.Reflection.Assembly.GetEntryAssembly()?.GetName().Name ?? "wslc";
-        return $"{entry}-{Environment.ProcessId}";
-    }
 
     internal static bool IsContinuousIntegrationVariable(string name, string? value) =>
         name switch

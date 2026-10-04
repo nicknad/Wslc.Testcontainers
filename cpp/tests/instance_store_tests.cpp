@@ -2,6 +2,7 @@
 
 #include "internal/instance_store.hpp"
 #include "internal/util.hpp"
+#include "wslc/exceptions.hpp"
 
 #include <windows.h>
 
@@ -144,6 +145,60 @@ TEST_F(InstanceStoreTest, InstanceDirectoryIsSanitized)
     const std::filesystem::path directory = m_store->GetInstanceDirectory("wslc-a/b:c");
 
     EXPECT_EQ(directory, m_store->InstancesDirectory() / "wslc-a_b_c");
+}
+
+TEST_F(InstanceStoreTest, TrailingDotsAndSpacesDoNotAliasOtherInstances)
+{
+    const std::filesystem::path instances = std::filesystem::absolute(m_store->InstancesDirectory()).lexically_normal();
+    const std::filesystem::path normal = m_store->GetInstanceDirectory("a");
+    const std::vector<std::string> names = {"...", "a.", "a. "};
+
+    for (const std::string& name : names)
+    {
+        const std::filesystem::path directory = m_store->GetInstanceDirectory(name);
+        EXPECT_NE(directory, instances) << name;
+        EXPECT_NE(directory, normal) << name;
+    }
+}
+
+TEST_F(InstanceStoreTest, TrailingDotsAndSpacesAreReplaced)
+{
+    EXPECT_EQ(InstanceStore::Sanitize("..."), "___");
+    EXPECT_EQ(InstanceStore::Sanitize("a."), "a_");
+    EXPECT_EQ(InstanceStore::Sanitize("a. "), "a._");
+}
+
+TEST_F(InstanceStoreTest, NormalInstanceNamesAreUnchanged)
+{
+    EXPECT_EQ(InstanceStore::Sanitize("wslc-a_b.c"), "wslc-a_b.c");
+    EXPECT_EQ(InstanceStore::Sanitize("wslc-test-1234abcd"), "wslc-test-1234abcd");
+}
+
+TEST_F(InstanceStoreTest, InstanceDirectoryCannotEscapeInstancesDirectory)
+{
+    const std::vector<std::string> names = {"..", "../..", "..\\..\\escape", "wslc-a/b:c", "..."};
+    std::wstring prefix = m_store->InstancesDirectory().lexically_normal().native();
+    if (!prefix.empty() && prefix.back() != L'\\' && prefix.back() != L'/')
+    {
+        prefix.push_back(L'\\');
+    }
+
+    for (const std::string& name : names)
+    {
+        try
+        {
+            const std::wstring candidate = m_store->GetInstanceDirectory(name).native();
+            ASSERT_GE(candidate.size(), prefix.size()) << name;
+            EXPECT_EQ(CompareStringOrdinal(candidate.c_str(), static_cast<int>(prefix.size()), prefix.c_str(),
+                                           static_cast<int>(prefix.size()), TRUE),
+                      CSTR_EQUAL)
+                << name;
+        }
+        catch (const wslc::WslcException&)
+        {
+            // Rejected outright; also contained.
+        }
+    }
 }
 
 TEST_F(InstanceStoreTest, ConcurrentMetadataWritesDoNotRace)

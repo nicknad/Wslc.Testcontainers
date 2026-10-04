@@ -64,6 +64,29 @@ std::string ExecutableName();
 /// <summary>Current user Name (falls back to an empty string).</summary>
 std::string CurrentUserName();
 
+/// <summary>Maximum length of a session identifier.</summary>
+inline constexpr std::size_t c_maxSessionIdLength = 64;
+
+/// <summary>Replaces characters outside [A-Za-z0-9_-] and truncates to c_maxSessionIdLength.</summary>
+std::string SanitizeSessionId(std::string_view value);
+
+/// <summary>Returns true when the value matches [A-Za-z0-9_-]{1,c_maxSessionIdLength}.</summary>
+bool IsValidSessionId(std::string_view value);
+
+/// <summary>
+/// Resolves the configured data directory: relative values are made absolute, UNC and device
+/// paths are rejected, and unset values fall back to LOCALAPPDATA (then USERPROFILE).
+/// Throws WslcException when the configured value is invalid.
+/// </summary>
+std::filesystem::path ResolveDataDirectory(const std::optional<std::string>& configured);
+
+/// <summary>
+/// Resolves the configured session identifier: a configured value must match the allowed
+/// character set and length; unset values generate a sanitized executable-name-plus-PID
+/// identifier. Throws WslcException when the configured value is invalid.
+/// </summary>
+std::string ResolveSessionId(const std::optional<std::string>& configured);
+
 /// <summary>Formats a Windows error code for diagnostics.</summary>
 std::string FormatWindowsError(unsigned long error);
 

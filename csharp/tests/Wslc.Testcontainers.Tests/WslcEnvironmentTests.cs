@@ -23,4 +23,86 @@ public sealed class WslcEnvironmentTests
     {
         Assert.Equal(expected, WslcEnvironment.IsContinuousIntegrationVariable(name, value));
     }
+
+    [Fact]
+    public void Relative_data_directory_becomes_absolute()
+    {
+        var resolved = WslcEnvironment.ResolveDataDirectory("relative\\dir");
+
+        Assert.True(Path.IsPathFullyQualified(resolved));
+        Assert.Equal(Path.GetFullPath("relative\\dir"), resolved);
+    }
+
+    [Fact]
+    public void Absolute_data_directory_is_accepted()
+    {
+        Assert.Equal(@"C:\wslc\data", WslcEnvironment.ResolveDataDirectory(@"C:\wslc\data"));
+    }
+
+    [Theory]
+    [InlineData(@"\\server\share")]
+    [InlineData(@"\\?\C:\x")]
+    [InlineData(@"\\.\x")]
+    public void Unc_and_device_data_directories_are_rejected(string configured)
+    {
+        var exception = Assert.Throws<WslcException>(() => WslcEnvironment.ResolveDataDirectory(configured));
+
+        Assert.Contains(WslcEnvironment.DataDirectoryVariable, exception.Message);
+    }
+
+    [Theory]
+    [InlineData("a")]
+    [InlineData("abc-DEF_123")]
+    [InlineData("a_b-c")]
+    public void Valid_session_ids_are_accepted(string configured)
+    {
+        Assert.Equal(configured, WslcEnvironment.ResolveSessionId(configured));
+    }
+
+    [Fact]
+    public void Session_id_of_64_characters_is_accepted()
+    {
+        var configured = new string('a', 64);
+
+        Assert.Equal(configured, WslcEnvironment.ResolveSessionId(configured));
+    }
+
+    [Fact]
+    public void Session_id_longer_than_64_characters_is_rejected()
+    {
+        var exception = Assert.Throws<WslcException>(() => WslcEnvironment.ResolveSessionId(new string('a', 65)));
+
+        Assert.Contains(WslcEnvironment.SessionIdVariable, exception.Message);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("has space")]
+    [InlineData("has.dot")]
+    [InlineData("has/slash")]
+    [InlineData("has\\backslash")]
+    [InlineData("has:colon")]
+    public void Invalid_session_ids_are_rejected(string configured)
+    {
+        var exception = Assert.Throws<WslcException>(() => WslcEnvironment.ResolveSessionId(configured));
+
+        Assert.Contains(WslcEnvironment.SessionIdVariable, exception.Message);
+    }
+
+    [Fact]
+    public void Generated_session_id_matches_the_charset_and_length_bound()
+    {
+        var generated = WslcEnvironment.ResolveSessionId(null);
+
+        Assert.InRange(generated.Length, 1, 64);
+        Assert.All(generated, c => Assert.True(char.IsAsciiLetterOrDigit(c) || c is '-' or '_'));
+    }
+
+    [Fact]
+    public void Sanitized_session_id_is_truncated_and_stays_in_the_charset()
+    {
+        var sanitized = WslcEnvironment.SanitizeSessionId(new string('.', 100));
+
+        Assert.Equal(new string('_', 64), sanitized);
+    }
 }

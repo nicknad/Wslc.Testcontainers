@@ -1,5 +1,6 @@
 #include "internal/util.hpp"
 
+#include "wslc/environment.hpp"
 #include "wslc/exceptions.hpp"
 
 #include <winsock2.h>
@@ -309,6 +310,129 @@ std::string CurrentUserName()
     }
 
     return ToUtf8(buffer);
+}
+
+namespace
+{
+
+bool IsSessionIdCharacter(char character)
+{
+    return (character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') ||
+           (character >= '0' && character <= '9') || character == '-' || character == '_';
+}
+
+} // namespace
+
+std::string SanitizeSessionId(std::string_view value)
+{
+    std::string result;
+    result.reserve(value.size() < c_maxSessionIdLength ? value.size() : c_maxSessionIdLength);
+    for (const char character : value)
+    {
+        if (result.size() >= c_maxSessionIdLength)
+        {
+            break;
+        }
+
+        result.push_back(IsSessionIdCharacter(character) ? character : '_');
+    }
+
+    return result;
+}
+
+bool IsValidSessionId(std::string_view value)
+{
+    if (value.empty() || value.size() > c_maxSessionIdLength)
+    {
+        return false;
+    }
+
+    for (const char character : value)
+    {
+        if (!IsSessionIdCharacter(character))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::filesystem::path ResolveDataDirectory(const std::optional<std::string>& configured)
+{
+    if (!configured)
+    {
+        std::wstring buffer(MAX_PATH, L'\0');
+        for (;;)
+        {
+            const DWORD written =
+                GetEnvironmentVariableW(L"LOCALAPPDATA", buffer.data(), static_cast<DWORD>(buffer.size()));
+            if (written == 0)
+            {
+                break;
+            }
+
+            if (written < buffer.size())
+            {
+                buffer.resize(written);
+                return std::filesystem::path(buffer) / L"Wslc";
+            }
+
+            buffer.resize(buffer.size() * 2);
+        }
+
+        const std::filesystem::path profile(ToUtf16(ReadEnvironmentVariable("USERPROFILE")));
+        return profile / L"AppData" / L"Local" / L"Wslc";
+    }
+
+    const std::wstring wide = ToUtf16(*configured);
+    if (wide.starts_with(L"\\\\") || wide.starts_with(L"//"))
+    {
+        throw WslcException(std::string(WslcEnvironment::DataDirectoryVariable) +
+                            " must be a local absolute directory path; UNC and device paths are not supported: '" +
+                            *configured + "'.");
+    }
+
+    std::error_code error;
+    std::filesystem::path path = std::filesystem::absolute(wide, error);
+    if (error)
+    {
+        throw WslcException(std::string(WslcEnvironment::DataDirectoryVariable) + " is not a valid directory path: '" +
+                            *configured + "'.");
+    }
+
+    if (path.native().starts_with(L"\\\\"))
+    {
+        throw WslcException(std::string(WslcEnvironment::DataDirectoryVariable) +
+                            " must be a local absolute directory path; UNC and device paths are not supported: '" +
+                            *configured + "'.");
+    }
+
+    return path;
+}
+
+std::string ResolveSessionId(const std::optional<std::string>& configured)
+{
+    if (configured)
+    {
+        if (!IsValidSessionId(*configured))
+        {
+            throw WslcException(std::string(WslcEnvironment::SessionIdVariable) +
+                                " must be 1-64 characters using only [A-Za-z0-9_-]: '" + *configured + "'.");
+        }
+
+        return *configured;
+    }
+
+    const std::string suffix = "-" + std::to_string(CurrentProcessId());
+    std::string name = SanitizeSessionId(ExecutableName());
+    const std::size_t available = c_maxSessionIdLength - suffix.size();
+    if (name.size() > available)
+    {
+        name.resize(available);
+    }
+
+    return name + suffix;
 }
 
 std::string FormatWindowsError(unsigned long error)

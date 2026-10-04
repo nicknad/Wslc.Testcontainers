@@ -43,7 +43,10 @@ public:
     /// <summary>Gets the configured default Image, when any.</summary>
     static std::optional<std::string> DefaultImage();
 
-    /// <summary>Gets the data directory used for instance metadata and caches. Snapshotted on first use.</summary>
+    /// <summary>
+    /// Gets the data directory used for instance metadata and caches. Relative values are made
+    /// absolute; UNC/device paths are rejected with WslcException. Snapshotted on first use.
+    /// </summary>
     static const std::filesystem::path& DataDirectory();
 
     /// <summary>Gets a value indicating whether Reuse is enabled by default.</summary>
@@ -52,7 +55,10 @@ public:
     /// <summary>Gets a value indicating whether automatic Cleanup (including the orphan reaper) is enabled.</summary>
     static bool CleanupEnabled();
 
-    /// <summary>Gets the session identifier, generating a process-unique value when unset.</summary>
+    /// <summary>
+    /// Gets the session identifier ([A-Za-z0-9_-], 1-64 characters), generating a sanitized
+    /// process-unique value when unset. Invalid configured values throw WslcException.
+    /// </summary>
     static const std::string& SessionId();
 
     /// <summary>Gets the default Wait Timeout (WSLC_TIMEOUT, default 60s).</summary>

@@ -76,6 +76,60 @@ public sealed class WslInstanceStoreTests : IDisposable
         Assert.Equal(Path.Combine(_store.InstancesDirectory, "wslc-a_b_c"), directory);
     }
 
+    [Theory]
+    [InlineData("...")]
+    [InlineData("a.")]
+    [InlineData("a. ")]
+    public void Trailing_dots_and_spaces_do_not_alias_other_instances(string instanceName)
+    {
+        var instancesDirectory = Path.GetFullPath(_store.InstancesDirectory);
+        var normal = Path.GetFullPath(_store.GetInstanceDirectory("a"));
+        var directory = _store.GetInstanceDirectory(instanceName);
+
+        Assert.NotEqual(instancesDirectory, directory);
+        Assert.NotEqual(normal, directory);
+    }
+
+    [Theory]
+    [InlineData("...", "___")]
+    [InlineData("a.", "a_")]
+    [InlineData("a. ", "a._")]
+    public void Trailing_dots_and_spaces_are_replaced(string value, string expected)
+    {
+        Assert.Equal(expected, WslInstanceStore.Sanitize(value));
+    }
+
+    [Fact]
+    public void Normal_instance_names_are_unchanged_by_sanitization()
+    {
+        Assert.Equal("wslc-a_b.c", WslInstanceStore.Sanitize("wslc-a_b.c"));
+        Assert.Equal("wslc-test-1234abcd", WslInstanceStore.Sanitize("wslc-test-1234abcd"));
+    }
+
+    [Theory]
+    [InlineData("..")]
+    [InlineData("../..")]
+    [InlineData("..\\..\\escape")]
+    [InlineData("wslc-a/b:c")]
+    [InlineData("...")]
+    public void Instance_directory_cannot_escape_the_instances_directory(string instanceName)
+    {
+        string? directory = null;
+        var exception = Record.Exception(() => directory = _store.GetInstanceDirectory(instanceName));
+
+        if (exception is not null)
+        {
+            Assert.IsType<WslcException>(exception);
+            return;
+        }
+
+        var prefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_store.InstancesDirectory))
+            + Path.DirectorySeparatorChar;
+        Assert.True(
+            Path.GetFullPath(directory!).StartsWith(prefix, StringComparison.OrdinalIgnoreCase),
+            $"'{instanceName}' escaped to '{directory}'.");
+    }
+
     [Fact]
     public void Concurrent_metadata_writes_do_not_race()
     {

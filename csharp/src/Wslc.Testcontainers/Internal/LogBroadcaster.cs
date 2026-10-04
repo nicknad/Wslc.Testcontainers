@@ -139,7 +139,7 @@ internal sealed class LogBroadcaster
 
         if (completed)
         {
-            foreach (var line in Snapshot())
+            foreach (var line in LogHelpers.TakeLast(Snapshot(), MaxSubscriberBuffered))
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 yield return line;

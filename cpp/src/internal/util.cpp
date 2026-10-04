@@ -634,6 +634,21 @@ std::optional<bool> ParseBoolValue(std::string_view value)
     return std::nullopt;
 }
 
+bool IsContinuousIntegrationVariable(std::string_view name, std::string_view value)
+{
+    if (name == "CI" || name == "TF_BUILD" || name == "GITHUB_ACTIONS")
+    {
+        return ParseBoolValue(value).value_or(false);
+    }
+
+    if (name == "JENKINS_URL" || name == "TEAMCITY_VERSION")
+    {
+        return !IsBlank(value);
+    }
+
+    return false;
+}
+
 std::string join(const std::vector<std::string>& values, std::string_view separator)
 {
     std::string result;

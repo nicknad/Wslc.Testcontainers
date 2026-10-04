@@ -66,13 +66,21 @@ public static class WslcEnvironment
         return $"{entry}-{Environment.ProcessId}";
     }
 
+    internal static bool IsContinuousIntegrationVariable(string name, string? value) =>
+        name switch
+        {
+            "CI" or "TF_BUILD" or "GITHUB_ACTIONS" => ParseBool(value) ?? false,
+            "JENKINS_URL" or "TEAMCITY_VERSION" => !string.IsNullOrWhiteSpace(value),
+            _ => false,
+        };
+
     private static bool IsContinuousIntegration
     {
         get
         {
             foreach (var name in ContinuousIntegrationVariables)
             {
-                if (ParseBool(GetNonEmpty(name)) ?? false)
+                if (IsContinuousIntegrationVariable(name, GetNonEmpty(name)))
                 {
                     return true;
                 }

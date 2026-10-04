@@ -30,6 +30,7 @@ add_executable(wslc_tests
   config_hasher_tests.cpp
   container_builder_tests.cpp
   container_lifecycle_tests.cpp
+  environment_tests.cpp
   image_resolver_tests.cpp
   instance_store_tests.cpp
   line_assembler_tests.cpp

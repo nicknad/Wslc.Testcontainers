@@ -55,7 +55,7 @@ bool IsContinuousIntegration()
     static constexpr const char* variables[] = {"CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL", "TEAMCITY_VERSION"};
     for (const char* Name : variables)
     {
-        if (WslcEnvironment::ParseBool(WslcEnvironment::GetNonEmpty(Name)).value_or(false))
+        if (internal::IsContinuousIntegrationVariable(Name, internal::ReadEnvironmentVariable(Name)))
         {
             return true;
         }

@@ -55,6 +55,28 @@ public sealed class LogBroadcasterTests
     }
 
     [Fact]
+    public async Task Completed_broadcaster_replays_only_the_newest_lines_when_streamed()
+    {
+        var broadcaster = new LogBroadcaster();
+        for (var index = 0; index < 1_050; index++)
+        {
+            broadcaster.Publish(LogLine.Diagnostic($"line {index}"));
+        }
+
+        broadcaster.Complete();
+
+        var lines = new List<string>();
+        await foreach (var line in broadcaster.StreamAsync(TestContext.Current.CancellationToken))
+        {
+            lines.Add(line.Text);
+        }
+
+        Assert.Equal(1_000, lines.Count);
+        Assert.Equal("line 50", lines[0]);
+        Assert.Equal("line 1049", lines[^1]);
+    }
+
+    [Fact]
     public void History_is_bounded()
     {
         var broadcaster = new LogBroadcaster();

@@ -202,7 +202,7 @@ ExecResult ProcessRunner::Run(WslcContainer container, const ProcessSettings& se
             {
                 State->Kill(c_abortGracePeriod, std::stop_token{});
                 throw WslTimeoutException("Command '" + first_argument(settings) + "' timed out after " +
-                                          FormatMilliseconds(*Timeout) + "ms.");
+                                          FormatMilliseconds(*Timeout) + "s.");
             }
         }
         else

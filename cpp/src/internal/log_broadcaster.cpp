@@ -63,7 +63,10 @@ std::shared_ptr<LogBroadcaster::Subscriber> LogBroadcaster::Subscribe()
 {
     auto subscriber = std::make_shared<Subscriber>();
     std::lock_guard lock(m_gate);
-    for (std::size_t i = 0; i < m_count; i++)
+    // Replay only the newest lines: the queue is drop-oldest bounded, so a subscriber attached
+    // after a long run must not start with more than MaxSubscriberBuffered entries.
+    const std::size_t first = m_count > MaxSubscriberBuffered ? m_count - MaxSubscriberBuffered : 0;
+    for (std::size_t i = first; i < m_count; i++)
     {
         subscriber->Queue.push_back(m_history[(m_head + i) % MaxHistory]);
     }

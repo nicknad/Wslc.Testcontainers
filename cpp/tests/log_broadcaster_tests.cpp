@@ -106,6 +106,42 @@ TEST(LogBroadcaster, SnapshotIsCachedUntilTheNextPublish)
     EXPECT_EQ((*second)[1].Text, std::string("two"));
 }
 
+TEST(LogBroadcaster, SubscribeReplaysOnlyTheNewestLinesWhenHistoryExceedsTheQueueBound)
+{
+    LogBroadcaster broadcaster;
+    for (int index = 0; index < 1'050; index++)
+    {
+        broadcaster.Publish(LogLine::Diagnostic("line " + std::to_string(index)));
+    }
+
+    auto subscriber = broadcaster.Subscribe();
+    broadcaster.Complete();
+
+    const std::vector<std::string> lines = Drain(subscriber);
+
+    EXPECT_EQ(lines.size(), LogBroadcaster::MaxSubscriberBuffered);
+    EXPECT_EQ(lines.front(), std::string("line 50"));
+    EXPECT_EQ(lines.back(), std::string("line 1049"));
+}
+
+TEST(LogBroadcaster, SubscribeReplaysTheNewestWindowAfterTheHistoryRingWraps)
+{
+    LogBroadcaster broadcaster;
+    for (int index = 0; index < 10'050; index++)
+    {
+        broadcaster.Publish(LogLine::Diagnostic("line " + std::to_string(index)));
+    }
+
+    auto subscriber = broadcaster.Subscribe();
+    broadcaster.Complete();
+
+    const std::vector<std::string> lines = Drain(subscriber);
+
+    ASSERT_EQ(lines.size(), LogBroadcaster::MaxSubscriberBuffered);
+    EXPECT_EQ(lines.front(), std::string("line 9050"));
+    EXPECT_EQ(lines.back(), std::string("line 10049"));
+}
+
 TEST(LogBroadcaster, SlowSubscribersDropTheOldestLinesWhenFull)
 {
     LogBroadcaster broadcaster;

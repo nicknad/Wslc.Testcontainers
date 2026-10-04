@@ -106,6 +106,12 @@ void ThrowIfStopped(std::stop_token token);
 /// <summary>Parses a Boolean-ish Environment value (1/true/yes/on, 0/false/no/off).</summary>
 std::optional<bool> ParseBoolValue(std::string_view value);
 
+/// <summary>
+/// Classifies an Environment variable as a continuous-integration signal: Boolean-parsed names
+/// are truthy flags; presence-checked names signal CI whenever non-blank.
+/// </summary>
+bool IsContinuousIntegrationVariable(std::string_view name, std::string_view value);
+
 /// <summary>Joins strings with a separator.</summary>
 std::string join(const std::vector<std::string>& values, std::string_view separator);
 

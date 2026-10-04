@@ -29,16 +29,16 @@ items are already fixed here; verify against this ledger before starting.
 | F8 | C# `CopyTo` pre-checks size only, no streaming accumulator | FIXED | Handle length at open plus a 64 KiB accumulator during the stream (`WslcProcessRunner.cs`); C++ CopyTo now accumulates too. |
 | F9 | Missing `createdAt` deserializes to 0001/epoch, bypassing 7-day grace | FIXED | `CreatedAt` is nullable/optional; missing or unparseable timestamps route through the directory-age grace gate and the PID-recycle compare is skipped (`WslResourceReaper.cs:79-91,243-247`, `resource_reaper.cpp:115-122,188-199`). Residual: a present-but-absurd old timestamp (e.g. 1970) still trips the PID-recycle check (tracked as N7). |
 | F10 | SDK download and gtest FetchContent unpinned | OPEN | `cpp/scripts/Install-WslcSdk.ps1:30-33`, `cpp/tests/CMakeLists.txt:10-12`. Slice 3. |
-| F11 | `JENKINS_URL`/`TEAMCITY_VERSION` parsed as booleans, so CI detection misses them | OPEN | `WslcEnvironment.cs:60-81`, `environment.cpp:55`. |
-| F12 | `FormatMilliseconds` emits seconds but `"ms"` is appended in one caller | OPEN | `process_runner.cpp:205` vs `util.cpp:451-460`; all other callers append `"s"`. |
+| F11 | `JENKINS_URL`/`TEAMCITY_VERSION` parsed as booleans, so CI detection misses them | FIXED | Shared internal classifier: boolean for `CI`/`TF_BUILD`/`GITHUB_ACTIONS`, non-blank presence for the two URL/version variables (`WslcEnvironment.cs:69-75`, `util.cpp:637-650`). Tests in both languages. Residual: NBSP-only values classify differently (Unicode vs C-locale whitespace). |
+| F12 | `FormatMilliseconds` emits seconds but `"ms"` is appended in one caller | FIXED | `process_runner.cpp:205` now appends `"s."`; all call sites audited. Static-only: the message needs a live WSLC process. |
 | F13 | `CopyFrom` reads ignore cancellation while blocked | OPEN | C# `reader.LoadAsync` without token (`WslcProcessRunner.cs:207`); C++ `ReadFile` (`process_runner.cpp:348`). |
-| F14 | Broadcaster `Subscribe()` replays up to 10k into a 1k-bounded subscriber | OPEN | `log_broadcaster.cpp:62-69` vs `MaxHistory=10'000` / `MaxSubscriberBuffered=1'000` (`log_broadcaster.hpp:33-34`). |
+| F14 | Broadcaster `Subscribe()` replays up to 10k into a 1k-bounded subscriber | FIXED | C++ `Subscribe()` replays only the newest 1'000 (`log_broadcaster.cpp:66-70`); C# completed `StreamAsync` fast path now caps with `TakeLast(Snapshot(), MaxSubscriberBuffered)`, so both replay paths match. Ring-wrap and cap tests added in both languages. |
 | F15 | HTTP path allows `\r\n`, SP, TAB; raw socket injects headers | OPEN | `wait.cpp:326-340`, `Wait.cs:127-141`, `tcp_http.cpp:221`. Slice 1. |
 | F16 | Data directory verbatim; session id unbounded | OPEN | `WslcEnvironment.cs:42-53`, `environment.cpp:17-46`. |
 | F17 | Container path validation is only `StartsWith('/')`; no deny list, `..`, NUL | OPEN | Six sites: `WslContainer.cs:974`, `WslContainerBuilder.cs:481`, `Wait.cs:143`; `wsl_container.cpp:86`, `wsl_container_builder.cpp:36`, `wait.cpp:342`. Slice 1. |
 | F18 | Builders uncapped (VHD, args, files, waits, CPUs, memory, timeouts) | UNVERIFIED | Some caps may exist; enumerate per property before changing. |
 | F19 | `HttpWaitStrategy` follows container redirects by default | OPEN | The explicit `AllowAutoRedirect = true` was removed, but `new HttpClient()` (`HttpWaitStrategy.cs:9`) still follows redirects via the default handler. |
-| F20 | `ci.yml`/`integration.yml` have no `permissions:` | OPEN | Only `release.yml:13` declares them. |
+| F20 | `ci.yml`/`integration.yml` have no `permissions:` | FIXED | Top-level `permissions: contents: read` added to both workflows; YAML parsed and verified. |
 | F21 | Container retry loop catches `IOException` only | OPEN | `WslContainer.cs:471`; ACL failures are not retried. |
 | F22 | UTF-16 ordinal compare, `strtol`/`double` truncation, silent `{}` hashing | UNVERIFIED | Hash/port parity claims need golden vectors. |
 | F23 | `char.IsLetter` vs `isalpha`; Build vs Start absolutize timing | UNVERIFIED | Decide one ASCII rule and one validation point. |

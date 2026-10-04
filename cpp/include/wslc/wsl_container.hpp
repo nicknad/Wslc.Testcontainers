@@ -78,7 +78,8 @@ public:
     /// </summary>
     void Stop(std::stop_token token = {});
 
-    /// <summary>Executes a command and captures its exit code, stdout and stderr.</summary>
+    /// <summary>Executes a command and captures its exit code, stdout and stderr. At most 1000 arguments may be
+    /// passed.</summary>
     ExecResult Exec(std::string command, std::vector<std::string> arguments = {}, ExecOptions options = {},
                     std::stop_token token = {});
 
@@ -88,7 +89,7 @@ public:
     /// <summary>
     /// Starts a long-running process inside the Environment. The caller owns the returned
     /// Handle; destroying it terminates a still-running process. StandardInput/Timeout are
-    /// rejected and unset them throws WslcException.
+    /// rejected and unset them throws WslcException. At most 1000 arguments may be passed.
     /// </summary>
     std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments = {},
                                               ExecOptions options = {}, std::stop_token token = {});

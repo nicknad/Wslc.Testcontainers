@@ -26,6 +26,31 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ### Changed
 
+- Builder and exec inputs are now capped, and the caps are part of the documented contract.
+  Exceeding a cap fails before reaching the WSLC runtime with an actionable domain exception
+  (`WslcException` / `ArgumentOutOfRangeException` in C#, `WslcException` in C++); single-value
+  caps fail fast in the `With...` setter or exec call, aggregate caps in `Build()`:
+
+  | Input | Maximum | Checked at |
+  | --- | --- | --- |
+  | Environment variables | 1000 entries | `Build()`, exec options |
+  | Environment value | 128 KiB (UTF-8) | `WithEnvironment`/`WithEnvironmentVariables`, exec options |
+  | Command arguments | 1000 | `Build()` (`WithCommand`), exec/start-process |
+  | File copies | 64 | `Build()` |
+  | Volume mounts | 64 | `Build()` |
+  | Session volumes | 64 | `Build()` |
+  | Wait strategies | 16 | `Build()` and `And(...)` composition (composites flatten; a nested composite can hold up to 16 per level) |
+  | CPU count | 64 | `WithCpuCount` |
+  | Memory | 1048576 MB (1 TiB) | `WithMemoryMB` |
+  | Session VHD size | 1 TiB | `WithSessionVolume` |
+  | Tarball size | 1 TiB | `FromTarball` |
+  | Startup timeout | 24 h | `WithStartupTimeout` (must also cover the wait-timeout sum) |
+  | Exec timeout | 24 h | `ExecOptions.Timeout` |
+
+  Wait-timeout summation saturates instead of overflowing, so an inconsistent startup budget is
+  rejected with the domain exception rather than an `OverflowException` or a raw
+  `ArgumentOutOfRangeException` from the startup `CancellationTokenSource`.
+
 - `And(...)` composites now consistently keep the left operand's timeout (which bounds the whole sequence) and retry interval; the non-composite + non-composite case previously fell back to the default timeout.
 - `CS1591` is no longer globally suppressed: missing XML docs on public members fail the strict build.
 - `WslModuleContainer` now implements `IWslContainer`, so module containers are substitutable wherever the interface is expected.

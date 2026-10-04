@@ -25,8 +25,8 @@ struct ExecOptions
     /// <summary>Text written to the command standard input (Exec only).</summary>
     std::optional<std::string> StandardInput;
 
-    /// <summary>Maximum execution time. Must be positive when set; a WslTimeoutException is thrown when
-    /// exceeded.</summary>
+    /// <summary>Maximum execution time. Must be positive and at most 24 hours when set; a
+    /// WslTimeoutException is thrown when exceeded.</summary>
     std::optional<std::chrono::milliseconds> Timeout;
 };
 

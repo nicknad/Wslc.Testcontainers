@@ -31,34 +31,34 @@ internal abstract record WaitStrategyBase : IWaitStrategy
     public IWaitStrategy And(IWaitStrategy other)
     {
         ArgumentNullException.ThrowIfNull(other);
+
+        // Composites flatten their children, so the top-level Build count cannot see nested
+        // strategies; enforce the combined cap here instead.
+        List<IWaitStrategy> combined;
         if (this is CompositeWaitStrategy composite && other is CompositeWaitStrategy otherComposite)
         {
-            var combined = new List<IWaitStrategy>(composite.Strategies.Count + otherComposite.Strategies.Count);
+            combined = new List<IWaitStrategy>(composite.Strategies.Count + otherComposite.Strategies.Count);
             combined.AddRange(composite.Strategies);
             combined.AddRange(otherComposite.Strategies);
-            return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
         }
-
-        if (this is CompositeWaitStrategy single)
+        else if (this is CompositeWaitStrategy single)
         {
-            var combined = new List<IWaitStrategy>(single.Strategies.Count + 1) { };
+            combined = new List<IWaitStrategy>(single.Strategies.Count + 1) { };
             combined.AddRange(single.Strategies);
             combined.Add(other);
-            return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
         }
-
-        if (other is CompositeWaitStrategy otherSingle)
+        else if (other is CompositeWaitStrategy otherSingle)
         {
-            var combined = new List<IWaitStrategy>(otherSingle.Strategies.Count + 1) { this };
+            combined = new List<IWaitStrategy>(otherSingle.Strategies.Count + 1) { this };
             combined.AddRange(otherSingle.Strategies);
-            return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
+        }
+        else
+        {
+            combined = new List<IWaitStrategy>(2) { this, other };
         }
 
-        return new CompositeWaitStrategy(new IWaitStrategy[] { this, other }) with
-        {
-            Timeout = Timeout,
-            RetryInterval = RetryInterval,
-        };
+        BuilderLimits.RequireWaitStrategyCount(combined.Count);
+        return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
     }
 
     public abstract Task WaitAsync(IWaitTarget target, CancellationToken cancellationToken);

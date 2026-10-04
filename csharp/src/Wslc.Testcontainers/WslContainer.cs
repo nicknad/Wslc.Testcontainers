@@ -133,6 +133,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
         ArgumentNullException.ThrowIfNull(arguments);
+        ValidateCommandArguments(arguments);
         if (options?.StandardInput is not null)
         {
             throw new ArgumentException("StandardInput applies only to ExecAsync, not to long-running StartProcess. Use ExecAsync for stdin.", nameof(options));
@@ -259,6 +260,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
         ArgumentNullException.ThrowIfNull(arguments);
+        ValidateCommandArguments(arguments);
         ValidateExecOptions(options);
 
         var container = RequireContainer();
@@ -977,9 +979,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             return;
         }
 
-        if (options.Timeout is { } timeout && timeout <= TimeSpan.Zero)
+        if (options.Timeout is { } timeout)
         {
-            throw new ArgumentOutOfRangeException(nameof(options), timeout, "Exec timeout must be positive.");
+            BuilderLimits.RequireExecTimeout(timeout);
         }
 
         if (options.StandardInput is { } standardInput)
@@ -991,6 +993,8 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
         if (options.Environment is not null)
         {
+            BuilderLimits.RequireCount(
+                options.Environment.Count, BuilderLimits.MaxEnvironmentVariables, "exec environment variables");
             foreach (var pair in options.Environment)
             {
                 ValidateEnvironmentName(pair.Key);
@@ -998,6 +1002,8 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 {
                     throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(options));
                 }
+
+                BuilderLimits.RequireEnvironmentValue(pair.Key, pair.Value, nameof(options));
             }
         }
 
@@ -1006,6 +1012,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             Validation.RequireContainerPath(workingDirectory, nameof(ExecOptions.WorkingDirectory));
         }
     }
+
+    private static void ValidateCommandArguments(string[] arguments) =>
+        BuilderLimits.RequireCount(arguments.Length, BuilderLimits.MaxCommandArguments, "command arguments");
 
     private static void ValidateEnvironmentName(string name)
     {

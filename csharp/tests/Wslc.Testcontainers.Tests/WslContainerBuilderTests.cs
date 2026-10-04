@@ -1,4 +1,5 @@
 using Microsoft.WSL.Containers;
+using Wslc.Testcontainers.Internal;
 using Wslc.Testcontainers.Networking;
 using Wslc.Testcontainers.Provisioning;
 using Xunit;
@@ -347,5 +348,322 @@ public sealed class WslContainerBuilderTests
 
         Assert.Equal(2, container.Configuration.WaitStrategies.Count);
         Assert.Equal("192.168.1.10", Assert.Single(container.Configuration.PortMappings).BindAddress);
+    }
+
+    [Fact]
+    public void Cpu_and_memory_caps_are_inclusive()
+    {
+        var container = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithCpuCount(BuilderLimits.MaxCpuCount)
+            .WithMemoryMB(BuilderLimits.MaxMemoryMB)
+            .Build();
+
+        Assert.Equal(BuilderLimits.MaxCpuCount, container.Configuration.CpuCount);
+        Assert.Equal(BuilderLimits.MaxMemoryMB, container.Configuration.MemorySizeInMB);
+
+        var builder = new WslContainerBuilder();
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithCpuCount(BuilderLimits.MaxCpuCount + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithMemoryMB(BuilderLimits.MaxMemoryMB + 1));
+    }
+
+    [Fact]
+    public void Session_volume_size_cap_is_inclusive()
+    {
+        var container = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithSessionVolume("data", "/data", BuilderLimits.MaxSessionVolumeBytes)
+            .Build();
+
+        Assert.Equal(
+            BuilderLimits.MaxSessionVolumeBytes,
+            Assert.Single(container.Configuration.SessionVolumes).SizeBytes);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new WslContainerBuilder().WithSessionVolume("data", "/data", BuilderLimits.MaxSessionVolumeBytes + 1));
+    }
+
+    [Fact]
+    public void Startup_timeout_cap_is_inclusive_and_rejects_longer_timeouts_before_start()
+    {
+        var container = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithStartupTimeout(BuilderLimits.MaxStartupTimeout)
+            .Build();
+
+        Assert.Equal(BuilderLimits.MaxStartupTimeout, container.Configuration.StartupTimeout);
+
+        var builder = new WslContainerBuilder().WithImage("alpine");
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => builder.WithStartupTimeout(BuilderLimits.MaxStartupTimeout + TimeSpan.FromSeconds(1)));
+
+        // 3650 days is past the ~49.7-day CancellationTokenSource ceiling; the builder must
+        // reject it while configuring, never through the startup token source at Start.
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithStartupTimeout(TimeSpan.FromDays(3650)));
+    }
+
+    [Fact]
+    public void Wait_strategy_count_cap_is_enforced_at_build()
+    {
+        var builder = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithStartupTimeout(BuilderLimits.MaxStartupTimeout);
+        for (var i = 0; i < BuilderLimits.MaxWaitStrategies; i++)
+        {
+            builder.WithWaitStrategy(
+                Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(1)).UntilFileExists($"/tmp/ready-{i}"));
+        }
+
+        Assert.Equal(BuilderLimits.MaxWaitStrategies, builder.Build().Configuration.WaitStrategies.Count);
+
+        builder.WithWaitStrategy(
+            Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(1)).UntilFileExists("/tmp/one-too-many"));
+        Assert.Throws<WslcException>(() => builder.Build());
+    }
+
+    [Fact]
+    public void Wait_timeout_sum_saturates_instead_of_overflowing()
+    {
+        var builder = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.MaxValue).UntilFileExists("/tmp/a"))
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.MaxValue).UntilFileExists("/tmp/b"));
+
+        Assert.Throws<WslcException>(() => builder.Build());
+    }
+
+    [Fact]
+    public void Command_argument_count_cap_is_enforced_at_build()
+    {
+        var atCap = new string[BuilderLimits.MaxCommandArguments];
+        Array.Fill(atCap, "arg");
+        var container = new WslContainerBuilder().WithImage("alpine").WithCommand("echo", atCap).Build();
+
+        Assert.Equal(BuilderLimits.MaxCommandArguments, container.Configuration.CommandArguments.Count);
+
+        var overCap = new string[BuilderLimits.MaxCommandArguments + 1];
+        Array.Fill(overCap, "arg");
+        var builder = new WslContainerBuilder().WithImage("alpine").WithCommand("echo", overCap);
+        Assert.Throws<WslcException>(() => builder.Build());
+    }
+
+    [Fact]
+    public void Environment_value_and_count_caps_are_enforced()
+    {
+        var atCap = new string('a', BuilderLimits.MaxEnvironmentValueBytes);
+        var container = new WslContainerBuilder().WithImage("alpine").WithEnvironment("BIG", atCap).Build();
+
+        Assert.Equal(atCap, container.Configuration.Environment["BIG"]);
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => new WslContainerBuilder().WithEnvironment("BIG", atCap + "a"));
+
+        var builder = new WslContainerBuilder().WithImage("alpine");
+        for (var i = 0; i < BuilderLimits.MaxEnvironmentVariables; i++)
+        {
+            builder.WithEnvironment($"VAR_{i}", "1");
+        }
+
+        Assert.Equal(BuilderLimits.MaxEnvironmentVariables, builder.Build().Configuration.Environment.Count);
+
+        builder.WithEnvironment("VAR_ONE_TOO_MANY", "1");
+        Assert.Throws<WslcException>(() => builder.Build());
+    }
+
+    [Fact]
+    public void File_and_volume_count_caps_are_enforced_at_build()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-limits");
+        try
+        {
+            var source = Path.Combine(directory.FullName, "payload.txt");
+            File.WriteAllText(source, "payload");
+
+            var files = new WslContainerBuilder().WithImage("alpine");
+            for (var i = 0; i < BuilderLimits.MaxFileCopies; i++)
+            {
+                files.WithFile(source, $"/tmp/payload-{i}.txt");
+            }
+
+            Assert.Equal(BuilderLimits.MaxFileCopies, files.Build().Configuration.Files.Count);
+            files.WithFile(source, "/tmp/payload-one-too-many.txt");
+            Assert.Throws<WslcException>(() => files.Build());
+
+            var volumes = new WslContainerBuilder().WithImage("alpine");
+            for (var i = 0; i < BuilderLimits.MaxVolumeMounts; i++)
+            {
+                volumes.WithVolume(directory.FullName, $"/data-{i}");
+            }
+
+            Assert.Equal(BuilderLimits.MaxVolumeMounts, volumes.Build().Configuration.Volumes.Count);
+            volumes.WithVolume(directory.FullName, "/data-one-too-many");
+            Assert.Throws<WslcException>(() => volumes.Build());
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Module_builder_rejects_an_unbounded_wait_timeout_at_build()
+    {
+        var builder = new ProbeModuleBuilder().WithWaitTimeout(TimeSpan.FromDays(3650));
+
+        // The derived startup timeout is capped; the failure must happen while the module
+        // builds, not from the startup CancellationTokenSource once the container starts.
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.BuildForTest());
+    }
+
+    [Fact]
+    public async Task Exec_timeout_cap_is_enforced()
+    {
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => container.ExecAsync(
+                "echo",
+                new ExecOptions { Timeout = BuilderLimits.MaxExecTimeout + TimeSpan.FromSeconds(1) },
+                CancellationToken.None));
+
+        // At the cap validation passes; an unstarted container then fails with WslcException,
+        // which proves the timeout itself was accepted.
+        await Assert.ThrowsAsync<WslcException>(
+            () => container.ExecAsync(
+                "echo",
+                new ExecOptions { Timeout = BuilderLimits.MaxExecTimeout },
+                CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Exec_rejects_more_than_the_argument_cap()
+    {
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+
+        var atCap = new string[BuilderLimits.MaxCommandArguments];
+        Array.Fill(atCap, "arg");
+        // At the cap the arguments pass validation; the unstarted container then fails, which
+        // proves the list itself was accepted.
+        var atCapException = await Assert.ThrowsAsync<WslcException>(() => container.ExecAsync("echo", atCap));
+        Assert.DoesNotContain("Too many", atCapException.Message);
+
+        var overCap = new string[BuilderLimits.MaxCommandArguments + 1];
+        Array.Fill(overCap, "arg");
+        var overCapException = await Assert.ThrowsAsync<WslcException>(() => container.ExecAsync("echo", overCap));
+        Assert.Contains("maximum", overCapException.Message);
+    }
+
+    [Fact]
+    public async Task Exec_rejects_environment_above_the_caps()
+    {
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+
+        var atCap = new string('a', BuilderLimits.MaxEnvironmentValueBytes);
+        var atCapException = await Assert.ThrowsAsync<WslcException>(
+            () => container.ExecAsync(
+                "echo",
+                new ExecOptions { Environment = new Dictionary<string, string> { ["BIG"] = atCap } },
+                CancellationToken.None));
+        Assert.DoesNotContain("Environment variable", atCapException.Message);
+
+        var overValue = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
+            () => container.ExecAsync(
+                "echo",
+                new ExecOptions { Environment = new Dictionary<string, string> { ["BIG"] = atCap + "a" } },
+                CancellationToken.None));
+        Assert.Contains("maximum", overValue.Message);
+
+        var overCount = new Dictionary<string, string>();
+        for (var i = 0; i <= BuilderLimits.MaxEnvironmentVariables; i++)
+        {
+            overCount[$"VAR_{i}"] = "1";
+        }
+
+        var overCountException = await Assert.ThrowsAsync<WslcException>(
+            () => container.ExecAsync(
+                "echo",
+                new ExecOptions { Environment = overCount },
+                CancellationToken.None));
+        Assert.Contains("maximum", overCountException.Message);
+    }
+
+    [Fact]
+    public void Composite_wait_count_cap_is_enforced_at_composition()
+    {
+        var strategy = Wslc.Testcontainers.Waiting.Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromSeconds(1))
+            .UntilFileExists("/tmp/wait-0");
+        for (var i = 1; i < BuilderLimits.MaxWaitStrategies; i++)
+        {
+            strategy = strategy.And(
+                Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(1)).UntilFileExists($"/tmp/wait-{i}"));
+        }
+
+        var composite = Assert.IsType<Wslc.Testcontainers.Waiting.CompositeWaitStrategy>(strategy);
+        Assert.Equal(BuilderLimits.MaxWaitStrategies, composite.Strategies.Count);
+        Assert.Throws<WslcException>(
+            () => strategy.And(
+                Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(1)).UntilFileExists("/tmp/one-too-many")));
+    }
+
+    [Fact]
+    public void Session_volume_count_cap_is_enforced_at_build()
+    {
+        var builder = new WslContainerBuilder().WithImage("alpine");
+        for (var i = 0; i < BuilderLimits.MaxSessionVolumes; i++)
+        {
+            builder.WithSessionVolume($"data{i}", $"/data{i}", 1024);
+        }
+
+        Assert.Equal(BuilderLimits.MaxSessionVolumes, builder.Build().Configuration.SessionVolumes.Count);
+
+        builder.WithSessionVolume("one-too-many", "/data-extra", 1024);
+        Assert.Throws<WslcException>(() => builder.Build());
+    }
+
+    [Fact]
+    public void FromTarball_rejects_a_tarball_above_the_size_cap()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"wslc-{Guid.NewGuid():N}.tar");
+        try
+        {
+            using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                try
+                {
+                    stream.SetLength((long)BuilderLimits.MaxTarballBytes);
+                }
+                catch (IOException exception)
+                {
+                    Assert.Skip($"Sparse file allocation is not available: {exception.Message}");
+                }
+
+                // At the cap the tarball is accepted.
+                _ = new WslContainerBuilder().FromTarball(path);
+
+                try
+                {
+                    stream.SetLength((long)BuilderLimits.MaxTarballBytes + 1);
+                }
+                catch (IOException exception)
+                {
+                    Assert.Skip($"Sparse file allocation is not available: {exception.Message}");
+                }
+            }
+
+            Assert.Throws<WslcException>(() => new WslContainerBuilder().FromTarball(path));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    private sealed class ProbeModuleBuilder : WslModuleBuilder<ProbeModuleBuilder>
+    {
+        public ProbeModuleBuilder()
+            : base("alpine", port: 80, readyMessage: "ready")
+        {
+        }
+
+        public IWslContainer BuildForTest() => BuildContainer();
     }
 }

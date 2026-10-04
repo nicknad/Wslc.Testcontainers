@@ -55,13 +55,14 @@ public interface IWslContainer : IAsyncDisposable
     /// </summary>
     Task StopAsync(CancellationToken cancellationToken = default);
 
-    /// <summary>Executes a command and captures its exit code, stdout and stderr.</summary>
+    /// <summary>Executes a command and captures its exit code, stdout and stderr. At most 1000 arguments may be passed.</summary>
     Task<ExecResult> ExecAsync(string command, params string[] arguments);
 
     /// <summary>
     /// Executes a command with additional options. Pass <c>null</c> for <paramref name="options"/>
-    /// to use container defaults. <see cref="ExecOptions.Timeout"/> must be positive when set;
-    /// per-command environment names must be valid Linux identifiers.
+    /// to use container defaults. <see cref="ExecOptions.Timeout"/> must be positive and at most
+    /// 24 hours when set; per-command environment names must be valid Linux identifiers, with at
+    /// most 1000 entries and values up to 128 KiB (UTF-8). At most 1000 arguments may be passed.
     /// </summary>
     Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default);
 
@@ -76,7 +77,8 @@ public interface IWslContainer : IAsyncDisposable
     /// Starts a long-running process inside the environment. The caller owns the returned
     /// <see cref="IWslProcess"/> and must dispose it; disposal terminates the process if it is
     /// still running. The container tracks live processes only with pruning of exited entries,
-    /// so undisposed handles pin memory until container disposal.
+    /// so undisposed handles pin memory until container disposal. At most 1000 arguments may be
+    /// passed.
     /// </summary>
     /// <remarks>
     /// <see cref="ExecOptions.StandardInput"/> and <see cref="ExecOptions.Timeout"/> apply only to

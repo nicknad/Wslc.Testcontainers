@@ -1,5 +1,6 @@
 #include "wslc/waiting/wait.hpp"
 
+#include "internal/limits.hpp"
 #include "internal/tcp_http.hpp"
 #include "internal/util.hpp"
 #include "wslc/environment.hpp"
@@ -319,6 +320,9 @@ std::shared_ptr<IWaitStrategy> WaitStrategyBase::And(std::shared_ptr<IWaitStrate
         combined.push_back(std::move(other));
     }
 
+    // Composites flatten their children, so the top-level Build count cannot see nested
+    // strategies; enforce the combined cap here instead.
+    internal::RequireWaitStrategyCount(combined.size());
     auto composite = std::make_shared<CompositeStrategy>(std::move(combined));
     composite->SetTimeout(m_timeout);
     composite->SetRetryInterval(m_retryInterval);

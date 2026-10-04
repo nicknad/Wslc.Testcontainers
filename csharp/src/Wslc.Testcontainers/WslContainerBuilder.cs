@@ -43,7 +43,10 @@ public sealed class WslContainerBuilder
         return this;
     }
 
-    /// <summary>Imports a root filesystem tarball as a container image. The tarball must exist when this is called.</summary>
+    /// <summary>
+    /// Imports a root filesystem tarball as a container image. The tarball must exist when this
+    /// is called and must not exceed 1 TiB.
+    /// </summary>
     /// <param name="tarballPath">Path to a tar archive.</param>
     /// <param name="imageName">Image reference to assign. Defaults to a WSLC-generated local name.</param>
     public WslContainerBuilder FromTarball(string tarballPath, string? imageName = null)
@@ -53,6 +56,8 @@ public sealed class WslContainerBuilder
         {
             throw new WslcException($"Tarball '{tarballPath}' does not exist.");
         }
+
+        BuilderLimits.RequireTarballSize(tarballPath, new FileInfo(tarballPath).Length);
 
         _configuration = _configuration with
         {
@@ -67,6 +72,7 @@ public sealed class WslContainerBuilder
     /// Sets the long-running command started as the container init process. WSLC never runs the
     /// image's ENTRYPOINT/CMD automatically, so declare the service here or use a module builder.
     /// Without this, a keep-alive shell runs and the image's service never starts.
+    /// At most 1000 arguments may be configured.
     /// </summary>
     public WslContainerBuilder WithCommand(string command, params string[] arguments)
     {
@@ -88,18 +94,22 @@ public sealed class WslContainerBuilder
         return this;
     }
 
-    /// <summary>Adds an environment variable scoped to the container processes.</summary>
+    /// <summary>
+    /// Adds an environment variable scoped to the container processes. The value must not
+    /// exceed 128 KiB when UTF-8 encoded; at most 1000 variables may be configured.
+    /// </summary>
     public WslContainerBuilder WithEnvironment(string name, string value)
     {
         RequireEnvironmentName(name);
         ArgumentNullException.ThrowIfNull(value);
+        BuilderLimits.RequireEnvironmentValue(name, value, nameof(value));
         var environment = CopyEnvironment(_configuration.Environment, additionalCapacity: 1);
         environment[name] = value;
         _configuration = _configuration with { Environment = environment };
         return this;
     }
 
-    /// <summary>Adds environment variables scoped to the container processes.</summary>
+    /// <summary>Adds environment variables scoped to the container processes. At most 1000 variables with values up to 128 KiB each may be configured.</summary>
     public WslContainerBuilder WithEnvironmentVariables(IReadOnlyDictionary<string, string> variables)
     {
         ArgumentNullException.ThrowIfNull(variables);
@@ -112,6 +122,7 @@ public sealed class WslContainerBuilder
                 throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(variables));
             }
 
+            BuilderLimits.RequireEnvironmentValue(pair.Key, pair.Value, nameof(variables));
             environment[pair.Key] = pair.Value;
         }
 
@@ -172,7 +183,7 @@ public sealed class WslContainerBuilder
         ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
     }
 
-    /// <summary>Adds a readiness strategy. All configured strategies must pass before startup completes.</summary>
+    /// <summary>Adds a readiness strategy. All configured strategies must pass before startup completes. At most 16 strategies may be configured.</summary>
     public WslContainerBuilder WithWaitStrategy(IWaitStrategy strategy)
     {
         ArgumentNullException.ThrowIfNull(strategy);
@@ -187,7 +198,8 @@ public sealed class WslContainerBuilder
     /// Copies a Windows file into the container during startup.
     /// Use <paramref name="hostPath"/> for the Windows source file and
     /// <paramref name="containerPath"/> for the absolute Linux destination (e.g. <c>/app/config.json</c>).
-    /// Files larger than 1 GiB are rejected to avoid filling container disk.
+    /// Files larger than 1 GiB are rejected to avoid filling container disk; at most 64
+    /// files may be configured.
     /// </summary>
     public WslContainerBuilder WithFile(string hostPath, string containerPath)
     {
@@ -220,6 +232,7 @@ public sealed class WslContainerBuilder
     /// <summary>
     /// Mounts a Windows directory into the container as read-write. Follows <c>host, container</c>
     /// order like <c>docker run -v</c>; both are validated so a swapped call fails fast.
+    /// At most 64 mounts may be configured.
     /// </summary>
     /// <param name="hostPath">Existing Windows directory.</param>
     /// <param name="containerPath">Absolute Linux destination (e.g. <c>/workspace</c>).</param>
@@ -262,7 +275,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     /// <param name="name">Session volume name (non-empty, no path separators).</param>
     /// <param name="containerPath">Absolute Linux destination (e.g. <c>/data</c>).</param>
-    /// <param name="sizeBytes">VHD size in bytes (must be positive).</param>
+    /// <param name="sizeBytes">VHD size in bytes (positive, at most 1 TiB).</param>
     /// <param name="access">Read-write (default) or read-only mount.</param>
     /// <param name="type">Dynamic (default) or fixed VHD allocation.</param>
     public WslContainerBuilder WithSessionVolume(
@@ -274,10 +287,7 @@ public sealed class WslContainerBuilder
     {
         RequireVolumeName(name, nameof(name));
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
-        if (sizeBytes == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Session volume size must be positive.");
-        }
+        BuilderLimits.RequireSessionVolumeSize(sizeBytes);
 
         if (_configuration.SessionVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
@@ -309,26 +319,18 @@ public sealed class WslContainerBuilder
         return this;
     }
 
-    /// <summary>Caps the session CPU count. Null (default) leaves the runtime default.</summary>
+    /// <summary>Caps the session CPU count. Must be between 1 and 64; leaving it unset uses the runtime default.</summary>
     public WslContainerBuilder WithCpuCount(uint cpuCount)
     {
-        if (cpuCount == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(cpuCount), cpuCount, "CPU count must be positive.");
-        }
-
+        BuilderLimits.RequireCpuCount(cpuCount);
         _configuration = _configuration with { CpuCount = cpuCount };
         return this;
     }
 
-    /// <summary>Caps the session memory in megabytes. Null (default) leaves the runtime default.</summary>
+    /// <summary>Caps the session memory in megabytes. Must be between 1 and 1048576 MB (1 TiB); leaving it unset uses the runtime default.</summary>
     public WslContainerBuilder WithMemoryMB(uint megabytes)
     {
-        if (megabytes == 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(megabytes), megabytes, "Memory limit must be positive.");
-        }
-
+        BuilderLimits.RequireMemoryMB(megabytes);
         _configuration = _configuration with { MemorySizeInMB = megabytes };
         return this;
     }
@@ -350,15 +352,12 @@ public sealed class WslContainerBuilder
 
     /// <summary>
     /// Overrides the overall startup timeout. Must be &gt;= the sum of configured wait-strategy
-    /// timeouts (waits run sequentially); <see cref="Build"/> throws otherwise with guidance.
+    /// timeouts (waits run sequentially) and at most 24 hours; <see cref="Build"/> throws
+    /// otherwise with guidance.
     /// </summary>
     public WslContainerBuilder WithStartupTimeout(TimeSpan timeout)
     {
-        if (timeout <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(timeout), timeout, "Timeout must be positive.");
-        }
-
+        BuilderLimits.RequireStartupTimeout(timeout);
         _configuration = _configuration with { StartupTimeout = timeout };
         return this;
     }
@@ -391,6 +390,13 @@ public sealed class WslContainerBuilder
 
     private static void Validate(WslContainerConfiguration configuration)
     {
+        BuilderLimits.RequireCount(configuration.CommandArguments.Count, BuilderLimits.MaxCommandArguments, "command arguments");
+        BuilderLimits.RequireCount(configuration.Environment.Count, BuilderLimits.MaxEnvironmentVariables, "environment variables");
+        BuilderLimits.RequireWaitStrategyCount(configuration.WaitStrategies.Count);
+        BuilderLimits.RequireCount(configuration.Files.Count, BuilderLimits.MaxFileCopies, "file copies");
+        BuilderLimits.RequireCount(configuration.Volumes.Count, BuilderLimits.MaxVolumeMounts, "volume mounts");
+        BuilderLimits.RequireCount(configuration.SessionVolumes.Count, BuilderLimits.MaxSessionVolumes, "session volumes");
+
         if (configuration.Image is null && configuration.TarballPath is null)
         {
             throw new WslcException(
@@ -416,10 +422,12 @@ public sealed class WslContainerBuilder
 
         if (configuration.WaitStrategies.Count > 0)
         {
+            // Saturate instead of overflowing: the C++ port saturates too, and a saturated sum
+            // is far above the 24 h startup-timeout cap, so the same inputs are rejected.
             var totalWaits = TimeSpan.Zero;
             foreach (var strategy in configuration.WaitStrategies)
             {
-                totalWaits += strategy.Timeout;
+                totalWaits = SaturatingAdd(totalWaits, strategy.Timeout);
             }
 
             if (totalWaits > configuration.StartupTimeout)
@@ -430,6 +438,9 @@ public sealed class WslContainerBuilder
             }
         }
     }
+
+    private static TimeSpan SaturatingAdd(TimeSpan left, TimeSpan right) =>
+        right > TimeSpan.MaxValue - left ? TimeSpan.MaxValue : left + right;
 
     private static Dictionary<string, string> CopyEnvironment(
         IReadOnlyDictionary<string, string> environment,

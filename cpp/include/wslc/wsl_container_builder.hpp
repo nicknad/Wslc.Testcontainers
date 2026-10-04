@@ -67,21 +67,25 @@ public:
 
     /// <summary>
     /// Imports a root filesystem tarball as a container Image. The tarball must exist when this
-    /// is called. <paramref Name="imageName"/> defaults to a WSLC-generated local Name.
+    /// is called and must not exceed 1 TiB. <paramref Name="imageName"/> defaults to a
+    /// WSLC-generated local Name.
     /// </summary>
     WslContainerBuilder& FromTarball(std::filesystem::path TarballPath,
                                      std::optional<std::string> imageName = std::nullopt);
 
-    /// <summary>Sets the long-running command started as the container init process.</summary>
+    /// <summary>Sets the long-running command started as the container init process. At most 1000 arguments may be
+    /// configured.</summary>
     WslContainerBuilder& WithCommand(std::string command, std::vector<std::string> arguments = {});
 
     /// <summary>Sets the working directory used by the init process and command executions.</summary>
     WslContainerBuilder& WithWorkingDirectory(std::string WorkingDirectory);
 
-    /// <summary>Adds an Environment variable scoped to the container processes.</summary>
+    /// <summary>Adds an Environment variable scoped to the container processes. The value must not exceed 128 KiB; at
+    /// most 1000 variables may be configured.</summary>
     WslContainerBuilder& WithEnvironment(std::string name, std::string value);
 
-    /// <summary>Adds Environment variables scoped to the container processes.</summary>
+    /// <summary>Adds Environment variables scoped to the container processes. At most 1000 variables with values up to
+    /// 128 KiB each may be configured.</summary>
     WslContainerBuilder& WithEnvironmentVariables(std::map<std::string, std::string> variables);
 
     /// <summary>
@@ -96,16 +100,19 @@ public:
     /// </summary>
     WslContainerBuilder& WithPort(int port, std::string BindAddress);
 
-    /// <summary>Adds a readiness strategy. All configured Strategies must pass before startup completes.</summary>
+    /// <summary>Adds a readiness strategy. All configured Strategies must pass before startup completes. At most 16
+    /// strategies may be configured.</summary>
     WslContainerBuilder& WithWaitStrategy(std::shared_ptr<waiting::IWaitStrategy> strategy);
 
     /// <summary>
     /// Copies a Windows file into the container during startup. Files larger than 1 GiB are
-    /// rejected. The container path must be an absolute Linux Destination.
+    /// rejected; at most 64 files may be configured. The container path must be an absolute
+    /// Linux Destination.
     /// </summary>
     WslContainerBuilder& WithFile(std::filesystem::path HostPath, std::string ContainerPath);
 
-    /// <summary>Mounts a Windows directory into the container as read-write (Host, container order).</summary>
+    /// <summary>Mounts a Windows directory into the container as read-write (Host, container order). At most 64 mounts
+    /// may be configured.</summary>
     WslContainerBuilder& WithVolume(std::filesystem::path HostPath, std::string ContainerPath);
 
     /// <summary>Mounts a Windows directory into the container with an explicit access mode.</summary>
@@ -117,6 +124,7 @@ public:
     /// <summary>
     /// Mounts a session VHD volume (native Linux ext4) into the container. The volume is
     /// recreated empty on every Start: it is size-limited scratch space, not persistence.
+    /// <paramref Name="SizeBytes"/> must be positive and at most 1 TiB.
     /// </summary>
     WslContainerBuilder& WithSessionVolume(std::string Name, std::string ContainerPath, std::uint64_t SizeBytes,
                                            VolumeAccess access = VolumeAccess::ReadWrite,
@@ -128,10 +136,10 @@ public:
     /// </summary>
     WslContainerBuilder& WithNetworkingMode(ContainerNetworkMode mode);
 
-    /// <summary>Caps the session CPU count. Must be positive.</summary>
+    /// <summary>Caps the session CPU count. Must be between 1 and 64.</summary>
     WslContainerBuilder& WithCpuCount(std::uint32_t CpuCount);
 
-    /// <summary>Caps the session memory in megabytes. Must be positive.</summary>
+    /// <summary>Caps the session memory in megabytes. Must be between 1 and 1048576 MB (1 TiB).</summary>
     WslContainerBuilder& WithMemoryMB(std::uint32_t megabytes);
 
     /// <summary>
@@ -144,7 +152,8 @@ public:
 
     /// <summary>
     /// Overrides the overall startup Timeout. Must be greater than or equal to the sum of
-    /// configured Wait-strategy timeouts (waits Run sequentially); Build() fails otherwise.
+    /// configured Wait-strategy timeouts (waits Run sequentially) and at most 24 hours;
+    /// Build() fails otherwise.
     /// </summary>
     WslContainerBuilder& WithStartupTimeout(std::chrono::milliseconds timeout);
 

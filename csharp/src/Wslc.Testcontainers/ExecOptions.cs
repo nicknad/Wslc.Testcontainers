@@ -17,6 +17,6 @@ public sealed record ExecOptions
     /// <summary>Text written to the command standard input (ExecAsync only). Must not exceed 64 MiB when UTF-8 encoded.</summary>
     public string? StandardInput { get; init; }
 
-    /// <summary>Maximum execution time. Must be positive when set. When exceeded a <see cref="WslTimeoutException"/> is thrown.</summary>
+    /// <summary>Maximum execution time. Must be positive and at most 24 hours when set. When exceeded a <see cref="WslTimeoutException"/> is thrown.</summary>
     public TimeSpan? Timeout { get; init; }
 }

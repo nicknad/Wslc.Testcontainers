@@ -6,6 +6,7 @@
 #include "internal/container_process.hpp"
 #include "internal/image_resolver.hpp"
 #include "internal/instance_store.hpp"
+#include "internal/limits.hpp"
 #include "internal/log_broadcaster.hpp"
 #include "internal/port_mapping.hpp"
 #include "internal/process_registry.hpp"
@@ -68,14 +69,17 @@ void ValidateEnvironmentName(const std::string& Name)
 
 void ValidateExecOptions(const ExecOptions& options)
 {
-    if (options.Timeout && *options.Timeout <= std::chrono::milliseconds::zero())
+    if (options.Timeout)
     {
-        throw WslcException("Exec Timeout must be positive.");
+        internal::RequireExecTimeout(*options.Timeout);
     }
 
+    internal::RequireCount(options.Environment.size(), internal::c_maxEnvironmentVariables,
+                           "exec environment variables");
     for (const auto& pair : options.Environment)
     {
         ValidateEnvironmentName(pair.first);
+        internal::RequireEnvironmentValue(pair.first, pair.second);
     }
 
     if (options.WorkingDirectory)
@@ -1233,6 +1237,7 @@ ExecResult WslContainer::Impl::Exec(std::string command, std::vector<std::string
         throw WslcException("Command must not be empty.");
     }
 
+    internal::RequireCount(arguments.size(), internal::c_maxCommandArguments, "command arguments");
     ValidateExecOptions(options);
     auto containerHandle = RequireContainer();
     const internal::ProcessSettings settings =
@@ -1263,6 +1268,7 @@ std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string comman
         throw WslcException("Command must not be empty.");
     }
 
+    internal::RequireCount(arguments.size(), internal::c_maxCommandArguments, "command arguments");
     if (options.StandardInput)
     {
         throw WslcException(

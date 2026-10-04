@@ -1,6 +1,7 @@
 #include "wslc/wsl_container_builder.hpp"
 
 #include "internal/configuration.hpp"
+#include "internal/limits.hpp"
 #include "internal/util.hpp"
 #include "internal/wait_introspection.hpp"
 #include "wslc/environment.hpp"
@@ -128,6 +129,12 @@ WslContainerBuilder& WslContainerBuilder::FromTarball(std::filesystem::path Tarb
         throw WslcException("Tarball '" + pathText + "' does not exist.");
     }
 
+    const std::uintmax_t tarballLength = std::filesystem::file_size(TarballPath, error);
+    if (!error)
+    {
+        internal::RequireTarballSize(pathText, tarballLength);
+    }
+
     m_state->configuration.TarballPath = std::move(TarballPath);
     m_state->configuration.TarballImageName = std::move(imageName);
     m_state->configuration.Image.reset();
@@ -152,6 +159,7 @@ WslContainerBuilder& WslContainerBuilder::WithWorkingDirectory(std::string Worki
 WslContainerBuilder& WslContainerBuilder::WithEnvironment(std::string Name, std::string value)
 {
     RequireEnvironmentName(Name);
+    internal::RequireEnvironmentValue(Name, value);
     m_state->configuration.Environment[std::move(Name)] = std::move(value);
     return *this;
 }
@@ -161,6 +169,7 @@ WslContainerBuilder& WslContainerBuilder::WithEnvironmentVariables(std::map<std:
     for (const auto& pair : variables)
     {
         RequireEnvironmentName(pair.first);
+        internal::RequireEnvironmentValue(pair.first, pair.second);
     }
 
     for (auto& pair : variables)
@@ -294,10 +303,7 @@ WslContainerBuilder& WslContainerBuilder::WithSessionVolume(std::string Name, st
 {
     RequireVolumeName(Name);
     internal::ValidateContainerPath(ContainerPath);
-    if (SizeBytes == 0)
-    {
-        throw WslcException("Session volume size must be positive.");
-    }
+    internal::RequireSessionVolumeSize(SizeBytes);
 
     for (const auto& existing : m_state->configuration.SessionVolumes)
     {
@@ -326,22 +332,14 @@ WslContainerBuilder& WslContainerBuilder::WithNetworkingMode(ContainerNetworkMod
 
 WslContainerBuilder& WslContainerBuilder::WithCpuCount(std::uint32_t CpuCount)
 {
-    if (CpuCount == 0)
-    {
-        throw WslcException("CPU count must be positive.");
-    }
-
+    internal::RequireCpuCount(CpuCount);
     m_state->configuration.CpuCount = CpuCount;
     return *this;
 }
 
 WslContainerBuilder& WslContainerBuilder::WithMemoryMB(std::uint32_t megabytes)
 {
-    if (megabytes == 0)
-    {
-        throw WslcException("Memory limit must be positive.");
-    }
-
+    internal::RequireMemoryMb(megabytes);
     m_state->configuration.MemoryMb = megabytes;
     return *this;
 }
@@ -354,11 +352,7 @@ WslContainerBuilder& WslContainerBuilder::WithReuse(bool Reuse)
 
 WslContainerBuilder& WslContainerBuilder::WithStartupTimeout(std::chrono::milliseconds Timeout)
 {
-    if (Timeout <= std::chrono::milliseconds::zero())
-    {
-        throw WslcException("Timeout must be positive.");
-    }
-
+    internal::RequireStartupTimeout(Timeout);
     m_state->configuration.StartupTimeout = Timeout;
     return *this;
 }
@@ -382,6 +376,14 @@ WslContainer WslContainerBuilder::Build()
             std::string("No Image Source configured. Call WithImage(...) or FromTarball(...), or set ") +
             WslcEnvironment::DefaultImageVariable + ".");
     }
+
+    internal::RequireCount(configuration.CommandArguments.size(), internal::c_maxCommandArguments, "command arguments");
+    internal::RequireCount(configuration.Environment.size(), internal::c_maxEnvironmentVariables,
+                           "environment variables");
+    internal::RequireWaitStrategyCount(configuration.WaitStrategies.size());
+    internal::RequireCount(configuration.Files.size(), internal::c_maxFileCopies, "file copies");
+    internal::RequireCount(configuration.Volumes.size(), internal::c_maxVolumeMounts, "volume mounts");
+    internal::RequireCount(configuration.SessionVolumes.size(), internal::c_maxSessionVolumes, "session volumes");
 
     if (configuration.NetworkingMode == ContainerNetworkMode::None)
     {

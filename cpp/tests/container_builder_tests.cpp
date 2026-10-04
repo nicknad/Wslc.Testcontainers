@@ -2,7 +2,10 @@
 
 #include <windows.h>
 
+#include "internal/limits.hpp"
+#include "wslc/exec.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/postgresql.hpp"
 #include "wslc/waiting/wait.hpp"
 #include "wslc/wsl_container_builder.hpp"
 
@@ -312,4 +315,274 @@ TEST(ContainerBuilder, ContainerPathsRejectInjectionAcrossMethods)
     // Spaces are legal inside container paths even though the HTTP probe rejects them.
     EXPECT_NO_THROW(
         WslContainerBuilder{}.WithImage("alpine").WithWorkingDirectory("/mnt/c/Program Files/data").Build());
+}
+
+TEST(ContainerBuilder, CpuAndMemoryCapsAreInclusive)
+{
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine")
+                        .WithCpuCount(wslc::internal::c_maxCpuCount)
+                        .WithMemoryMB(wslc::internal::c_maxMemoryMb)
+                        .Build());
+    EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(wslc::internal::c_maxCpuCount + 1), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(wslc::internal::c_maxMemoryMb + 1), WslcException);
+}
+
+TEST(ContainerBuilder, SessionVolumeSizeCapIsInclusive)
+{
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine")
+                        .WithSessionVolume("data", "/data", wslc::internal::c_maxSessionVolumeBytes)
+                        .Build());
+
+    WslContainerBuilder invalid;
+    invalid.WithImage("alpine");
+    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", wslc::internal::c_maxSessionVolumeBytes + 1),
+                 WslcException);
+}
+
+TEST(ContainerBuilder, StartupTimeoutCapIsInclusiveAndRejectsLongerTimeoutsBeforeStart)
+{
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithStartupTimeout(wslc::internal::c_maxStartupTimeout).Build());
+    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(wslc::internal::c_maxStartupTimeout + 1s), WslcException);
+
+    // 3650 days is past the startup budget ceiling; the builder must reject it before any
+    // startup timer observes it.
+    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(std::chrono::hours(24 * 3650)), WslcException);
+}
+
+TEST(ContainerBuilder, BuildLimitsWaitStrategies)
+{
+    WslContainerBuilder builder;
+    builder.WithImage("alpine").WithStartupTimeout(wslc::internal::c_maxStartupTimeout);
+    for (std::size_t i = 0; i < wslc::internal::c_maxWaitStrategies; ++i)
+    {
+        builder.WithWaitStrategy(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/ready-" + std::to_string(i)));
+    }
+
+    EXPECT_NO_THROW(builder.Build());
+    builder.WithWaitStrategy(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/one-too-many"));
+    EXPECT_THROW(builder.Build(), WslcException);
+}
+
+TEST(ContainerBuilder, BuildRejectsASaturatedWaitTimeoutSum)
+{
+    WslContainerBuilder builder;
+    builder.WithImage("alpine")
+        .WithWaitStrategy(ForWsl().WithTimeout(std::chrono::milliseconds::max()).UntilFileExists("/tmp/a"))
+        .WithWaitStrategy(ForWsl().WithTimeout(std::chrono::milliseconds::max()).UntilFileExists("/tmp/b"));
+    EXPECT_THROW(builder.Build(), WslcException);
+}
+
+TEST(ContainerBuilder, BuildLimitsCommandArguments)
+{
+    std::vector<std::string> arguments(wslc::internal::c_maxCommandArguments, "arg");
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithCommand("echo", arguments).Build());
+
+    arguments.push_back("extra");
+    WslContainerBuilder tooMany;
+    EXPECT_THROW(tooMany.WithImage("alpine").WithCommand("echo", arguments).Build(), WslcException);
+}
+
+TEST(ContainerBuilder, WithEnvironmentEnforcesTheValueCap)
+{
+    const std::string atCap(wslc::internal::c_maxEnvironmentValueBytes, 'a');
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithEnvironment("BIG", atCap).Build());
+    EXPECT_THROW(WslContainerBuilder{}.WithEnvironment("BIG", atCap + "a"), WslcException);
+}
+
+TEST(ContainerBuilder, BuildLimitsEnvironmentCount)
+{
+    WslContainerBuilder builder;
+    builder.WithImage("alpine");
+    for (std::size_t i = 0; i < wslc::internal::c_maxEnvironmentVariables; ++i)
+    {
+        builder.WithEnvironment("VAR_" + std::to_string(i), "1");
+    }
+
+    EXPECT_NO_THROW(builder.Build());
+    builder.WithEnvironment("VAR_ONE_TOO_MANY", "1");
+    EXPECT_THROW(builder.Build(), WslcException);
+}
+
+TEST(ContainerBuilder, BuildLimitsFileCopiesAndVolumeMounts)
+{
+    const std::filesystem::path directory = std::filesystem::temp_directory_path() / "wslc-limits-test";
+    std::filesystem::remove_all(directory);
+    std::filesystem::create_directories(directory);
+    const std::filesystem::path source = directory / "payload.txt";
+    std::ofstream(source) << "payload";
+
+    WslContainerBuilder files;
+    files.WithImage("alpine");
+    for (std::size_t i = 0; i < wslc::internal::c_maxFileCopies; ++i)
+    {
+        files.WithFile(source, "/tmp/payload-" + std::to_string(i) + ".txt");
+    }
+
+    EXPECT_NO_THROW(files.Build());
+    files.WithFile(source, "/tmp/payload-one-too-many.txt");
+    EXPECT_THROW(files.Build(), WslcException);
+
+    WslContainerBuilder volumes;
+    volumes.WithImage("alpine");
+    for (std::size_t i = 0; i < wslc::internal::c_maxVolumeMounts; ++i)
+    {
+        volumes.WithVolume(directory, "/data-" + std::to_string(i));
+    }
+
+    EXPECT_NO_THROW(volumes.Build());
+    volumes.WithVolume(directory, "/data-one-too-many");
+    EXPECT_THROW(volumes.Build(), WslcException);
+
+    std::filesystem::remove_all(directory);
+}
+
+TEST(ContainerBuilder, ModuleBuilderRejectsAnUnboundedWaitTimeoutAtBuild)
+{
+    wslc::modules::PostgreSqlBuilder builder;
+    builder.WithWaitTimeout(std::chrono::milliseconds::max());
+
+    // The derived startup timeout is capped; the failure must happen while the module builds.
+    EXPECT_THROW(builder.Build(), WslcException);
+}
+
+TEST(ContainerBuilder, ExecTimeoutCapIsEnforced)
+{
+    WslContainerBuilder builder;
+    auto container = builder.WithImage("alpine:latest").Build();
+
+    wslc::ExecOptions atCap;
+    atCap.Timeout = wslc::internal::c_maxExecTimeout;
+    EXPECT_THROW(container.Exec("echo", {}, atCap), WslcException);
+
+    wslc::ExecOptions overCap;
+    overCap.Timeout = wslc::internal::c_maxExecTimeout + 1s;
+    try
+    {
+        container.Exec("echo", {}, overCap);
+        FAIL() << "Expected WslcException for an over-cap exec timeout.";
+    }
+    catch (const WslcException& exception)
+    {
+        EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
+    }
+}
+
+TEST(ContainerBuilder, ExecRejectsMoreThanTheArgumentCap)
+{
+    WslContainerBuilder builder;
+    auto container = builder.WithImage("alpine:latest").Build();
+
+    const std::vector<std::string> atCap(wslc::internal::c_maxCommandArguments, "arg");
+    // At the cap the arguments pass validation; the unstarted container then fails, which
+    // proves the list itself was accepted.
+    EXPECT_THROW(container.Exec("echo", atCap), WslcException);
+
+    const std::vector<std::string> overCap(wslc::internal::c_maxCommandArguments + 1, "arg");
+    try
+    {
+        container.Exec("echo", overCap);
+        FAIL() << "Expected WslcException for an over-cap argument list.";
+    }
+    catch (const WslcException& exception)
+    {
+        EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
+    }
+}
+
+TEST(ContainerBuilder, ExecRejectsEnvironmentAboveTheCaps)
+{
+    WslContainerBuilder builder;
+    auto container = builder.WithImage("alpine:latest").Build();
+
+    const std::string atCapValue(wslc::internal::c_maxEnvironmentValueBytes, 'a');
+    wslc::ExecOptions atCap;
+    atCap.Environment["BIG"] = atCapValue;
+    EXPECT_THROW(container.Exec("echo", {}, atCap), WslcException);
+
+    wslc::ExecOptions overValue;
+    overValue.Environment["BIG"] = atCapValue + "a";
+    try
+    {
+        container.Exec("echo", {}, overValue);
+        FAIL() << "Expected WslcException for an over-cap exec environment value.";
+    }
+    catch (const WslcException& exception)
+    {
+        EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
+    }
+
+    wslc::ExecOptions overCount;
+    for (std::size_t i = 0; i <= wslc::internal::c_maxEnvironmentVariables; ++i)
+    {
+        overCount.Environment["VAR_" + std::to_string(i)] = "1";
+    }
+
+    try
+    {
+        container.Exec("echo", {}, overCount);
+        FAIL() << "Expected WslcException for an over-cap exec environment.";
+    }
+    catch (const WslcException& exception)
+    {
+        EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
+    }
+}
+
+TEST(ContainerBuilder, CompositeWaitCountCapIsEnforcedAtComposition)
+{
+    auto strategy = ForWsl().WithTimeout(1s).UntilFileExists("/tmp/wait-0");
+    for (std::size_t i = 1; i < wslc::internal::c_maxWaitStrategies; ++i)
+    {
+        strategy = strategy->And(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/wait-" + std::to_string(i)));
+    }
+
+    EXPECT_THROW(strategy->And(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/one-too-many")), WslcException);
+}
+
+TEST(ContainerBuilder, BuildLimitsSessionVolumeCount)
+{
+    WslContainerBuilder builder;
+    builder.WithImage("alpine");
+    for (std::size_t i = 0; i < wslc::internal::c_maxSessionVolumes; ++i)
+    {
+        builder.WithSessionVolume("data" + std::to_string(i), "/data" + std::to_string(i), 1024);
+    }
+
+    EXPECT_NO_THROW(builder.Build());
+    builder.WithSessionVolume("one-too-many", "/data-extra", 1024);
+    EXPECT_THROW(builder.Build(), WslcException);
+}
+
+TEST(ContainerBuilder, FromTarballRejectsATarballAboveTheSizeCap)
+{
+    const std::filesystem::path path = std::filesystem::temp_directory_path() / "wslc-tarball-cap-test.tar";
+    std::filesystem::remove(path);
+    std::ofstream(path).close();
+
+    std::error_code error;
+    std::filesystem::resize_file(path, wslc::internal::c_maxTarballBytes, error);
+    if (error)
+    {
+        std::filesystem::remove(path);
+        GTEST_SKIP() << "Sparse file allocation is not available: " << error.message();
+    }
+
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.FromTarball(path));
+
+    std::filesystem::resize_file(path, wslc::internal::c_maxTarballBytes + 1, error);
+    if (error)
+    {
+        std::filesystem::remove(path);
+        GTEST_SKIP() << "Sparse file allocation is not available: " << error.message();
+    }
+
+    EXPECT_THROW(WslContainerBuilder{}.FromTarball(path), WslcException);
+
+    std::filesystem::remove(path);
 }

@@ -52,6 +52,26 @@ std::string JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::si
     return internal::join(selected, "\n");
 }
 
+/// <summary>Requests Stop on a derived Stop source when the Timeout elapses; cancels on destruction.</summary>
+class StopTimer
+{
+public:
+    StopTimer(std::stop_source& source, std::chrono::milliseconds timeout)
+        : m_thread(
+              [&source, timeout](std::stop_token timer_token)
+              {
+                  if (internal::SleepFor(timeout, timer_token))
+                  {
+                      source.request_stop();
+                  }
+              })
+    {
+    }
+
+private:
+    std::jthread m_thread;
+};
+
 class CompositeStrategy;
 
 /// <summary>Shared Timeout/retry configuration and diagnostics for Wait Strategies.</summary>
@@ -132,6 +152,7 @@ public:
     {
         std::stop_source timeout_source;
         std::stop_callback callback(caller_token, [&timeout_source] { timeout_source.request_stop(); });
+        StopTimer timer(timeout_source, m_timeout);
         const std::stop_token token = timeout_source.get_token();
         const auto deadline = std::chrono::steady_clock::now() + m_timeout;
         const auto started = std::chrono::steady_clock::now();
@@ -227,6 +248,7 @@ public:
     {
         std::stop_source timeout_source;
         std::stop_callback callback(caller_token, [&timeout_source] { timeout_source.request_stop(); });
+        StopTimer timer(timeout_source, m_timeout);
         const std::stop_token token = timeout_source.get_token();
         const auto started = std::chrono::steady_clock::now();
 

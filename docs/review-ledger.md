@@ -19,7 +19,7 @@ items are already fixed here; verify against this ledger before starting.
 
 | ID | Finding | Status | Evidence / notes |
 |----|---------|--------|------------------|
-| F1 | `wait.cpp` timeout token never fires on `m_timeout`; checks/SleepFor can overshoot; composite deadline | OPEN | `PollingStrategy` has a steady-clock deadline backstop (`wait.cpp:136-182`) but the derived stop token is only caller-cancel. Needs runtime overshoot test; composite path unverified. |
+| F1 | `wait.cpp` timeout token never fires on `m_timeout`; checks/SleepFor can overshoot; composite deadline | FIXED | A file-local `StopTimer` (jthread) stops the derived token at the strategy deadline in `PollingStrategy::Wait` and `CompositeStrategy::Wait`; deadline backstops kept. Blocking token-aware checks abort in ~200 ms, and a composite with 5s children now bounds at the composite timeout (~0.2 s). Residual: checks that ignore the token can still overshoot. |
 | F2 | `Run()` never closes stdin before wait | FIXED | `stdinHandle` is scoped to the `if (StandardInput)` block (`process_runner.cpp:175-197`); `CopyTo` resets explicitly at `:292`. |
 | F3 | `WaitForExitFor` uses `wait` not `wait_for` | FIXED | `wait_for(lock, Timeout, ...)` with a comment naming the bug (`container_process.cpp:214-216`). |
 | F4 | Registry `Snapshot()` then `Clear()` drops concurrently added processes | FIXED | `TakeAll()` prunes, collects, and clears under one lock (C# `ProcessRegistry.cs:43-52`, C++ `process_registry.hpp:52-59`); stop paths iterate it and no longer call `Clear()`. Stress tests prove no loss/duplication; the old pattern fails 500/500 in a replica harness. Residual: a start registered after the final drain during dispose is never drained (N8). |

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "internal/util.hpp"
 #include "support/fake_wait_target.hpp"
 #include "support/tiny_http_server.hpp"
 #include "wslc/exceptions.hpp"
@@ -38,6 +39,45 @@ TEST(WaitStrategy, TcpPortPollsUntilAvailable)
     strategy->Wait(target, std::stop_token{});
 
     EXPECT_GE(attempts, 3);
+}
+
+TEST(WaitStrategy, SatisfiedCheckReturnsBeforeTheDeadlineTimerFires)
+{
+    FakeWaitTarget target;
+    target.PortHandler = [](int, std::stop_token) { return true; };
+
+    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(10ms).UntilTcpPortIsAvailable(5432);
+
+    const auto started = std::chrono::steady_clock::now();
+    strategy->Wait(target, std::stop_token{});
+
+    EXPECT_LT(std::chrono::steady_clock::now() - started, 1s);
+}
+
+TEST(WaitStrategy, PollingTimeoutAbortsBlockingChecks)
+{
+    FakeWaitTarget target;
+    auto strategy = ForWsl().WithTimeout(200ms).Until("blocking check",
+                                                      [](wslc::waiting::IWaitTarget&, std::stop_token token)
+                                                      {
+                                                          wslc::internal::SleepFor(5s, token);
+                                                          wslc::internal::ThrowIfStopped(token);
+                                                          return false;
+                                                      });
+
+    const auto started = std::chrono::steady_clock::now();
+    try
+    {
+        strategy->Wait(target, std::stop_token{});
+        FAIL() << "Expected a WslReadinessException";
+    }
+    catch (const WslReadinessException& exception)
+    {
+        EXPECT_NE(exception.ExpectedCondition().find("blocking check"), std::string::npos);
+        EXPECT_EQ(exception.Timeout(), 200ms);
+    }
+
+    EXPECT_LT(std::chrono::steady_clock::now() - started, 2s);
 }
 
 TEST(WaitStrategy, TcpPortTimesOutWithDiagnostics)
@@ -229,6 +269,40 @@ TEST(WaitStrategy, CompositeKeepsTheLeftOperandTimeoutAndRetryInterval)
 
     EXPECT_EQ(strategy->Timeout(), 150ms);
     EXPECT_EQ(strategy->RetryInterval(), 25ms);
+}
+
+TEST(WaitStrategy, CompositeTimeoutBoundsChildrenWithLongerTimeouts)
+{
+    FakeWaitTarget target;
+    target.PortHandler = [](int, std::stop_token token)
+    {
+        wslc::internal::SleepFor(5s, token);
+        wslc::internal::ThrowIfStopped(token);
+        return false;
+    };
+    target.ProcessHandler = [](std::string, std::stop_token token)
+    {
+        wslc::internal::SleepFor(5s, token);
+        wslc::internal::ThrowIfStopped(token);
+        return false;
+    };
+
+    auto strategy = (ForWsl().WithTimeout(5s).UntilTcpPortIsAvailable(5432)->And(
+                         ForWsl().WithTimeout(5s).UntilProcessIsRunning("nginx")))
+                        ->WithTimeout(200ms);
+
+    const auto started = std::chrono::steady_clock::now();
+    try
+    {
+        strategy->Wait(target, std::stop_token{});
+        FAIL() << "Expected a WslReadinessException";
+    }
+    catch (const WslReadinessException& exception)
+    {
+        EXPECT_EQ(exception.Timeout(), 200ms);
+    }
+
+    EXPECT_LT(std::chrono::steady_clock::now() - started, 1s);
 }
 
 TEST(WaitStrategy, CustomUntilValidatesArguments)

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <windows.h>
+
 #include "wslc/exceptions.hpp"
 #include "wslc/waiting/wait.hpp"
 #include "wslc/wsl_container_builder.hpp"
@@ -205,6 +207,44 @@ TEST(ContainerBuilder, WithVolumeRequiresAnExistingDirectory)
     WslContainerBuilder builder;
 
     EXPECT_THROW(builder.WithVolume("missing-directory", "/data"), WslcException);
+}
+
+TEST(ContainerBuilder, HostSourcesRejectReparsePoints)
+{
+    const std::filesystem::path directory = std::filesystem::temp_directory_path() / "wslc-reparse-test";
+    std::filesystem::remove_all(directory);
+    std::filesystem::create_directories(directory);
+
+    const std::filesystem::path target = directory / "target.txt";
+    std::ofstream(target) << "payload";
+    const std::filesystem::path link = directory / "link.txt";
+    if (CreateSymbolicLinkW(link.c_str(), target.c_str(), 0) == 0)
+    {
+        const DWORD error = GetLastError();
+        std::filesystem::remove_all(directory);
+        GTEST_SKIP() << "Symbolic link creation is not available: " << error;
+    }
+
+    EXPECT_THROW(WslContainerBuilder{}.WithFile(link, "/tmp/link.txt"), WslcException);
+    std::filesystem::remove_all(directory);
+}
+
+TEST(ContainerBuilder, VolumeSourcesRejectReparsePoints)
+{
+    const std::filesystem::path directory = std::filesystem::temp_directory_path() / "wslc-reparse-volume-test";
+    std::filesystem::remove_all(directory);
+    const std::filesystem::path target = directory / "target";
+    std::filesystem::create_directories(target);
+    const std::filesystem::path link = directory / "link";
+    if (CreateSymbolicLinkW(link.c_str(), target.c_str(), SYMBOLIC_LINK_FLAG_DIRECTORY) == 0)
+    {
+        const DWORD error = GetLastError();
+        std::filesystem::remove_all(directory);
+        GTEST_SKIP() << "Directory symbolic link creation is not available: " << error;
+    }
+
+    EXPECT_THROW(WslContainerBuilder{}.WithVolume(link, "/data"), WslcException);
+    std::filesystem::remove_all(directory);
 }
 
 TEST(ContainerBuilder, ContainerGuardsAccessBeforeStart)

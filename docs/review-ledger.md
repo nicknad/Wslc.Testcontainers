@@ -23,10 +23,10 @@ items are already fixed here; verify against this ledger before starting.
 | F2 | `Run()` never closes stdin before wait | FIXED | `stdinHandle` is scoped to the `if (StandardInput)` block (`process_runner.cpp:175-197`); `CopyTo` resets explicitly at `:292`. |
 | F3 | `WaitForExitFor` uses `wait` not `wait_for` | FIXED | `wait_for(lock, Timeout, ...)` with a comment naming the bug (`container_process.cpp:214-216`). |
 | F4 | Registry `Snapshot()` then `Clear()` drops concurrently added processes | OPEN | `cpp/src/internal/process_registry.hpp:42-58`, `csharp/.../Internal/ProcessRegistry.cs:31-43`. |
-| F5 | Build checks `Exists`/`Length` then Start re-opens; symlink swap can exfiltrate | OPEN | `WslContainerBuilder.cs:191-238`, `wsl_container_builder.cpp:238-281`. |
+| F5 | Build checks `Exists`/`Length` then Start re-opens; symlink swap can exfiltrate | FIXED | Builder rejects reparse-point file/volume sources (`WslContainerBuilder.cs:196-206`, `wsl_container_builder.cpp:234-247`). CopyTo opens without following links and validates the same handle: C# `Internal/HostFile.OpenRead` uses `CreateFileW` + `FILE_FLAG_OPEN_REPARSE_POINT` + `File.GetAttributes(SafeFileHandle)`; C++ `ProcessRunner::CopyTo` uses `GetFileInformationByHandle`/`GetFileSizeEx`. Residual: reparse points in ancestor path components are still accepted by both. |
 | F6 | Reaper/instance delete recurses through junctions | OPEN | `WslInstanceStore.cs:110-122` (`Directory.Delete recursive`), `instance_store.cpp:233-247` (`remove_all`); no reparse check, no `InstanceId == directory` check. |
 | F7 | `CopyFrom` truncates destination before exit verification | OPEN | C# `WslcProcessRunner.cs:192`, C++ `process_runner.cpp:336`. Slice 2. |
-| F8 | C# `CopyTo` pre-checks size only, no streaming accumulator | OPEN | `WslcProcessRunner.cs:147-165`; C++ has the accumulator. |
+| F8 | C# `CopyTo` pre-checks size only, no streaming accumulator | FIXED | Handle length at open plus a 64 KiB accumulator during the stream (`WslcProcessRunner.cs`); C++ CopyTo now accumulates too. |
 | F9 | Missing `createdAt` deserializes to 0001/epoch, bypassing 7-day grace | OPEN | `WslInstanceStore.cs:73-95` + `WslResourceReaper.cs:223`; `instance_store.cpp:190-200`. |
 | F10 | SDK download and gtest FetchContent unpinned | OPEN | `cpp/scripts/Install-WslcSdk.ps1:30-33`, `cpp/tests/CMakeLists.txt:10-12`. Slice 3. |
 | F11 | `JENKINS_URL`/`TEAMCITY_VERSION` parsed as booleans, so CI detection misses them | OPEN | `WslcEnvironment.cs:60-81`, `environment.cpp:55`. |
@@ -90,7 +90,7 @@ and must be checked against `PublicAPI.Unshipped.txt` before the first shipped s
 |----|---------|--------|-------|
 | R1 | Absolute-path validator implemented 3x per language | OPEN -> fixed by slice 1 | C# `WslContainer.cs:974`, `WslContainerBuilder.cs:481`, `Wait.cs:143`; C++ `wsl_container.cpp:86`, `wsl_container_builder.cpp:36`, `wait.cpp:342`. |
 | R2 | Env-var name validator duplicated verbatim | OPEN | `WslContainer.cs:1017` vs `WslContainerBuilder.cs:506`; C++ `wsl_container.cpp:45` vs `wsl_container_builder.cpp:45`. |
-| R3 | 1 GiB copy cap and host-file check in three layers | OPEN | `WslContainer.cs:180`, `WslContainerBuilder.cs:200`, `WslcProcessRunner.cs:147`; C++ `wsl_container.cpp:1204`, `process_runner.cpp:240`. |
+| R3 | 1 GiB copy cap and host-file check in three layers | PARTIAL | The bypassable `file_size` pre-check is gone from `WslContainer`/`wsl_container.cpp`; builder still fails fast and the runner enforces on the open handle. |
 | R4 | Environment dictionary validated twice per exec/start | UNVERIFIED | `WslContainer.cs:999` then `:719`; `wsl_container.cpp:71` then `:1062`. |
 | R5 | C++ `TakeLast`/`JoinLast` copied | OPEN | `wait.cpp:25,35` and `wsl_container.cpp:95,105`. |
 | R6 | Five near-identical C++ RAII handle wrappers | OPEN | `internal/api.hpp:49-220`, `process_runner.cpp:22`, `tcp_http.cpp:39`. |
@@ -123,3 +123,79 @@ and must be checked against `PublicAPI.Unshipped.txt` before the first shipped s
 2. **CopyFrom atomicity (F7)** — temp file + atomic replace, reparse-point rejection,
    destination untouched on failure.
 3. **Hash pins (F10, N5)** — SHA512 for `Install-WslcSdk.ps1`, `URL_HASH` for gtest.
+
+## C++23 migration review (2026-10-04)
+
+Scope: `cpp/` moved from C++20 to C++23 (`CMakeLists.txt` 3.25 floor, `cxx_std_23`), VS 2022
+17.10+ is the documented toolchain floor, GoogleTest is bumped to v1.18.0 (SHA512 pinned), CI
+LLVM is pinned to 20.1.8, and the docs state the new floors. Reviewed against `18c89c1` plus
+the in-flight slice work in the working tree. Statuses: FIXED / ACCEPTED (deliberate no-change)
+/ PROCESS.
+
+### Phase 1 — standard and toolchain floor
+
+| Change | Location | Evidence |
+|--------|----------|----------|
+| CMake floor 3.24 -> 3.25 | `cpp/CMakeLists.txt:1` | Sane VS 2022 17.6+ floor for `/std:` feature mapping |
+| `CMAKE_CXX_STANDARD` 20 -> 23, `cxx_std_20` -> `cxx_std_23` | `cpp/CMakeLists.txt:9,57` | MSVC 14.43 emits `/std:c++latest` (`stdcpplatest`); MSVC has no `/std:c++23` switch, so CMake maps `cxx_std_23` to `c++latest` |
+| clang-format `Standard: c++20 -> Latest` | `cpp/.clang-format:4` | `c++23` is not a clang-format enum value before LLVM 22 (`LS_Cpp23` exists only on `main`); LLVM 20 (the pin) rejects `c++23`/`c++2b`, so `Latest` is the correct value |
+| GTest v1.15.2 -> v1.18.0 | `cpp/tests/CMakeLists.txt:6-12` | 2026-08 release; SHA512 computed and verified locally before pinning; ASan compile flags re-validated under C++23 |
+| CI LLVM pinned 20.1.8 | `.github/workflows/ci.yml:81-100` | Matches the `windows-latest` image (LLVM 20.1.8); a version check installs the pin when the image floats; `$GITHUB_PATH` covers fresh installs |
+| Docs floors | `README.md:14,55`, `cpp/README.md:39`, `AGENTS.md:7`, `CHANGELOG.md:9` | VS 2022 17.10+ / CMake 3.25+ / C++23 |
+
+Verification (VS 17.14 / MSVC 14.43, x64): Release build clean; `ctest` 125/125 (integration
+skipped without `WSLC_RUN_INTEGRATION`, `AtomicFile.EnsureReplaceableRejectsReparsePoints`
+skipped without symlink privilege 1314); clang-tidy Ninja build warnings-as-errors clean; ASan
+build + `ctest` 125/125; `/analyze` build exit 0; `clang-format --dry-run --Werror` clean over
+84 files.
+
+### Phase 2 — mechanical modernization
+
+| Item | Locations | Evidence |
+|------|-----------|----------|
+| `std::format` | `log_line.cpp` (`ToString`), `internal/api.cpp` (`HresultHex`), `exceptions.cpp` (`Describe`), `internal/util.cpp` (`FormatIso8601`, `FormatMilliseconds`), `internal/json.cpp` (`Escape`), `internal/instance_store.cpp` (`RenderMetadata`) | Replaces `snprintf`/`ostringstream`/`+` chains; format specifiers preserve zero padding and widths, so rendered output is unchanged; `<cstdio>`/`<sstream>` dropped where no longer used |
+| `contains()` | `internal/util.cpp` (`ValidateHttpPath`), `internal/image_resolver.cpp` (x2), `internal/tcp_http.cpp`, `tests/integration_tests.cpp` | `find(...) != npos` -> `contains(...)` |
+| `std::unreachable()` | `log_line.cpp` (`SourceName`), `internal/api.cpp` (`CreateException`) | Exhaustive switches over closed enums; fallback returns removed |
+| `std::jthread` | `tests/support/tiny_http_server.{hpp,cpp}`, `tests/wait_strategy_tests.cpp`, `tests/integration_tests.cpp` | Cancellation/timer threads; manual `join()` and the atomic stop flag removed in favor of `request_stop()` and member RAII joining |
+
+Already idiomatic and left alone: the startup timer is a `jthread` (`wsl_container.cpp:312`)
+and `SleepFor` uses `std::stop_callback` (`util.cpp`).
+
+### Phase 3 — deliberate no-change
+
+| Item | Decision | Rationale |
+|------|----------|-----------|
+| `std::expected` | ACCEPTED (no) | Would break public API; `optional` + throw is the documented contract (`json::Parse`, `ParseIso8601`, `TryReadMetadata`); `LogStream::Next` uses `nullopt` as an end sentinel, not an error |
+| `std::flat_map` | ACCEPTED (no) | No profiling data; `std::map` / flat `vector<pair>` are right-sized today; would churn internal/public headers |
+| `std::mdspan` | ACCEPTED (no) | No 2-D data; 1-D `std::span` is the correct abstraction |
+| chrono `tzdb` / `zoned_time` | ACCEPTED (no) | Hand-rolled ISO-8601 keeps UTC-only semantics and avoids an OS time-zone database dependency and binary growth |
+| `std::print` / `std::stacktrace` | ACCEPTED (no) | The library writes through its log sinks; stdout coupling and stack traces have no consumer |
+| `[[assume]]` | ACCEPTED (no) | No profiling evidence; a violated assumption is a silent miscompile. Parser bounds are already checked |
+| `views::join_with` | ACCEPTED (no) | `join()` reads clearer and avoids extra `<ranges>` machinery; no call site benefits |
+| `jthread` for `start_thread` | ACCEPTED (no) | `JoinStartThread` waits with a timeout then deliberately **detaches** when the blocking attached native call does not return (`wsl_container.cpp:721-741`); a `jthread` destructor would block or terminate instead |
+| `std::to_underlying` | ACCEPTED (no) | No enum-index arithmetic sites; converting switches adds ceremony with no behavior change |
+| SDK-enum / parse-switch defaults | ACCEPTED (no) | `ProgressStatusName` (external `WslcImageProgressStatus`) and the JSON escape switch keep explicit fallbacks: those values come from outside the program's type system, so unknown/error handling is deliberate, not unreachable code |
+
+### Phase 4 — lint/format re-baseline
+
+- `.clang-tidy` unchanged: `modernize-use-std-format` is already inside the enabled
+  `modernize-*` group (no `fmt`/`absl` sites, so no-op); `modernize-use-ranges` and
+  `modernize-use-starts-ends-with` stay disabled (no broad ranges adoption, `contains` used
+  selectively). `WarningsAsErrors: "*"` holds under the new C++23 compile flag.
+- Two pre-existing findings blocked the first tidy pass; both fixed, one with a justified
+  suppression:
+  - `HttpGetSucceeds` defined its parameters in snake_case while the header declared camelCase
+    (`readability-inconsistent-declaration-parameter-name`) — definition renamed.
+  - `BCryptHashData` takes a non-const `PUCHAR` although it does not modify the input
+    (`cppcoreguidelines-pro-type-const-cast`) — scoped `NOLINTNEXTLINE` plus comment.
+- `clang-format` check is green with the C++23 style on LLVM 20.1.0; no source reformat needed.
+
+### Migration findings
+
+| ID | Finding | Status | Notes |
+|----|---------|--------|-------|
+| MIG1 | clang-format `Standard: c++23` is invalid before LLVM 22 | FIXED | Use `Latest`; switch to `c++23` if the LLVM pin reaches 22+ |
+| MIG2 | MSVC has no `/std:c++23`; `cxx_std_23` compiles as `/std:c++latest` | ACCEPTED | Unavoidable CMake/MSVC mapping; `/Zc:__cplusplus` keeps feature detection honest |
+| MIG3 | ASan test runs fail with `0xc0000135` unless the MSVC ASan runtime DLL is on PATH | PROCESS | Local-only: run the ASan `ctest` under `vcvars64.bat`; CI's `msvc-dev-cmd` already does. Add a note if local ASan instructions are published |
+| MIG4 | Cosmetic: remaining startup-diagnostic `+` concatenation (`wsl_container.cpp`) | OPEN (low) | Cheap `std::format` follow-up; no behavior change |
+| MIG5 | New tests from the in-flight slice work were included in all four verification builds | PROCESS | Release/tidy/ASan/`analyze` all green together on the same tree |

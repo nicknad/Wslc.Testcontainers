@@ -127,4 +127,7 @@ void CommitFileReplace(const std::filesystem::path& temp, const std::filesystem:
 /// <summary>Deletes a file, ignoring failures.</summary>
 void BestEffortDeleteFile(const std::filesystem::path& path);
 
+/// <summary>Returns true when the path exists and is a reparse point (symlink/junction).</summary>
+bool IsReparsePoint(const std::filesystem::path& path);
+
 } // namespace wslc::internal

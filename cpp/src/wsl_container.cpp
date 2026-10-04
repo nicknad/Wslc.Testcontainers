@@ -1314,13 +1314,6 @@ void WslContainer::Impl::CopyTo(const std::filesystem::path& HostPath, std::stri
         throw WslcException("Host file '" + hostText + "' does not exist. Only file copies are supported.");
     }
 
-    const std::uintmax_t length = std::filesystem::file_size(HostPath, error);
-    if (!error && length > 1024ull * 1024ull * 1024ull)
-    {
-        throw WslcException("Copying '" + hostText + "' to '" + ContainerPath + "' exceeds 1 GiB limit (" +
-                            std::to_string(length) + " bytes).");
-    }
-
     internal::ProcessRunner::CopyTo(containerHandle->get(), std::filesystem::absolute(HostPath), ContainerPath, token,
                                     [this](LogLine line) { Logs->Publish(line); });
 }

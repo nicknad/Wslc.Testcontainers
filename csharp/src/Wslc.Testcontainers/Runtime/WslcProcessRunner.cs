@@ -145,14 +145,6 @@ internal static class WslcProcessRunner
         CancellationToken cancellationToken,
         Action<LogLine>? observer)
     {
-        const long MaxCopyBytes = 1024L * 1024L * 1024L;
-        var fullSource = Path.GetFullPath(source);
-        var sourceLength = new FileInfo(fullSource).Length;
-        if (sourceLength > MaxCopyBytes)
-        {
-            throw new WslProcessException($"Copying '{source}' to '{destination}' exceeds 1 GiB limit ({sourceLength} bytes).");
-        }
-
         var settings = CreateSettings(
             new List<string>(5) { "/bin/sh", "-c", "mkdir -p \"$(dirname \"$1\")\" && cat > \"$1\"", "sh", destination },
             workingDirectory: null,
@@ -161,9 +153,32 @@ internal static class WslcProcessRunner
 
         return ExecuteCopyAsync(container, settings, observer, source, destination, cancellationToken, async process =>
         {
-            await using var sourceStream = File.OpenRead(fullSource);
+            // Validation and streaming share one handle, so a path swapped to a reparse point
+            // after the builder checks cannot redirect the transfer.
+            await using var sourceStream = HostFile.OpenRead(source);
+
             await using var stdin = process.NativeProcess.GetInputStream().AsStreamForWrite();
-            await sourceStream.CopyToAsync(stdin, cancellationToken).ConfigureAwait(false);
+            var buffer = new byte[64 * 1024];
+            long total = 0;
+            for (;;)
+            {
+                var read = await sourceStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                // Accumulate while streaming so a file that grows during the copy is aborted
+                // even though the handle size was within the cap at open time.
+                total += read;
+                if (total > HostFile.MaxCopyBytes)
+                {
+                    throw new WslProcessException($"Copying '{source}' to '{destination}' exceeded 1 GiB limit.");
+                }
+
+                await stdin.WriteAsync(buffer.AsMemory(0, read), cancellationToken).ConfigureAwait(false);
+            }
+
             await stdin.FlushAsync(cancellationToken).ConfigureAwait(false);
         });
     }

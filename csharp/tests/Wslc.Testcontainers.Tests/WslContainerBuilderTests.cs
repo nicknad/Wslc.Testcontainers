@@ -252,6 +252,57 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
+    public void WithFile_rejects_reparse_point_sources()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-reparse");
+        try
+        {
+            var target = Path.Combine(directory.FullName, "target.txt");
+            File.WriteAllText(target, "payload");
+            var link = Path.Combine(directory.FullName, "link.txt");
+            try
+            {
+                File.CreateSymbolicLink(link, target);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+            {
+                Assert.Skip("Symbolic link creation is not available in this environment.");
+            }
+
+            Assert.Throws<WslcException>(() => new WslContainerBuilder().WithFile(link, "/tmp/link.txt"));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void WithVolume_rejects_reparse_point_sources()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-reparse");
+        try
+        {
+            var target = Directory.CreateDirectory(Path.Combine(directory.FullName, "target")).FullName;
+            var link = Path.Combine(directory.FullName, "link");
+            try
+            {
+                Directory.CreateSymbolicLink(link, target);
+            }
+            catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+            {
+                Assert.Skip("Symbolic link creation is not available in this environment.");
+            }
+
+            Assert.Throws<WslcException>(() => new WslContainerBuilder().WithVolume(link, "/data"));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Container_guards_access_before_start()
     {
         await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();

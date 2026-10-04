@@ -198,6 +198,11 @@ public sealed class WslContainerBuilder
             throw new WslcException($"File source '{hostPath}' does not exist. Only files are supported by WithFile.");
         }
 
+        if ((File.GetAttributes(hostPath) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new WslcException($"File source '{hostPath}' is a reparse point (symlink or junction); refusing to follow it.");
+        }
+
         const long MaxCopyBytes = 1024L * 1024L * 1024L;
         var length = new FileInfo(hostPath).Length;
         if (length > MaxCopyBytes)
@@ -229,6 +234,11 @@ public sealed class WslContainerBuilder
         if (!Directory.Exists(hostPath))
         {
             throw new WslcException($"Volume host path '{hostPath}' does not exist or is not a directory.");
+        }
+
+        if ((File.GetAttributes(hostPath) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new WslcException($"Volume host path '{hostPath}' is a reparse point (symlink or junction); pass the resolved directory instead.");
         }
 
         _configuration = _configuration with

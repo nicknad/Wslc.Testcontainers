@@ -746,4 +746,10 @@ void BestEffortDeleteFile(const std::filesystem::path& path)
     DeleteFileW(path.c_str());
 }
 
+bool IsReparsePoint(const std::filesystem::path& path)
+{
+    const DWORD attributes = GetFileAttributesW(path.c_str());
+    return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+}
+
 } // namespace wslc::internal

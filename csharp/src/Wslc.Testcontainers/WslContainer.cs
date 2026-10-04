@@ -171,20 +171,12 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         ArgumentException.ThrowIfNullOrWhiteSpace(hostPath);
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
         var container = RequireContainer();
-        var fullHostPath = Path.GetFullPath(hostPath);
-        if (!File.Exists(fullHostPath))
+        if (!File.Exists(hostPath))
         {
             throw new WslcException($"Host file '{hostPath}' does not exist. Only file copies are supported.");
         }
 
-        const long MaxCopyBytes = 1024L * 1024L * 1024L;
-        var length = new FileInfo(fullHostPath).Length;
-        if (length > MaxCopyBytes)
-        {
-            throw new WslcException($"Copying '{hostPath}' to '{containerPath}' exceeds 1 GiB limit ({length} bytes).");
-        }
-
-        return WslcProcessRunner.CopyToAsync(container, fullHostPath, containerPath, cancellationToken, _logs.Publish);
+        return WslcProcessRunner.CopyToAsync(container, hostPath, containerPath, cancellationToken, _logs.Publish);
     }
 
     /// <inheritdoc />

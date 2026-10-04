@@ -237,6 +237,12 @@ WslContainerBuilder& WslContainerBuilder::WithFile(std::filesystem::path HostPat
         throw WslcException("File Source '" + hostText + "' does not exist. Only Files are supported by WithFile.");
     }
 
+    if (internal::IsReparsePoint(HostPath))
+    {
+        throw WslcException("File Source '" + hostText +
+                            "' is a reparse point (symlink or junction); refusing to follow it.");
+    }
+
     const std::uintmax_t length = std::filesystem::file_size(HostPath, error);
     if (!error && length > c_maxCopyBytes)
     {
@@ -264,6 +270,12 @@ WslContainerBuilder& WslContainerBuilder::WithVolume(std::filesystem::path HostP
     if (!std::filesystem::exists(HostPath, error) || !std::filesystem::is_directory(HostPath, error))
     {
         throw WslcException("Volume Host path '" + hostText + "' does not exist or is not a directory.");
+    }
+
+    if (internal::IsReparsePoint(HostPath))
+    {
+        throw WslcException("Volume Host path '" + hostText +
+                            "' is a reparse point (symlink or junction); pass the resolved directory instead.");
     }
 
     m_state->configuration.Volumes.push_back(internal::WslVolumeMount{

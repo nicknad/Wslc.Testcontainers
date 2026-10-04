@@ -230,19 +230,6 @@ ExecResult ProcessRunner::Run(WslcContainer container, const ProcessSettings& se
 void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path& Source, const std::string& Destination,
                            std::stop_token token, std::function<void(LogLine)> observer)
 {
-    std::error_code error;
-    const std::uintmax_t length = std::filesystem::file_size(Source, error);
-    if (error)
-    {
-        throw WslProcessException("Host file '" + ToUtf8(Source.wstring()) + "' does not exist.");
-    }
-
-    if (length > c_maxCopyBytes)
-    {
-        throw WslProcessException("Copying '" + ToUtf8(Source.wstring()) + "' to '" + Destination +
-                                  "' exceeds 1 GiB limit (" + std::to_string(length) + " bytes).");
-    }
-
     ProcessSettings settings;
     settings.CommandLine = {"/bin/sh", "-c", "mkdir -p \"$(dirname \"$1\")\" && cat > \"$1\"", "sh", Destination};
     settings.EnableStandardInput = true;
@@ -258,24 +245,82 @@ void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path&
         check(result, ErrorKind::Process, "Failed to open the process standard input", nullptr);
         stdinHandle = IoHandle(Handle);
 
-        std::ifstream input(Source, std::ios::binary);
-        if (!input)
+        // Open without following reparse points, then read attributes and size from the same
+        // handle: a path swapped after a pre-check cannot bypass these guards.
+        IoHandle fileHandle(CreateFileW(
+            Source.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+            FILE_FLAG_SEQUENTIAL_SCAN | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr));
+        if (!fileHandle)
         {
-            throw WslProcessException("Failed to open Host file '" + ToUtf8(Source.wstring()) + "'.");
+            const DWORD last_error = GetLastError();
+            if (last_error == ERROR_FILE_NOT_FOUND || last_error == ERROR_PATH_NOT_FOUND)
+            {
+                throw WslProcessException("Host file '" + ToUtf8(Source.wstring()) + "' does not exist.");
+            }
+
+            throw WslProcessException("Failed to open Host file '" + ToUtf8(Source.wstring()) +
+                                      "': " + FormatWindowsError(last_error));
+        }
+
+        BY_HANDLE_FILE_INFORMATION information{};
+        if (GetFileInformationByHandle(fileHandle.get(), &information) == 0)
+        {
+            throw WslProcessException("Failed to inspect Host file '" + ToUtf8(Source.wstring()) +
+                                      "': " + FormatWindowsError(GetLastError()));
+        }
+
+        if ((information.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0)
+        {
+            throw WslProcessException("Host file '" + ToUtf8(Source.wstring()) +
+                                      "' is a reparse point (symlink or junction); refusing to follow it.");
+        }
+
+        if ((information.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+        {
+            throw WslProcessException("Host path '" + ToUtf8(Source.wstring()) +
+                                      "' is a directory; only files can be copied.");
+        }
+
+        LARGE_INTEGER size{};
+        if (GetFileSizeEx(fileHandle.get(), &size) == 0)
+        {
+            throw WslProcessException("Failed to inspect Host file '" + ToUtf8(Source.wstring()) +
+                                      "': " + FormatWindowsError(GetLastError()));
+        }
+
+        if (size.QuadPart > static_cast<LONGLONG>(c_maxCopyBytes))
+        {
+            throw WslProcessException("Copying '" + ToUtf8(Source.wstring()) + "' to '" + Destination +
+                                      "' exceeds 1 GiB limit (" + std::to_string(size.QuadPart) + " bytes).");
         }
 
         std::array<char, c_copyChunkSize> buffer{};
-        while (input)
+        std::uint64_t total = 0;
+        for (;;)
         {
             ThrowIfStopped(token);
-            input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-            const std::streamsize read = input.gcount();
-            if (read <= 0)
+            DWORD read = 0;
+            if (ReadFile(fileHandle.get(), buffer.data(), static_cast<DWORD>(buffer.size()), &read, nullptr) == 0)
+            {
+                throw WslProcessException("Failed to read Host file '" + ToUtf8(Source.wstring()) +
+                                          "': " + FormatWindowsError(GetLastError()));
+            }
+
+            if (read == 0)
             {
                 break;
             }
 
-            std::streamsize offset = 0;
+            // Accumulate while streaming so a file that grows during the copy is aborted
+            // even though the handle size was within the cap at open time.
+            total += read;
+            if (total > c_maxCopyBytes)
+            {
+                throw WslProcessException("Copying '" + ToUtf8(Source.wstring()) + "' to '" + Destination +
+                                          "' exceeded 1 GiB limit.");
+            }
+
+            std::size_t offset = 0;
             while (offset < read)
             {
                 DWORD written = 0;

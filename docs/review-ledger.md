@@ -199,7 +199,7 @@ and `SleepFor` uses `std::stop_callback` (`util.cpp`).
 | MIG1 | clang-format `Standard: c++23` is invalid before LLVM 22 | FIXED | Use `Latest`; switch to `c++23` if the LLVM pin reaches 22+ |
 | MIG2 | MSVC has no `/std:c++23`; `cxx_std_23` compiles as `/std:c++latest` | ACCEPTED | Unavoidable CMake/MSVC mapping; `/Zc:__cplusplus` keeps feature detection honest |
 | MIG3 | ASan test runs fail with `0xc0000135` unless the MSVC ASan runtime DLL is on PATH | PROCESS | Local-only: run the ASan `ctest` under `vcvars64.bat`; CI's `msvc-dev-cmd` already does. Add a note if local ASan instructions are published |
-| MIG4 | Cosmetic: remaining startup-diagnostic `+` concatenation (`wsl_container.cpp`) | OPEN (low) | Cheap `std::format` follow-up; no behavior change |
+| MIG4 | Cosmetic: remaining startup-diagnostic `+` concatenation (`wsl_container.cpp`) | FIXED | 9 `publish_diagnostic` sites converted to `std::format` with byte-identical rendered text; build/tests/format clean |
 | MIG5 | New tests from the in-flight slice work were included in all four verification builds | PROCESS | Release/tidy/ASan/`analyze` all green together on the same tree |
 | MIG6 | `SourceName` used `std::unreachable()` for an out-of-range public `LogSource` cast (UB, crash at -O2) | FIXED | Reverted to the `"system"` fallback; regression test `LogLine.UnknownSourceFallsBackToSystem` |
 | MIG7 | CI LLVM pin could not resolve a fresh install in-step and lacked downgrade allowance | FIXED | `$env:PATH` prepend after install plus `--allow-downgrade` |

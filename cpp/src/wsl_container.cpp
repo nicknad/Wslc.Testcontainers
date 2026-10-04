@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <condition_variable>
 #include <cctype>
+#include <format>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -330,7 +331,8 @@ void WslContainer::Impl::Start(WslContainer& target, std::stop_token caller)
                                "WSLC_REUSE_IN_CI); using ephemeral instance");
         }
 
-        publish_diagnostic("creating WSL container '" + Name + "' (runtime " + internal::WslcHost::GetVersion() + ")");
+        publish_diagnostic(
+            std::format("creating WSL container '{}' (runtime {})", Name, internal::WslcHost::GetVersion()));
         const std::string Image = CreateSessionAndContainer(token);
 
         CopyConfiguredFiles(token);
@@ -339,12 +341,12 @@ void WslContainer::Impl::Start(WslContainer& target, std::stop_token caller)
         started = true;
         UpdateState("Running");
         internal::ContainerHost::RegisterCleanup(Name, [this] { CleanupSynchronously(); });
-        publish_diagnostic("container '" + Name + "' is ready (Image '" + Image + "')");
+        publish_diagnostic(std::format("container '{}' is ready (Image '{}')", Name, Image));
     }
     catch (...)
     {
         const auto error = std::current_exception();
-        publish_diagnostic("startup failed: " + DescribeException(error));
+        publish_diagnostic(std::format("startup failed: {}", DescribeException(error)));
         CleanupLocked(false);
         TranslateAndThrow(caller, startup_source);
     }
@@ -458,8 +460,7 @@ void WslContainer::Impl::CreateSessionVolumes()
             internal::check(WslcCreateSessionVhdVolume(sessionHandle->get(), &requirements, &error),
                             internal::ErrorKind::Provisioning, "Failed to create session volume '" + volume.Name + "'",
                             &error);
-            publish_diagnostic("created session volume '" + volume.Name + "' (" + std::to_string(volume.SizeBytes) +
-                               " bytes)");
+            publish_diagnostic(std::format("created session volume '{}' ({} bytes)", volume.Name, volume.SizeBytes));
         }
         catch (const WslcException& exception)
         {
@@ -481,7 +482,7 @@ void WslContainer::Impl::DeleteVolumeIfPresent(const std::string& volume_name)
 
     if (SUCCEEDED(result))
     {
-        publish_diagnostic("recreated session volume '" + volume_name + "': deleted the previous VHD");
+        publish_diagnostic(std::format("recreated session volume '{}': deleted the previous VHD", volume_name));
     }
 }
 
@@ -648,7 +649,7 @@ void WslContainer::Impl::CreateAndStartContainer(const std::string& Image)
         idText = containerId;
     }
 
-    publish_diagnostic("container started (Id " + idText + ")");
+    publish_diagnostic(std::format("container started (Id {})", idText));
 }
 
 void WslContainer::Impl::StartContainerAttached(WslcContainer handle, const std::string& image)
@@ -753,7 +754,7 @@ void WslContainer::Impl::ResolveMappedPortsIfNeeded(std::stop_token token)
         network->ResolveFromInspect(InspectContainer(*containerHandle));
         if (network->UnresolvedCount() == 0)
         {
-            publish_diagnostic("mapped ports: " + FormatMappedPorts());
+            publish_diagnostic(std::format("mapped ports: {}", FormatMappedPorts()));
             return;
         }
 
@@ -785,7 +786,8 @@ void WslContainer::Impl::CopyConfiguredFiles(std::stop_token token)
 {
     for (const auto& file : configuration.Files)
     {
-        publish_diagnostic("copying '" + internal::ToUtf8(file.Source.wstring()) + "' to '" + file.Destination + "'");
+        publish_diagnostic(
+            std::format("copying '{}' to '{}'", internal::ToUtf8(file.Source.wstring()), file.Destination));
         internal::ProcessRunner::CopyTo(RequireContainer()->get(), file.Source, file.Destination, token,
                                         [this](LogLine line) { Logs->Publish(line); });
     }
@@ -795,8 +797,8 @@ void WslContainer::Impl::WaitForReadiness(WslContainer& target, std::stop_token 
 {
     for (const auto& strategy : configuration.WaitStrategies)
     {
-        publish_diagnostic("waiting for " + strategy->Name() + " (Timeout " +
-                           internal::FormatMilliseconds(strategy->Timeout()) + "s)");
+        publish_diagnostic(std::format("waiting for {} (Timeout {}s)", strategy->Name(),
+                                       internal::FormatMilliseconds(strategy->Timeout())));
         strategy->Wait(target, token);
     }
 }

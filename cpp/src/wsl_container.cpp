@@ -1186,9 +1186,9 @@ std::map<std::string, std::string> WslContainer::Impl::BuildEnvironment(
     std::chrono::system_clock::time_point CreatedAt = std::chrono::system_clock::now();
     {
         std::lock_guard lock(state_gate);
-        if (metadata)
+        if (metadata && metadata->CreatedAt)
         {
-            CreatedAt = metadata->CreatedAt;
+            CreatedAt = *metadata->CreatedAt;
         }
     }
 

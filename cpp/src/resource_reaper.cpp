@@ -104,16 +104,18 @@ bool IsOwnerAlive(const InstanceMetadata& metadata)
     }
 
     // Guard PID recycling: if the current process with this PID started after the instance was
-    // created, the original Owner is gone and the PID was reused.
+    // created, the original Owner is gone and the PID was reused. Without a recorded creation
+    // time there is no safe comparison, so treat the process as alive and leave the directory to
+    // the age-gated path in cleanup.
     FILETIME creation{};
     FILETIME exit{};
     FILETIME kernel{};
     FILETIME user{};
     bool alive = true;
-    if (GetProcessTimes(process, &creation, &exit, &kernel, &user) != 0)
+    if (metadata.CreatedAt && GetProcessTimes(process, &creation, &exit, &kernel, &user) != 0)
     {
         const auto started = FileTimeToTimePoint(creation);
-        if (started > metadata.CreatedAt + std::chrono::minutes(1))
+        if (started > *metadata.CreatedAt + std::chrono::minutes(1))
         {
             alive = false;
         }
@@ -147,7 +149,11 @@ bool IsReuseInstanceInUse(const std::filesystem::path& instanceDirectory)
 
 std::vector<std::string> CleanupCore(std::stop_token token, bool include_reuse)
 {
-    InstanceStore& store = InstanceStore::DefaultStore();
+    return CleanupCore(InstanceStore::DefaultStore(), token, include_reuse);
+}
+
+std::vector<std::string> CleanupCore(InstanceStore& store, std::stop_token token, bool include_reuse)
+{
     const std::filesystem::path instances = store.InstancesDirectory();
     std::error_code error;
     if (!std::filesystem::exists(instances, error))
@@ -171,10 +177,18 @@ std::vector<std::string> CleanupCore(std::stop_token token, bool include_reuse)
         }
 
         const auto metadata = store.TryReadMetadata(Name);
-        if (!metadata)
+
+        // Metadata that names a different instance does not vouch for this directory; it may have
+        // been swapped or crafted, so never delete through it.
+        if (metadata && metadata->InstanceId != Name)
         {
-            // Corrupt/missing metadata: only delete after the grace period to avoid racing a
-            // concurrent writer.
+            continue;
+        }
+
+        if (!metadata || !metadata->CreatedAt)
+        {
+            // Corrupt/missing metadata or an unverifiable creation time: only delete after the
+            // grace period to avoid racing a concurrent writer.
             if (std::chrono::system_clock::now() - DirectoryCreationTime(entry.path()) > c_orphanGracePeriod)
             {
                 InstanceStore::BestEffortDeleteDirectory(entry.path());
@@ -206,7 +220,11 @@ std::vector<std::string> CleanupCore(std::stop_token token, bool include_reuse)
 
 std::vector<std::string> PurgeReuseCore(std::stop_token token)
 {
-    InstanceStore& store = InstanceStore::DefaultStore();
+    return PurgeReuseCore(InstanceStore::DefaultStore(), token);
+}
+
+std::vector<std::string> PurgeReuseCore(InstanceStore& store, std::stop_token token)
+{
     const std::filesystem::path instances = store.InstancesDirectory();
     std::error_code error;
     if (!std::filesystem::exists(instances, error))
@@ -230,7 +248,9 @@ std::vector<std::string> PurgeReuseCore(std::stop_token token)
         }
 
         const auto metadata = store.TryReadMetadata(Name);
-        if (!metadata || !metadata->Reuse)
+
+        // Only delete reuse instances whose metadata names this directory.
+        if (!metadata || !metadata->Reuse || metadata->InstanceId != Name)
         {
             continue;
         }

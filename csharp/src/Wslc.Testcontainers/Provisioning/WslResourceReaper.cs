@@ -42,9 +42,14 @@ public static class WslResourceReaper
     public static Task<IReadOnlyList<string>> PurgeReuseAsync(CancellationToken cancellationToken = default) =>
         Task.Run(() => PurgeReuseCore(cancellationToken), cancellationToken);
 
-    internal static IReadOnlyList<string> CleanupCore(CancellationToken cancellationToken, bool includeReuse = false)
+    internal static IReadOnlyList<string> CleanupCore(CancellationToken cancellationToken, bool includeReuse = false) =>
+        CleanupCore(WslInstanceStore.Default, cancellationToken, includeReuse);
+
+    internal static IReadOnlyList<string> CleanupCore(
+        WslInstanceStore store,
+        CancellationToken cancellationToken,
+        bool includeReuse = false)
     {
-        var store = WslInstanceStore.Default;
         if (!Directory.Exists(store.InstancesDirectory))
         {
             return Array.Empty<string>();
@@ -63,10 +68,19 @@ public static class WslResourceReaper
             }
 
             var metadata = store.TryReadMetadata(name);
-            if (metadata is null)
+
+            // Metadata that names a different instance does not vouch for this directory; it may
+            // have been swapped or crafted, so never delete through it.
+            if (metadata is not null && metadata.InstanceId != name)
             {
-                // Corrupt/missing metadata: only delete after grace period to avoid racing a
-                // concurrent writer (write-then-rename should be atomic, but be conservative).
+                continue;
+            }
+
+            if (metadata?.CreatedAt is null)
+            {
+                // Corrupt/missing metadata or an unverifiable creation time: only delete after
+                // the grace period to avoid racing a concurrent writer (write-then-rename should
+                // be atomic, but be conservative).
                 if (GetDirectoryAge(directory) > OrphanGracePeriod)
                 {
                     WslInstanceStore.BestEffortDeleteDirectory(directory);
@@ -97,9 +111,11 @@ public static class WslResourceReaper
         return removed;
     }
 
-    internal static IReadOnlyList<string> PurgeReuseCore(CancellationToken cancellationToken)
+    internal static IReadOnlyList<string> PurgeReuseCore(CancellationToken cancellationToken) =>
+        PurgeReuseCore(WslInstanceStore.Default, cancellationToken);
+
+    internal static IReadOnlyList<string> PurgeReuseCore(WslInstanceStore store, CancellationToken cancellationToken)
     {
-        var store = WslInstanceStore.Default;
         if (!Directory.Exists(store.InstancesDirectory))
         {
             return Array.Empty<string>();
@@ -116,7 +132,9 @@ public static class WslResourceReaper
             }
 
             var metadata = store.TryReadMetadata(name);
-            if (metadata?.Reuse != true)
+
+            // Only delete reuse instances whose metadata names this directory.
+            if (metadata?.Reuse != true || metadata.InstanceId != name)
             {
                 continue;
             }
@@ -217,10 +235,13 @@ public static class WslResourceReaper
             }
 
             // Guard PID recycling: if the current process with this PID started after the
-            // instance was created, the original owner is gone and the PID was reused.
+            // instance was created, the original owner is gone and the PID was reused. Without a
+            // recorded creation time there is no safe comparison, so treat the process as alive
+            // and leave the directory to the age-gated path in cleanup.
             try
             {
-                if (process.StartTime.ToUniversalTime() > metadata.CreatedAt.UtcDateTime + TimeSpan.FromMinutes(1))
+                if (metadata.CreatedAt is { } createdAt &&
+                    process.StartTime.ToUniversalTime() > createdAt.UtcDateTime + TimeSpan.FromMinutes(1))
                 {
                     return false;
                 }

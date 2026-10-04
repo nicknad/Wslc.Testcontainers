@@ -35,10 +35,14 @@ std::optional<std::string> ReadTextFile(const std::filesystem::path& path)
 std::string RenderMetadata(const InstanceMetadata& metadata)
 {
     std::string json =
-        std::format("{{\n  \"sessionId\": \"{}\",\n  \"instanceId\": \"{}\",\n  \"ownerProcessId\": {},"
-                    "\n  \"createdAt\": \"{}\",\n  \"state\": \"{}\"",
-                    json::Escape(metadata.SessionId), json::Escape(metadata.InstanceId), metadata.OwnerProcessId,
-                    FormatIso8601(metadata.CreatedAt), json::Escape(metadata.State));
+        std::format("{{\n  \"sessionId\": \"{}\",\n  \"instanceId\": \"{}\",\n  \"ownerProcessId\": {}",
+                    json::Escape(metadata.SessionId), json::Escape(metadata.InstanceId), metadata.OwnerProcessId);
+    if (metadata.CreatedAt)
+    {
+        json += std::format(",\n  \"createdAt\": \"{}\"", FormatIso8601(*metadata.CreatedAt));
+    }
+
+    json += std::format(",\n  \"state\": \"{}\"", json::Escape(metadata.State));
     if (metadata.Owner)
     {
         json += std::format(",\n  \"owner\": \"{}\"", json::Escape(*metadata.Owner));
@@ -233,10 +237,15 @@ void InstanceStore::BestEffortDeleteDirectory(const std::filesystem::path& path)
     try
     {
         std::error_code error;
-        if (std::filesystem::exists(path, error))
+        if (IsReparsePoint(path))
         {
-            std::filesystem::remove_all(path, error);
+            // Never recurse through a junction/reparse point: deleting the link must not touch
+            // whatever directory it points at.
+            std::filesystem::remove(path, error);
+            return;
         }
+
+        std::filesystem::remove_all(path, error);
     }
     catch (...)
     {

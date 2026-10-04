@@ -24,10 +24,10 @@ items are already fixed here; verify against this ledger before starting.
 | F3 | `WaitForExitFor` uses `wait` not `wait_for` | FIXED | `wait_for(lock, Timeout, ...)` with a comment naming the bug (`container_process.cpp:214-216`). |
 | F4 | Registry `Snapshot()` then `Clear()` drops concurrently added processes | OPEN | `cpp/src/internal/process_registry.hpp:42-58`, `csharp/.../Internal/ProcessRegistry.cs:31-43`. |
 | F5 | Build checks `Exists`/`Length` then Start re-opens; symlink swap can exfiltrate | FIXED | Builder rejects reparse-point file/volume sources (`WslContainerBuilder.cs:196-206`, `wsl_container_builder.cpp:234-247`). CopyTo opens without following links and validates the same handle: C# `Internal/HostFile.OpenRead` uses `CreateFileW` + `FILE_FLAG_OPEN_REPARSE_POINT` + `File.GetAttributes(SafeFileHandle)`; C++ `ProcessRunner::CopyTo` uses `GetFileInformationByHandle`/`GetFileSizeEx`. Residual: reparse points in ancestor path components are still accepted by both. |
-| F6 | Reaper/instance delete recurses through junctions | OPEN | `WslInstanceStore.cs:110-122` (`Directory.Delete recursive`), `instance_store.cpp:233-247` (`remove_all`); no reparse check, no `InstanceId == directory` check. |
+| F6 | Reaper/instance delete recurses through junctions | FIXED | Reparse points are unlinked, never recursed (`WslInstanceStore.cs:110-130`, `instance_store.cpp:235-254`); reaper skips directories whose metadata `InstanceId` does not match the name. Verification could not reproduce recursive junction deletion on .NET 8/10 or MSVC 14.43, so this lands as defense-in-depth. Residual: reparse points in ancestor components and identity-mismatched dirs (fail-safe leak). |
 | F7 | `CopyFrom` truncates destination before exit verification | OPEN | C# `WslcProcessRunner.cs:192`, C++ `process_runner.cpp:336`. Slice 2. |
 | F8 | C# `CopyTo` pre-checks size only, no streaming accumulator | FIXED | Handle length at open plus a 64 KiB accumulator during the stream (`WslcProcessRunner.cs`); C++ CopyTo now accumulates too. |
-| F9 | Missing `createdAt` deserializes to 0001/epoch, bypassing 7-day grace | OPEN | `WslInstanceStore.cs:73-95` + `WslResourceReaper.cs:223`; `instance_store.cpp:190-200`. |
+| F9 | Missing `createdAt` deserializes to 0001/epoch, bypassing 7-day grace | FIXED | `CreatedAt` is nullable/optional; missing or unparseable timestamps route through the directory-age grace gate and the PID-recycle compare is skipped (`WslResourceReaper.cs:79-91,243-247`, `resource_reaper.cpp:115-122,188-199`). Residual: a present-but-absurd old timestamp (e.g. 1970) still trips the PID-recycle check (tracked as N7). |
 | F10 | SDK download and gtest FetchContent unpinned | OPEN | `cpp/scripts/Install-WslcSdk.ps1:30-33`, `cpp/tests/CMakeLists.txt:10-12`. Slice 3. |
 | F11 | `JENKINS_URL`/`TEAMCITY_VERSION` parsed as booleans, so CI detection misses them | OPEN | `WslcEnvironment.cs:60-81`, `environment.cpp:55`. |
 | F12 | `FormatMilliseconds` emits seconds but `"ms"` is appended in one caller | OPEN | `process_runner.cpp:205` vs `util.cpp:451-460`; all other callers append `"s"`. |
@@ -114,6 +114,7 @@ and must be checked against `PublicAPI.Unshipped.txt` before the first shipped s
 | N4 | No shared golden-vector corpus across C#/C++ | OPEN | Parity is asserted by parallel hand-written tests; the plan's "golden vectors" requirement is unmet. |
 | N5 | No SBOM or C++ dependency update coverage | OPEN | Dependabot covers NuGet only; gtest is fetched at configure time. |
 | N6 | No threat model, PR slicing, or effort/owner sizing | PROCESS | Needed before attacking UNVERIFIED rows. |
+| N7 | Present-but-absurd `createdAt` (e.g. 1970) still trips the PID-recycle check and deletes a live instance | OPEN | Same failure class as F9; sanity-bound the timestamp against directory creation time or require `createdAt` to be plausible before trusting the PID compare. |
 
 ## Slice plan
 

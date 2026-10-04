@@ -5,7 +5,7 @@ internal sealed record WslInstanceMetadata(
     string SessionId,
     string InstanceId,
     int OwnerProcessId,
-    DateTimeOffset CreatedAt)
+    DateTimeOffset? CreatedAt)
 {
     public string State { get; init; } = "Created";
 

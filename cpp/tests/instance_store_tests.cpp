@@ -3,6 +3,8 @@
 #include "internal/instance_store.hpp"
 #include "internal/util.hpp"
 
+#include <windows.h>
+
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -15,6 +17,29 @@ using wslc::internal::InstanceStore;
 
 namespace
 {
+
+bool CreateDirectoryJunction(const std::filesystem::path& junction, const std::filesystem::path& target)
+{
+    std::wstring command = L"cmd.exe /c mklink /J \"" + junction.wstring() + L"\" \"" + target.wstring() + L"\"";
+    std::vector<wchar_t> buffer(command.begin(), command.end());
+    buffer.push_back(L'\0');
+
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    PROCESS_INFORMATION process{};
+    if (CreateProcessW(nullptr, buffer.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &startup,
+                       &process) == 0)
+    {
+        return false;
+    }
+
+    WaitForSingleObject(process.hProcess, 30'000);
+    DWORD exitCode = 1;
+    GetExitCodeProcess(process.hProcess, &exitCode);
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    return exitCode == 0;
+}
 
 class InstanceStoreTest : public ::testing::Test
 {
@@ -78,6 +103,40 @@ TEST_F(InstanceStoreTest, DeletingAnInstanceDirectoryRemovesMetadataAndStorage)
 
     EXPECT_FALSE(std::filesystem::exists(m_store->GetInstanceDirectory(metadata.InstanceId)));
     EXPECT_FALSE(m_store->TryReadMetadata(metadata.InstanceId).has_value());
+}
+
+TEST_F(InstanceStoreTest, MetadataWithoutCreatedAtParsesWithEmptyCreatedAt)
+{
+    const std::filesystem::path directory = m_store->GetInstanceDirectory("wslc-no-created-at");
+    std::filesystem::create_directories(directory);
+    std::ofstream(directory / "wslc.json")
+        << "{\n  \"sessionId\": \"test-session\",\n  \"instanceId\": \"wslc-no-created-at\",\n"
+           "  \"ownerProcessId\": 1234,\n  \"state\": \"Running\",\n  \"reuse\": false\n}\n";
+
+    const auto loaded = m_store->TryReadMetadata("wslc-no-created-at");
+
+    ASSERT_TRUE(loaded.has_value());
+    EXPECT_EQ(loaded->InstanceId, "wslc-no-created-at");
+    EXPECT_FALSE(loaded->CreatedAt.has_value());
+}
+
+TEST_F(InstanceStoreTest, DeletingAJunctionKeepsItsTarget)
+{
+    const std::filesystem::path target = m_root / "junction-target";
+    const std::filesystem::path junction = m_root / "junction-link";
+    std::filesystem::create_directories(target);
+    std::ofstream(target / "marker.txt") << "data";
+    if (!CreateDirectoryJunction(junction, target))
+    {
+        GTEST_SKIP() << "Directory junction creation is unavailable.";
+    }
+
+    ASSERT_TRUE(std::filesystem::exists(junction));
+
+    InstanceStore::BestEffortDeleteDirectory(junction);
+
+    EXPECT_FALSE(std::filesystem::exists(junction));
+    EXPECT_TRUE(std::filesystem::exists(target / "marker.txt"));
 }
 
 TEST_F(InstanceStoreTest, InstanceDirectoryIsSanitized)

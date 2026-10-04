@@ -53,6 +53,22 @@ public sealed class WslInstanceStoreTests : IDisposable
     }
 
     [Fact]
+    public void Deleting_a_junction_keeps_its_target()
+    {
+        var target = Path.Combine(_root, "junction-target");
+        var junction = Path.Combine(_root, "junction-link");
+        Directory.CreateDirectory(target);
+        File.WriteAllText(Path.Combine(target, "marker.txt"), "data");
+
+        Assert.True(CreateDirectoryJunction(junction, target), "mklink /J failed");
+
+        WslInstanceStore.BestEffortDeleteDirectory(junction);
+
+        Assert.False(Directory.Exists(junction));
+        Assert.True(File.Exists(Path.Combine(target, "marker.txt")));
+    }
+
+    [Fact]
     public void Instance_directory_is_sanitized()
     {
         var directory = _store.GetInstanceDirectory("wslc-a/b:c");
@@ -73,6 +89,22 @@ public sealed class WslInstanceStoreTests : IDisposable
 
         var instanceDirectory = _store.GetInstanceDirectory(metadata.InstanceId);
         Assert.Empty(Directory.EnumerateFiles(instanceDirectory, "*.tmp"));
+    }
+
+    private static bool CreateDirectoryJunction(string link, string target)
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{target}\"")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+        };
+
+        using var process = System.Diagnostics.Process.Start(startInfo);
+        Assert.NotNull(process);
+        process.WaitForExit();
+        return process.ExitCode == 0;
     }
 
     private WslInstanceMetadata CreateMetadata() => new(

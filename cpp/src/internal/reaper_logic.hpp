@@ -24,6 +24,8 @@ bool IsOwnerAlive(const InstanceMetadata& metadata);
 bool IsReuseInstanceInUse(const std::filesystem::path& instanceDirectory);
 
 std::vector<std::string> CleanupCore(std::stop_token token, bool include_reuse);
+std::vector<std::string> CleanupCore(InstanceStore& store, std::stop_token token, bool include_reuse);
 std::vector<std::string> PurgeReuseCore(std::stop_token token);
+std::vector<std::string> PurgeReuseCore(InstanceStore& store, std::stop_token token);
 
 } // namespace wslc::internal

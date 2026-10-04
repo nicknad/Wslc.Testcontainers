@@ -16,7 +16,7 @@ struct InstanceMetadata
     std::string SessionId;
     std::string InstanceId;
     int OwnerProcessId = 0;
-    std::chrono::system_clock::time_point CreatedAt;
+    std::optional<std::chrono::system_clock::time_point> CreatedAt;
     std::string State = "Created";
     std::optional<std::string> Owner;
     std::optional<std::string> Image;

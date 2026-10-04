@@ -113,6 +113,14 @@ internal sealed class WslInstanceStore
         {
             if (Directory.Exists(path))
             {
+                // Never recurse through a junction/reparse point: deleting the link must not
+                // touch whatever directory it points at.
+                if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                {
+                    Directory.Delete(path);
+                    return;
+                }
+
                 Directory.Delete(path, recursive: true);
             }
         }

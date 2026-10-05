@@ -32,8 +32,12 @@ public:
     /// <summary>Gets a value indicating whether the container has been started.</summary>
     bool IsStarted() const { return m_inner.IsStarted(); }
 
-    /// <summary>Gets the Host address that exposes mapped ports.</summary>
-    std::string Host() const { return m_inner.Host(); }
+    /// <summary>
+    /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
+    /// Host port and the port's configured bind address. The default/wildcard binding resolves to
+    /// loopback: IPv4 127.0.0.1 for 0.0.0.0 and IPv6 ::1 for ::.
+    /// </summary>
+    WslEndpoint GetConnectEndpoint(int containerPort) const { return m_inner.GetConnectEndpoint(containerPort); }
 
     /// <summary>Creates and provisions the Environment.</summary>
     void Start(std::stop_token token = {}) { m_inner.Start(token); }
@@ -49,10 +53,12 @@ public:
     }
 
     /// <summary>Starts a long-running process inside the Environment.</summary>
+    /// <exception cref="WslcException">options is an ExecOptions carrying StandardInput or Timeout;
+    /// those apply only to Exec().</exception>
     std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments = {},
-                                              ExecOptions options = {}, std::stop_token token = {})
+                                              const ProcessOptions& options = {}, std::stop_token token = {})
     {
-        return m_inner.StartProcess(std::move(command), std::move(arguments), std::move(options), token);
+        return m_inner.StartProcess(std::move(command), std::move(arguments), options, token);
     }
 
     /// <summary>Copies a Windows file into the Environment.</summary>
@@ -75,12 +81,6 @@ public:
 
     /// <summary>Stops and releases the container, deleting ephemeral storage. Idempotent.</summary>
     void Dispose() { m_inner.Dispose(); }
-
-    /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
-    int GetMappedPort(int port) const { return m_inner.GetMappedPort(port); }
-
-    /// <summary>Gets the Windows address to connect to for a mapped Linux TCP port.</summary>
-    std::string GetMappedHost(int port) const { return m_inner.GetMappedHost(port); }
 
 protected:
     /// <summary>Initializes a wrapper around the given container.</summary>

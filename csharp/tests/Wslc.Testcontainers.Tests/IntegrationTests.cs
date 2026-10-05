@@ -32,7 +32,7 @@ public sealed class IntegrationTests
 
         await container.StartAsync();
 
-        var result = await container.ExecAsync("/bin/sh", "-c", "echo hello-wslc");
+        var result = await container.ExecAsync("/bin/sh", ["-c", "echo hello-wslc"]);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("hello-wslc", result.Stdout);
@@ -49,7 +49,7 @@ public sealed class IntegrationTests
 
         await container.StartAsync();
 
-        var result = await container.ExecAsync("/bin/sh", "-c", "printf %s \"$WSLC_TEST_VALUE\"");
+        var result = await container.ExecAsync("/bin/sh", ["-c", "printf %s \"$WSLC_TEST_VALUE\""]);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("hello", result.Stdout);
@@ -71,7 +71,7 @@ public sealed class IntegrationTests
             await container.StartAsync();
 
             await container.CopyToAsync(source, "/tmp/wslc-test.txt");
-            var cat = await container.ExecAsync("/bin/cat", "/tmp/wslc-test.txt");
+            var cat = await container.ExecAsync("/bin/cat", ["/tmp/wslc-test.txt"]);
             Assert.Equal("wslc-file-content", cat.Stdout);
 
             await container.CopyFromAsync("/tmp/wslc-test.txt", destination);
@@ -106,7 +106,8 @@ public sealed class IntegrationTests
         await container.StartAsync();
 
         using var client = new HttpClient();
-        var response = await client.GetAsync($"http://{container.Host}:{container.GetMappedPort(8080)}/");
+        var endpoint = container.GetConnectEndpoint(8080);
+        var response = await client.GetAsync($"http://{endpoint}/");
 
         Assert.True(response.IsSuccessStatusCode);
     }
@@ -142,11 +143,11 @@ public sealed class IntegrationTests
 
         await container.StartAsync();
 
-        var result = await container.ExecAsync("/bin/sh", "-c", "echo offline-ok");
+        var result = await container.ExecAsync("/bin/sh", ["-c", "echo offline-ok"]);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("offline-ok", result.Stdout);
-        Assert.Throws<WslNetworkException>(() => container.GetMappedPort(8080));
+        Assert.Throws<WslNetworkException>(() => container.GetConnectEndpoint(8080));
     }
 
     [IntegrationFact]
@@ -159,14 +160,14 @@ public sealed class IntegrationTests
 
         await container.StartAsync();
 
-        var write = await container.ExecAsync("/bin/sh", "-c", "echo persisted > /scratch/data.txt && cat /scratch/data.txt");
+        var write = await container.ExecAsync("/bin/sh", ["-c", "echo persisted > /scratch/data.txt && cat /scratch/data.txt"]);
         Assert.Equal(0, write.ExitCode);
         Assert.Equal("persisted", write.Stdout.Trim());
 
         await container.StopAsync();
         await container.StartAsync();
 
-        var exists = await container.ExecAsync("/bin/sh", "-c", "test -e /scratch/data.txt");
+        var exists = await container.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"]);
         Assert.NotEqual(0, exists.ExitCode);
     }
 
@@ -198,7 +199,7 @@ public sealed class IntegrationTests
                     await ReadLogHistoryAsync(first),
                     line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
 
-                var write = await first.ExecAsync("/bin/sh", "-c", "echo persisted > /scratch/data.txt");
+                var write = await first.ExecAsync("/bin/sh", ["-c", "echo persisted > /scratch/data.txt"]);
                 Assert.Equal(0, write.ExitCode);
 
                 await first.DisposeAsync();
@@ -224,7 +225,7 @@ public sealed class IntegrationTests
                         line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
 
                     // The session volume is scratch: recreated empty even though the session VHD persists.
-                    var exists = await second.ExecAsync("/bin/sh", "-c", "test -e /scratch/data.txt");
+                    var exists = await second.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"]);
                     Assert.NotEqual(0, exists.ExitCode);
                 }
                 finally
@@ -272,10 +273,10 @@ public sealed class IntegrationTests
 
         await container.StartAsync();
 
-        var mount = await container.ExecAsync("/bin/sh", "-c", "test -d /scratch");
+        var mount = await container.ExecAsync("/bin/sh", ["-c", "test -d /scratch"]);
         Assert.Equal(0, mount.ExitCode);
 
-        var write = await container.ExecAsync("/bin/sh", "-c", "echo nope > /scratch/data.txt");
+        var write = await container.ExecAsync("/bin/sh", ["-c", "echo nope > /scratch/data.txt"]);
         Assert.NotEqual(0, write.ExitCode);
     }
 
@@ -294,7 +295,7 @@ public sealed class IntegrationTests
         var cpus = await container.ExecAsync("nproc");
         Assert.Equal(cpuCount, uint.Parse(cpus.Stdout.Trim(), CultureInfo.InvariantCulture));
 
-        var memory = await container.ExecAsync("/bin/sh", "-c", "awk '/MemTotal/ {print $2}' /proc/meminfo");
+        var memory = await container.ExecAsync("/bin/sh", ["-c", "awk '/MemTotal/ {print $2}' /proc/meminfo"]);
         var memoryKb = long.Parse(memory.Stdout.Trim(), CultureInfo.InvariantCulture);
         Assert.InRange(memoryKb, 300_000, 1_500_000);
     }
@@ -315,7 +316,7 @@ public sealed class IntegrationTests
 
             await container.StartAsync();
 
-            var result = await container.ExecAsync("/bin/cat", "/workspace/data.txt");
+            var result = await container.ExecAsync("/bin/cat", ["/workspace/data.txt"]);
 
             Assert.Equal(0, result.ExitCode);
             Assert.Equal("mounted", result.Stdout);

@@ -92,7 +92,7 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithCommand(command, params args)`                               | Init process. Defaults to a keep-alive shell so `ExecAsync` works — the image ENTRYPOINT/CMD never runs automatically. |
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
-| `WithPort(containerPort)` / `WithPort(port, bindAddress)`         | Exposes a Linux TCP port on a dynamic Windows port; the optional per-port Windows bind address defaults to loopback (pass `0.0.0.0` to expose on the LAN). UDP is not supported — the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
+| `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Exposes a Linux TCP port on a dynamic Windows port; the optional per-port Windows bind address defaults to loopback (pass `0.0.0.0` or `IPAddress.Any` to expose on the LAN). UDP is not supported — the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
 | `WithNetworkingMode(mode)`                                      | `Bridged` (default) or `None` (no NIC — no ports or waits allowed; the only containment mode).                     |
 | `WithCpuCount(n)` / `WithMemoryMB(n)`                           | Caps for the session VM.                                                                    |
 | `WithSessionVolume(name, containerPath, sizeBytes, ...)`          | Session VHD volume (ext4, recreated empty every start) instead of a bind mount.             |
@@ -108,18 +108,19 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 using Wslc.Testcontainers;
 
 // Execute and capture output
-ExecResult result = await container.ExecAsync("ps", "aux");
+ExecResult result = await container.ExecAsync("ps", ["aux"]);
 Console.WriteLine(result.ExitCode);
 
 // Options: environment, working directory, stdin, timeout (pass null for defaults)
-var result2 = await container.ExecAsync("psql", new[] { "-c", "SELECT 1" }, new ExecOptions
+var result2 = await container.ExecAsync("psql", ["-c", "SELECT 1"], new ExecOptions
 {
     Environment = new Dictionary<string, string> { ["PGPASSWORD"] = "secret" },
     Timeout = TimeSpan.FromSeconds(30),
 }, CancellationToken.None);
 
-// Long-running processes (StandardInput/Timeout are Exec-only and throw here)
-IWslProcess process = container.StartProcess("sleep", "3600");
+// Long-running processes (ProcessOptions: working directory + environment only;
+// an ExecOptions carrying StandardInput/Timeout is rejected with ArgumentException)
+IWslProcess process = container.StartProcess("sleep", ["3600"]);
 Console.WriteLine(process.Id);
 await process.KillAsync();
 await process.DisposeAsync();
@@ -170,11 +171,12 @@ var strategy = Wait.ForWsl()
 ```
 
 Mapped ports are dynamic (`WindowsPort = 0`): the WSL runtime assigns a free host port and WSLC
-resolves it after start, so `GetMappedPort(5432)` never collides between parallel tests.
+resolves it after start, so `GetConnectEndpoint(5432)` never collides between parallel tests.
 Mappings are TCP-only: the WSLC runtime returns `E_NOTIMPL` for UDP mappings. The Windows side
-binds loopback by default; pass a bind address (e.g. `"0.0.0.0"`) to override. TCP/HTTP readiness
-probes honor the configured bind address; `GetMappedHost(port)` returns the effective connect
-address (wildcard bindings resolve to loopback).
+binds loopback by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override.
+TCP/HTTP readiness probes honor the configured bind address; `GetConnectEndpoint(port)` returns
+the effective endpoint (wildcard bindings resolve to loopback: `127.0.0.1` for `0.0.0.0`, `::1`
+for `::`).
 
 ## Lifecycle and cleanup
 

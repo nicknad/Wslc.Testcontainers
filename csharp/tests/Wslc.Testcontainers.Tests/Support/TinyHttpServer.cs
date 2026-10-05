@@ -13,11 +13,11 @@ internal sealed class TinyHttpServer : IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private int _requestCount;
 
-    public TinyHttpServer(int statusCode = 200, string? location = null)
+    public TinyHttpServer(int statusCode = 200, string? location = null, IPAddress? address = null)
     {
         _statusCode = statusCode;
         _location = location;
-        _listener = new TcpListener(IPAddress.Loopback, 0);
+        _listener = new TcpListener(address ?? IPAddress.Loopback, 0);
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
         _ = AcceptLoopAsync();

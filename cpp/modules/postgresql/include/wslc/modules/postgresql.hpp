@@ -63,7 +63,7 @@ public:
     PostgreSqlContainer& operator=(PostgreSqlContainer&&) noexcept = default;
 
     /// <summary>Gets the Windows port mapped to the Postgres port.</summary>
-    int GetMappedPort() const { return WslModuleContainer::GetMappedPort(ContainerPort); }
+    int GetMappedPort() const { return WslModuleContainer::GetConnectEndpoint(ContainerPort).Port; }
 
     /// <summary>Renders an Npgsql-style connection string for the running container.</summary>
     std::string GetConnectionString() const;

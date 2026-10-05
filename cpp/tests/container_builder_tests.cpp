@@ -356,8 +356,38 @@ TEST(ContainerBuilder, ContainerGuardsAccessBeforeStart)
     auto container = builder.WithImage("alpine:latest").Build();
 
     EXPECT_FALSE(container.IsStarted());
-    EXPECT_THROW(container.GetMappedPort(8080), WslcException);
+    EXPECT_THROW(container.GetConnectEndpoint(8080), WslcException);
     EXPECT_THROW(container.Exec("echo"), WslcException);
+}
+
+TEST(ContainerBuilder, StartProcessRejectsExecOnlyOptionsBeforeContainerWork)
+{
+    WslContainerBuilder builder;
+    auto container = builder.WithImage("alpine:latest").Build();
+
+    wslc::ExecOptions withStandardInput;
+    withStandardInput.StandardInput = "text";
+    try
+    {
+        container.StartProcess("cat", {}, withStandardInput);
+        FAIL() << "Expected WslcException for StandardInput.";
+    }
+    catch (const WslcException& exception)
+    {
+        EXPECT_NE(std::string(exception.what()).find("StandardInput"), std::string::npos);
+    }
+
+    wslc::ExecOptions withTimeout;
+    withTimeout.Timeout = 1s;
+    try
+    {
+        container.StartProcess("cat", {}, withTimeout);
+        FAIL() << "Expected WslcException for Timeout.";
+    }
+    catch (const WslcException& exception)
+    {
+        EXPECT_NE(std::string(exception.what()).find("Timeout"), std::string::npos);
+    }
 }
 
 TEST(ContainerBuilder, DisposeIsSafeForUnstartedContainers)

@@ -26,7 +26,8 @@ RedisContainer::RedisContainer(WslContainer inner) : WslModuleContainer(std::mov
 
 std::string RedisContainer::GetConnectionString() const
 {
-    return Host() + ":" + std::to_string(GetMappedPort());
+    const WslEndpoint endpoint = GetConnectEndpoint(ContainerPort);
+    return endpoint.Host + ":" + std::to_string(endpoint.Port);
 }
 
 } // namespace wslc::modules

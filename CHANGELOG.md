@@ -19,8 +19,7 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 - `Wait.ForWsl().Until(name, condition)`: poll a custom readiness delegate with the builder's timeout/retry settings.
 - `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `LogsAsync` stream.
-- `IWslContainer.GetMappedHost(int containerPort)`: effective connect address for a mapped port (the configured bind address; loopback for wildcard/default bindings).
-- `ExecAsync(string command, ExecOptions?, CancellationToken)` overload: options (and cancellation) without the `Array.Empty<string>()` argument noise.
+- `WslEndpoint` (C++): the Windows host/port pair returned by `GetConnectEndpoint`.
 - Readiness failures and startup timeouts now hint when no init command was configured: WSLC never runs the image's ENTRYPOINT/CMD automatically.
 - XML docs for the module packages (`PostgreSqlBuilder`/`PostgreSqlContainer`/`RedisBuilder`/`RedisContainer`).
 
@@ -73,11 +72,45 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 - `WithFile` absolutizes the host source path when the builder call runs, matching `WithVolume`
   and the C++ port. A current-directory change between `Build()` and `StartAsync()` can no longer
   redirect the copy, and the reuse hash now matches C++ for the same relative input.
+- Exec/process options are split by scope: `ProcessOptions` carries the environment and working
+  directory, and `ExecOptions` derives from it with `StandardInput`/`Timeout` (C++:
+  `ProcessOptions` / `ExecOptions : ProcessOptions`). `ExecAsync` and `StartProcess` collapse to
+  one overload each — `ExecAsync(string command, string[]? arguments = null, ExecOptions? options
+  = null, CancellationToken cancellationToken = default)` and `StartProcess(string command,
+  string[]? arguments = null, ProcessOptions? options = null, CancellationToken cancellationToken
+  = default)` — so an argument array is explicit (`ExecAsync("ps", ["aux"])`) and `ExecAsync("cmd")`
+  still works. Because `ExecOptions` derives from `ProcessOptions`, `StartProcess` still accepts
+  an `ExecOptions` but rejects one carrying `StandardInput`/`Timeout` (those apply only to
+  `ExecAsync`): C# throws `ArgumentException`, C++ throws `WslcException` after an RTTI check on
+  the now-polymorphic `ProcessOptions` base (`StartProcess` takes `const ProcessOptions&`, so the
+  derived type stays visible and nothing is sliced). C++ `ProcessOptions`/`ExecOptions` are no
+  longer aggregates because of that virtual base, so designated-initializer syntax such as
+  `ExecOptions{ .Timeout = ... }` no longer compiles; use value-initialization plus member
+  assignment (`ExecOptions o; o.Timeout = ...;`). C# object initializers are unaffected.
+- One connect endpoint replaces the host/port getters in both languages:
+  `System.Net.IPEndPoint GetConnectEndpoint(int containerPort)` (C# `IWslContainer`,
+  `IWaitTarget`, `WslModuleContainer`, `WslContainer`) and `WslEndpoint GetConnectEndpoint(int
+  containerPort)` (C++). It returns the runtime-assigned host port plus the mapping's configured
+  bind address (loopback for default/wildcard bindings); wait strategies, module connection
+  helpers and diagnostics all use it. Before `StartAsync`/`Start` it throws `WslcException`
+  (`WslNetworkException` for undeclared/unassigned ports, unchanged).
+- `WslContainerBuilder.WithPort(int port, System.Net.IPAddress address)` joins the string overload;
+  both normalize the address and conflict-check identical ports the same way.
 
 ### Removed
 
 - `StartProcessAsync` (all six members) — obsolete before first release; use `StartProcess`.
 - `WithVolume(hostPath, containerPath, bool readOnly)` — use the `VolumeAccess` overload or `WithReadOnlyVolume`.
+- `IWslContainer.Host`, `IWslContainer.GetMappedPort(int)` and `IWslContainer.GetMappedHost(int)`
+  (also on `WslContainer`/`WslModuleContainer`), and `IWaitTarget.Host`, `GetMappedPort`,
+  `GetProbeHost`; the C++ `Host`/`GetMappedPort`/`GetMappedHost`/`GetProbeHost` equivalents; use
+  `GetConnectEndpoint` and the returned endpoint's host/port.
+- `ExecAsync(string, params string[])`, `ExecAsync(string, ExecOptions?, CancellationToken)` and
+  `StartProcess(string, params string[])` (C#); the `ExecOptions`-taking C# `StartProcess` is
+  replaced by the `ProcessOptions` one that runtime-rejects exec-only settings. The C++
+  `StartProcess(..., ExecOptions, ...)` overload was removed; the new
+  `StartProcess(..., const ProcessOptions&, ...)` overload serves all call forms and runtime-rejects
+  an `ExecOptions` carrying `StandardInput`/`Timeout`.
 
 ## 0.1.0-preview.1
 

@@ -43,7 +43,7 @@ public:
     RedisContainer& operator=(RedisContainer&&) noexcept = default;
 
     /// <summary>Gets the Windows port mapped to the Redis port.</summary>
-    int GetMappedPort() const { return WslModuleContainer::GetMappedPort(ContainerPort); }
+    int GetMappedPort() const { return WslModuleContainer::GetConnectEndpoint(ContainerPort).Port; }
 
     /// <summary>Renders the "Host:port" endpoint for StackExchange.Redis.</summary>
     std::string GetConnectionString() const;

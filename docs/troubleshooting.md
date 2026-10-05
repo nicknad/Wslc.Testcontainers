@@ -73,7 +73,7 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
 ```
 
 3. Check the usual causes:
-   - Wrong port: `GetMappedPort(n)` throws `WslNetworkException` when `n`
+   - Wrong port: `GetConnectEndpoint(n)` throws `WslNetworkException` when `n`
      wasn't declared with `WithPort(n)` or the runtime hasn't assigned it yet.
      Always `WithPort()` every port you probe or map.
    - Wait too strict: `UntilMessageIsLogged` is ordinal substring, case-sensitive and ignores
@@ -94,11 +94,12 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
 
 ## Ports
 
-- Mapped ports are dynamic. Never hardcode the host port — always
-  `$"Host={container.Host};Port={container.GetMappedPort(5432)}"`.
-- `GetMappedPort()` before `StartAsync()` throws by design.
+- Mapped ports are dynamic. Never hardcode the host port — always resolve it with
+  `var endpoint = container.GetConnectEndpoint(5432);` and use `endpoint.Address` /
+  `endpoint.Port`.
+- `GetConnectEndpoint()` before `StartAsync()` throws by design.
 - Parallel tests are isolated (one WSL session per container), so distinct
-  `GetMappedPort()` values across tests are expected.
+  `GetConnectEndpoint()` values across tests are expected.
 
 ## Storage and orphans
 

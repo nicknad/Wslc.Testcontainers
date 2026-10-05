@@ -147,13 +147,24 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithPort(int port, string bindAddress)
     {
-        ValidatePort(port);
         ArgumentException.ThrowIfNullOrWhiteSpace(bindAddress);
         if (!IPAddress.TryParse(bindAddress, out var address))
         {
             throw new ArgumentException($"Bind address '{bindAddress}' is not a valid IP address.", nameof(bindAddress));
         }
 
+        return WithPort(port, address);
+    }
+
+    /// <summary>
+    /// Declares a Linux TCP service port bound to a specific Windows address (e.g.
+    /// <see cref="IPAddress.Any"/> to expose it on the LAN). The Windows port stays dynamic.
+    /// When omitted the SDK default (loopback, <c>127.0.0.1</c>) is used.
+    /// </summary>
+    public WslContainerBuilder WithPort(int port, IPAddress address)
+    {
+        ValidatePort(port);
+        ArgumentNullException.ThrowIfNull(address);
         return AddPortMapping(port, address.ToString());
     }
 

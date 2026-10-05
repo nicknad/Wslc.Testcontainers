@@ -171,20 +171,20 @@ std::vector<WslcContainerPortMapping> PortMapping::ToNativeMappings(std::vector<
     return mappings;
 }
 
-int PortMapping::GetMappedPort(int ContainerPort) const
+int PortMapping::GetMappedPort(int containerPort) const
 {
-    const auto it = m_entries.find(ContainerPort);
+    const auto it = m_entries.find(containerPort);
     if (it == m_entries.end())
     {
-        throw WslNetworkException("Port " + std::to_string(ContainerPort) +
-                                  " is not mapped. Declare it with WithPort(" + std::to_string(ContainerPort) +
+        throw WslNetworkException("Port " + std::to_string(containerPort) +
+                                  " is not mapped. Declare it with WithPort(" + std::to_string(containerPort) +
                                   ") before starting the container.");
     }
 
     if (it->second.MappedPort == 0)
     {
         throw WslNetworkException(
-            "Port " + std::to_string(ContainerPort) +
+            "Port " + std::to_string(containerPort) +
             " has no host mapping yet. The WSL runtime assigns the port when the container starts.");
     }
 
@@ -237,38 +237,37 @@ void PortMapping::ResolveFromInspect(std::string_view inspect_json)
     }
 }
 
-bool PortMapping::IsPortOpen(int ContainerPort, std::stop_token token) const
+bool PortMapping::IsPortOpen(int containerPort, std::stop_token token) const
 {
-    const int MappedPort = GetMappedPort(ContainerPort);
-    const std::string probe_address = GetProbeHost(ContainerPort);
-    return TcpProbe(probe_address, MappedPort, std::chrono::seconds(2), token);
+    const WslEndpoint endpoint = GetConnectEndpoint(containerPort);
+    return TcpProbe(endpoint.Host, endpoint.Port, std::chrono::seconds(2), token);
 }
 
-std::string PortMapping::GetProbeHost(int ContainerPort) const
+WslEndpoint PortMapping::GetConnectEndpoint(int containerPort) const
 {
-    const auto it = m_entries.find(ContainerPort);
-    if (it == m_entries.end() || !it->second.BindAddress)
+    const auto it = m_entries.find(containerPort);
+    std::string host = "127.0.0.1";
+    if (it != m_entries.end() && it->second.BindAddress)
     {
-        return "127.0.0.1";
+        const auto normalized = NormalizeIpAddress(*it->second.BindAddress);
+        if (normalized)
+        {
+            if (*normalized == "0.0.0.0")
+            {
+                host = "127.0.0.1";
+            }
+            else if (*normalized == "::")
+            {
+                host = "::1";
+            }
+            else
+            {
+                host = *normalized;
+            }
+        }
     }
 
-    const auto normalized = NormalizeIpAddress(*it->second.BindAddress);
-    if (!normalized)
-    {
-        return "127.0.0.1";
-    }
-
-    if (*normalized == "0.0.0.0")
-    {
-        return "127.0.0.1";
-    }
-
-    if (*normalized == "::")
-    {
-        return "::1";
-    }
-
-    return *normalized;
+    return WslEndpoint{std::move(host), GetMappedPort(containerPort)};
 }
 
 } // namespace wslc::internal

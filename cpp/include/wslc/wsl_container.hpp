@@ -53,20 +53,15 @@ public:
     /// <summary>Gets a value indicating whether the container has been started.</summary>
     bool IsStarted() const;
 
-    /// <summary>Gets the Windows loopback address (127.0.0.1) for mapped ports.</summary>
-    std::string Host() const override;
-
-    /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
-    int GetMappedPort(int port) const override;
-
     /// <summary>
-    /// Gets the Windows address to connect to for a mapped Linux TCP port: the port's configured
-    /// bind address, or loopback for the default/wildcard binding. Before Start this is loopback.
+    /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
+    /// Host port and the port's configured bind address. The default/wildcard binding resolves to
+    /// loopback: IPv4 127.0.0.1 for 0.0.0.0 and IPv6 ::1 for ::.
     /// </summary>
-    std::string GetMappedHost(int port) const;
-
-    /// <summary>IWaitTarget surface: same as <c>GetMappedHost</c>.</summary>
-    std::string GetProbeHost(int port) const override;
+    /// <exception cref="WslcException">The container has not been started.</exception>
+    /// <exception cref="WslNetworkException">The port was not declared with WithPort or the runtime
+    /// has not assigned it.</exception>
+    WslEndpoint GetConnectEndpoint(int containerPort) const override;
 
     /// <summary>Creates and provisions the Environment, then waits until all readiness Strategies pass.</summary>
     void Start(std::stop_token token = {});
@@ -88,11 +83,13 @@ public:
 
     /// <summary>
     /// Starts a long-running process inside the Environment. The caller owns the returned
-    /// Handle; destroying it terminates a still-running process. StandardInput/Timeout are
-    /// rejected and unset them throws WslcException. At most 1000 arguments may be passed.
+    /// Handle; destroying it terminates a still-running process. At most 1000 arguments may be
+    /// passed; options carry only the working directory and per-process Environment.
     /// </summary>
+    /// <exception cref="WslcException">options is an ExecOptions carrying StandardInput or Timeout;
+    /// those apply only to Exec().</exception>
     std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments = {},
-                                              ExecOptions options = {}, std::stop_token token = {});
+                                              const ProcessOptions& options = {}, std::stop_token token = {});
 
     /// <summary>
     /// Copies a Windows file into the Environment. Fails when the Source is missing or larger
@@ -119,7 +116,7 @@ public:
     void Dispose();
 
     // IWaitTarget surface used by Wait Strategies; not part of the primary API path.
-    bool IsTcpPortOpen(int ContainerPort, std::stop_token token) override;
+    bool IsTcpPortOpen(int containerPort, std::stop_token token) override;
     bool IsProcessRunning(std::string processName, std::stop_token token) override;
 
 private:

@@ -33,7 +33,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     private readonly string _ownerProcessId;
     private readonly string _name;
 
-    // Mutable state is published with volatile so lock-free readers (Exec/Copy/GetMappedPort
+    // Mutable state is published with volatile so lock-free readers (Exec/Copy/GetConnectEndpoint
     // and the process-exit hook) observe a consistent reference instead of a torn read.
     private volatile Session? _session;
     private volatile Microsoft.WSL.Containers.Container? _container;
@@ -66,9 +66,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     /// <inheritdoc />
     public string Name => _name;
 
-    /// <inheritdoc />
-    public string Host => IPAddress.Loopback.ToString();
-
     /// <summary>Gets the container image reference, when one was configured.</summary>
     public string? Image => _configuration.Image ?? _configuration.TarballImageName;
 
@@ -78,16 +75,12 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     internal WslContainerConfiguration Configuration => _configuration;
 
     /// <inheritdoc />
-    public int GetMappedPort(int port)
+    public IPEndPoint GetConnectEndpoint(int containerPort)
     {
         var network = _network
-            ?? throw new WslcException($"Container '{Name}' has not been started, so port {port} is not mapped yet. Call StartAsync() first.");
-        return network.GetMappedPort(port);
+            ?? throw new WslcException($"Container '{Name}' has not been started, so port {containerPort} is not mapped yet. Call StartAsync() first.");
+        return network.GetConnectEndpoint(containerPort);
     }
-
-    /// <inheritdoc />
-    public string GetMappedHost(int port) =>
-        _network is { } network ? network.GetProbeHost(port) : Host;
 
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken = default)
@@ -112,39 +105,38 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }, cancellationToken);
 
     /// <inheritdoc />
-    public Task<ExecResult> ExecAsync(string command, params string[] arguments) =>
-        ExecInternalAsync(command, arguments, null, CancellationToken.None);
+    public Task<ExecResult> ExecAsync(
+        string command,
+        string[]? arguments = null,
+        ExecOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        ExecInternalAsync(command, arguments ?? Array.Empty<string>(), options, cancellationToken);
 
     /// <inheritdoc />
-    public Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
-        ExecInternalAsync(command, arguments, options, cancellationToken);
-
-    /// <inheritdoc />
-    public Task<ExecResult> ExecAsync(string command, ExecOptions? options, CancellationToken cancellationToken) =>
-        ExecInternalAsync(command, Array.Empty<string>(), options, cancellationToken);
-
-    /// <inheritdoc />
-    public IWslProcess StartProcess(string command, params string[] arguments) =>
-        StartProcess(command, arguments, null, CancellationToken.None);
-
-    /// <inheritdoc />
-    public IWslProcess StartProcess(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default)
+    public IWslProcess StartProcess(
+        string command,
+        string[]? arguments = null,
+        ProcessOptions? options = null,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ArgumentException.ThrowIfNullOrWhiteSpace(command);
-        ArgumentNullException.ThrowIfNull(arguments);
+        arguments ??= Array.Empty<string>();
         ValidateCommandArguments(arguments);
-        if (options?.StandardInput is not null)
+
+        // options is ProcessOptions so it also accepts ExecOptions; silently dropping the
+        // derived StandardInput/Timeout members would mislead callers, so reject them here.
+        if (options is ExecOptions { StandardInput: not null })
         {
             throw new ArgumentException("StandardInput applies only to ExecAsync, not to long-running StartProcess. Use ExecAsync for stdin.", nameof(options));
         }
 
-        if (options?.Timeout is not null)
+        if (options is ExecOptions { Timeout: not null })
         {
             throw new ArgumentException("Timeout applies only to ExecAsync, not to long-running StartProcess. Kill the IWslProcess when done.", nameof(options));
         }
 
-        ValidateExecOptions(options);
+        ValidateProcessOptions(options);
         var container = RequireContainer();
 
         var settings = BuildProcessSettings(command, arguments, options, enableStandardInput: false);
@@ -208,8 +200,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         _network is { } network
             ? network.IsPortOpenAsync(containerPort, cancellationToken)
             : Task.FromResult(false);
-
-    string IWaitTarget.GetProbeHost(int containerPort) => GetMappedHost(containerPort);
 
     Task<bool> IWaitTarget.IsProcessRunningAsync(string processName, CancellationToken cancellationToken) =>
         IsProcessRunningAsync(processName, cancellationToken);
@@ -761,7 +751,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         return environment;
     }
 
-    private ProcessSettings BuildProcessSettings(string command, IReadOnlyList<string> arguments, ExecOptions? options, bool enableStandardInput)
+    private ProcessSettings BuildProcessSettings(string command, IReadOnlyList<string> arguments, ProcessOptions? options, bool enableStandardInput)
     {
         var commandLine = BuildCommandLine(command, arguments);
         return WslcProcessRunner.CreateSettings(
@@ -991,6 +981,16 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             WslcProcessRunner.ValidateStandardInputSize(Encoding.UTF8.GetByteCount(standardInput));
         }
 
+        ValidateProcessOptions(options);
+    }
+
+    private static void ValidateProcessOptions(ProcessOptions? options)
+    {
+        if (options is null)
+        {
+            return;
+        }
+
         if (options.Environment is not null)
         {
             BuilderLimits.RequireCount(
@@ -1009,7 +1009,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
         if (options.WorkingDirectory is { } workingDirectory)
         {
-            Validation.RequireContainerPath(workingDirectory, nameof(ExecOptions.WorkingDirectory));
+            Validation.RequireContainerPath(workingDirectory, nameof(ProcessOptions.WorkingDirectory));
         }
     }
 

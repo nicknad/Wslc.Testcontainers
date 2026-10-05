@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace Wslc.Testcontainers.Waiting;
 
 /// <summary>
@@ -13,18 +15,15 @@ public interface IWaitTarget
     /// <summary>Gets the WSLC instance name.</summary>
     string Name { get; }
 
-    /// <summary>Gets the host exposing mapped ports.</summary>
-    string Host { get; }
-
-    /// <summary>Gets the mapped host port for a Linux port.</summary>
-    int GetMappedPort(int containerPort);
-
     /// <summary>
-    /// Gets the host address a probe should connect to for a mapped Linux TCP port. This is
-    /// the mapping's bind address when one was configured, so readiness probes reach ports
-    /// bound to a non-loopback Windows address; it falls back to <see cref="Host"/>.
+    /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
+    /// host port and the port's configured bind address. The default/wildcard binding resolves to
+    /// loopback: IPv4 <c>127.0.0.1</c> for <c>0.0.0.0</c> and IPv6 <c>::1</c> for <c>::</c>.
+    /// Before startup completes this throws; network probes run only while started.
     /// </summary>
-    string GetProbeHost(int containerPort);
+    /// <exception cref="WslcException">The container has not been started.</exception>
+    /// <exception cref="WslNetworkException">The port was not declared with <c>WithPort</c> or the runtime has not assigned it.</exception>
+    IPEndPoint GetConnectEndpoint(int containerPort);
 
     /// <summary>Executes a command inside the environment.</summary>
     Task<ExecResult> ExecAsync(string command, string[] arguments, CancellationToken cancellationToken);

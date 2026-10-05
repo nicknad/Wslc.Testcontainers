@@ -1,6 +1,7 @@
 #pragma once
 
 // Umbrella header for the Wslc.Testcontainers C++ library.
+#include "wslc/endpoint.hpp"
 #include "wslc/environment.hpp"
 #include "wslc/exceptions.hpp"
 #include "wslc/exec.hpp"

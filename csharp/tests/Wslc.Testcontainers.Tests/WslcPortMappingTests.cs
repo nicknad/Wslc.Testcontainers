@@ -46,11 +46,14 @@ public sealed class WslcPortMappingTests
     [InlineData("192.168.1.10", "192.168.1.10")]
     [InlineData("::", "::1")]
     [InlineData("::1", "::1")]
-    public void Probe_host_follows_the_bind_address(string? bindAddress, string expected)
+    public void Connect_endpoint_follows_the_bind_address(string? bindAddress, string expected)
     {
         var mapping = WslcPortMapping.Create(new[] { Port(8080, bindAddress) });
+        mapping.ResolveFromInspect("""{"Ports":{"8080/tcp":[{"HostPort":"4514"}]}}""");
 
-        Assert.Equal(expected, mapping.GetProbeHost(8080));
+        var endpoint = mapping.GetConnectEndpoint(8080);
+        Assert.Equal(expected, endpoint.Address.ToString());
+        Assert.Equal(4514, endpoint.Port);
     }
 
     [Fact]

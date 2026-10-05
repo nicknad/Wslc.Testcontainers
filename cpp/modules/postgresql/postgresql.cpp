@@ -66,7 +66,8 @@ PostgreSqlContainer::PostgreSqlContainer(WslContainer inner, std::string usernam
 
 std::string PostgreSqlContainer::GetConnectionString() const
 {
-    return "Host=" + Host() + ";Port=" + std::to_string(GetMappedPort()) + ";Username=" + m_username +
+    const WslEndpoint endpoint = GetConnectEndpoint(ContainerPort);
+    return "Host=" + endpoint.Host + ";Port=" + std::to_string(endpoint.Port) + ";Username=" + m_username +
            ";Password=" + m_password + ";Database=" + m_database;
 }
 

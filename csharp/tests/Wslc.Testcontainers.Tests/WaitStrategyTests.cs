@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Wslc.Testcontainers.Tests.Support;
 using Wslc.Testcontainers.Waiting;
 using Xunit;
@@ -113,7 +115,7 @@ public sealed class WaitStrategyTests
     {
         using var destination = new TinyHttpServer();
         using var redirect = new TinyHttpServer(statusCode: 302, location: $"http://127.0.0.1:{destination.Port}/final");
-        var target = new FakeWaitTarget { Host = "127.0.0.1", ProbeHost = "127.0.0.1", MappedPort = redirect.Port };
+        var target = new FakeWaitTarget { ConnectEndpoint = new IPEndPoint(IPAddress.Loopback, redirect.Port) };
 
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(2))
@@ -213,7 +215,7 @@ public sealed class WaitStrategyTests
     public async Task Http_strategy_succeeds_for_non_server_errors()
     {
         using var server = new TinyHttpServer(statusCode: 200);
-        var target = new FakeWaitTarget { MappedPort = server.Port };
+        var target = new FakeWaitTarget { ConnectEndpoint = new IPEndPoint(IPAddress.Loopback, server.Port) };
 
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(5))
@@ -224,15 +226,13 @@ public sealed class WaitStrategyTests
     }
 
     [Fact]
-    public async Task Http_strategy_probes_the_mapped_ports_host()
+    public async Task Http_strategy_probes_the_connect_endpoint()
     {
         using var server = new TinyHttpServer(statusCode: 200);
-        // Host is unreachable; only ProbeHost (the mapping's bind address) leads to the server.
+        // Only the mapping's effective endpoint (bind address + assigned port) leads to the server.
         var target = new FakeWaitTarget
         {
-            Host = "192.0.2.1",
-            ProbeHost = "127.0.0.1",
-            MappedPort = server.Port,
+            ConnectEndpoint = new IPEndPoint(IPAddress.Loopback, server.Port),
         };
 
         var strategy = Wait.ForWsl()
@@ -244,10 +244,48 @@ public sealed class WaitStrategyTests
     }
 
     [Fact]
+    public async Task Http_strategy_brackets_ipv6_connect_endpoints()
+    {
+        var server = TryCreateIpv6Server();
+        if (server is null)
+        {
+            Assert.Skip("IPv6 loopback is not available in this environment.");
+        }
+
+        using var listener = server;
+
+        // The probe URI is built from IPEndPoint.ToString(), which brackets the IPv6 literal.
+        // Without the brackets the authority would not parse and the wait could never succeed.
+        var target = new FakeWaitTarget
+        {
+            ConnectEndpoint = new IPEndPoint(IPAddress.IPv6Loopback, server!.Port),
+        };
+
+        var strategy = Wait.ForWsl()
+            .WithTimeout(TimeSpan.FromSeconds(5))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(50))
+            .UntilHttpRequestIsSucceeded("/health", 8080);
+
+        await strategy.WaitAsync(target, CancellationToken.None);
+    }
+
+    private static TinyHttpServer? TryCreateIpv6Server()
+    {
+        try
+        {
+            return new TinyHttpServer(statusCode: 200, address: IPAddress.IPv6Loopback);
+        }
+        catch (SocketException)
+        {
+            return null;
+        }
+    }
+
+    [Fact]
     public async Task Http_strategy_times_out_for_server_errors()
     {
         using var server = new TinyHttpServer(statusCode: 500);
-        var target = new FakeWaitTarget { MappedPort = server.Port };
+        var target = new FakeWaitTarget { ConnectEndpoint = new IPEndPoint(IPAddress.Loopback, server.Port) };
 
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromMilliseconds(300))

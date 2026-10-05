@@ -67,13 +67,8 @@ void ValidateEnvironmentName(const std::string& Name)
     }
 }
 
-void ValidateExecOptions(const ExecOptions& options)
+void ValidateProcessOptions(const ProcessOptions& options)
 {
-    if (options.Timeout)
-    {
-        internal::RequireExecTimeout(*options.Timeout);
-    }
-
     internal::RequireCount(options.Environment.size(), internal::c_maxEnvironmentVariables,
                            "exec environment variables");
     for (const auto& pair : options.Environment)
@@ -86,6 +81,16 @@ void ValidateExecOptions(const ExecOptions& options)
     {
         internal::ValidateContainerPath(*options.WorkingDirectory);
     }
+}
+
+void ValidateExecOptions(const ExecOptions& options)
+{
+    if (options.Timeout)
+    {
+        internal::RequireExecTimeout(*options.Timeout);
+    }
+
+    ValidateProcessOptions(options);
 }
 
 std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
@@ -210,14 +215,13 @@ struct WslContainer::Impl
                     std::stop_token token);
 
     std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments,
-                                              ExecOptions options, std::stop_token token);
+                                              const ProcessOptions& options, std::stop_token token);
 
     void CopyTo(const std::filesystem::path& HostPath, std::string ContainerPath, std::stop_token token);
     void CopyFrom(std::string ContainerPath, const std::filesystem::path& HostPath, std::stop_token token);
     std::vector<LogLine> RecentLogs(int maxLines) const;
-    int MappedPort(int port) const;
-    std::string mapped_host(int port) const;
-    bool tcp_port_open(int ContainerPort, std::stop_token token) const;
+    WslEndpoint connect_endpoint(int containerPort) const;
+    bool tcp_port_open(int containerPort, std::stop_token token) const;
     bool process_running(std::string processName, std::stop_token token);
 
     std::optional<std::string> Image() const
@@ -294,7 +298,7 @@ private:
     std::map<std::string, std::string> BuildEnvironment(const std::map<std::string, std::string>& overrides);
     internal::ProcessSettings BuildProcessSettings(const std::string& command,
                                                    const std::vector<std::string>& arguments,
-                                                   const ExecOptions& options, bool EnableStandardInput);
+                                                   const ProcessOptions& options, bool EnableStandardInput);
 };
 
 void WslContainer::Impl::Start(WslContainer& target, std::stop_token caller)
@@ -1208,7 +1212,8 @@ std::map<std::string, std::string> WslContainer::Impl::BuildEnvironment(
 
 internal::ProcessSettings WslContainer::Impl::BuildProcessSettings(const std::string& command,
                                                                    const std::vector<std::string>& arguments,
-                                                                   const ExecOptions& options, bool EnableStandardInput)
+                                                                   const ProcessOptions& options,
+                                                                   bool EnableStandardInput)
 {
     internal::ProcessSettings settings;
     settings.CommandLine.reserve(arguments.size() + 1);
@@ -1259,7 +1264,7 @@ ExecResult WslContainer::Impl::Exec(std::string command, std::vector<std::string
 }
 
 std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string command, std::vector<std::string> arguments,
-                                                              ExecOptions options, std::stop_token token)
+                                                              const ProcessOptions& options, std::stop_token token)
 {
     internal::EnsureComInitialized();
     internal::ThrowIfStopped(token);
@@ -1269,19 +1274,18 @@ std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string comman
     }
 
     internal::RequireCount(arguments.size(), internal::c_maxCommandArguments, "command arguments");
-    if (options.StandardInput)
+
+    // options is a ProcessOptions so it also accepts ExecOptions; silently dropping the derived
+    // StandardInput/Timeout members would mislead callers, so reject them before any container
+    // or process work. RTTI is enabled by default with /EHsc (the build never passes /GR-).
+    if (const auto* exec = dynamic_cast<const ExecOptions*>(&options);
+        exec != nullptr && (exec->StandardInput.has_value() || exec->Timeout.has_value()))
     {
-        throw WslcException(
-            "StandardInput applies only to Exec, not to long-running StartProcess. Use Exec for stdin.");
+        throw WslcException("StandardInput and Timeout apply only to Exec, not to long-running StartProcess. Use "
+                            "Exec for stdin or kill the IWslProcess when done.");
     }
 
-    if (options.Timeout)
-    {
-        throw WslcException(
-            "Timeout applies only to Exec, not to long-running StartProcess. Kill the process when done.");
-    }
-
-    ValidateExecOptions(options);
+    ValidateProcessOptions(options);
     auto containerHandle = RequireContainer();
     const internal::ProcessSettings settings = BuildProcessSettings(command, arguments, options, false);
 
@@ -1351,28 +1355,22 @@ std::vector<LogLine> WslContainer::Impl::RecentLogs(int maxLines) const
     return TakeLast(*Logs->Snapshot(), static_cast<std::size_t>(maxLines));
 }
 
-int WslContainer::Impl::MappedPort(int port) const
+WslEndpoint WslContainer::Impl::connect_endpoint(int containerPort) const
 {
     const auto networkSnapshot = get_network();
     if (!networkSnapshot)
     {
-        throw WslcException("Container '" + Name + "' has not been started, so port " + std::to_string(port) +
+        throw WslcException("Container '" + Name + "' has not been started, so port " + std::to_string(containerPort) +
                             " is not mapped yet. Call Start() first.");
     }
 
-    return networkSnapshot->GetMappedPort(port);
+    return networkSnapshot->GetConnectEndpoint(containerPort);
 }
 
-std::string WslContainer::Impl::mapped_host(int port) const
+bool WslContainer::Impl::tcp_port_open(int containerPort, std::stop_token token) const
 {
     const auto networkSnapshot = get_network();
-    return networkSnapshot ? networkSnapshot->GetProbeHost(port) : "127.0.0.1";
-}
-
-bool WslContainer::Impl::tcp_port_open(int ContainerPort, std::stop_token token) const
-{
-    const auto networkSnapshot = get_network();
-    return networkSnapshot ? networkSnapshot->IsPortOpen(ContainerPort, token) : false;
+    return networkSnapshot ? networkSnapshot->IsPortOpen(containerPort, token) : false;
 }
 
 bool WslContainer::Impl::process_running(std::string processName, std::stop_token token)
@@ -1436,24 +1434,9 @@ bool WslContainer::IsStarted() const
     return m_impl->started;
 }
 
-std::string WslContainer::Host() const
+WslEndpoint WslContainer::GetConnectEndpoint(int containerPort) const
 {
-    return "127.0.0.1";
-}
-
-int WslContainer::GetMappedPort(int port) const
-{
-    return m_impl->MappedPort(port);
-}
-
-std::string WslContainer::GetMappedHost(int port) const
-{
-    return m_impl->mapped_host(port);
-}
-
-std::string WslContainer::GetProbeHost(int port) const
-{
-    return m_impl->mapped_host(port);
+    return m_impl->connect_endpoint(containerPort);
 }
 
 void WslContainer::Start(std::stop_token token)
@@ -1478,9 +1461,9 @@ ExecResult WslContainer::Exec(std::string command, std::vector<std::string> argu
 }
 
 std::unique_ptr<IWslProcess> WslContainer::StartProcess(std::string command, std::vector<std::string> arguments,
-                                                        ExecOptions options, std::stop_token token)
+                                                        const ProcessOptions& options, std::stop_token token)
 {
-    return m_impl->StartProcess(std::move(command), std::move(arguments), std::move(options), token);
+    return m_impl->StartProcess(std::move(command), std::move(arguments), options, token);
 }
 
 void WslContainer::CopyTo(const std::filesystem::path& HostPath, std::string ContainerPath, std::stop_token token)
@@ -1516,9 +1499,9 @@ void WslContainer::Dispose()
     }
 }
 
-bool WslContainer::IsTcpPortOpen(int ContainerPort, std::stop_token token)
+bool WslContainer::IsTcpPortOpen(int containerPort, std::stop_token token)
 {
-    return m_impl->tcp_port_open(ContainerPort, token);
+    return m_impl->tcp_port_open(containerPort, token);
 }
 
 bool WslContainer::IsProcessRunning(std::string processName, std::stop_token token)

@@ -1,3 +1,4 @@
+using System.Net;
 using Wslc.Testcontainers.Waiting;
 
 namespace Wslc.Testcontainers.Tests.Support;
@@ -6,11 +7,7 @@ internal sealed class FakeWaitTarget : IWaitTarget
 {
     public string Name => "fake-container";
 
-    public string Host { get; set; } = "127.0.0.1";
-
-    public string? ProbeHost { get; set; }
-
-    public int MappedPort { get; set; } = 15000;
+    public IPEndPoint ConnectEndpoint { get; set; } = new(IPAddress.Loopback, 15000);
 
     public Func<string, string[], CancellationToken, Task<ExecResult>>? ExecHandler { get; set; }
 
@@ -20,9 +17,7 @@ internal sealed class FakeWaitTarget : IWaitTarget
 
     public List<LogLine> Logs { get; } = new();
 
-    public int GetMappedPort(int containerPort) => MappedPort;
-
-    public string GetProbeHost(int containerPort) => ProbeHost ?? Host;
+    public IPEndPoint GetConnectEndpoint(int containerPort) => ConnectEndpoint;
 
     public Task<ExecResult> ExecAsync(string command, string[] arguments, CancellationToken cancellationToken) =>
         ExecHandler?.Invoke(command, arguments, cancellationToken)

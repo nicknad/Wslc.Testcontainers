@@ -187,15 +187,14 @@ internal sealed class WslcPortMapping
 
     public async Task<bool> IsPortOpenAsync(int containerPort, CancellationToken cancellationToken = default)
     {
-        var mappedPort = GetMappedPort(containerPort);
-        var probeAddress = ResolveProbeAddress(containerPort);
+        var endpoint = GetConnectEndpoint(containerPort);
         using var client = new TcpClient();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(2));
 
         try
         {
-            await client.ConnectAsync(probeAddress, mappedPort, timeout.Token).ConfigureAwait(false);
+            await client.ConnectAsync(endpoint.Address, endpoint.Port, timeout.Token).ConfigureAwait(false);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -208,13 +207,19 @@ internal sealed class WslcPortMapping
         }
     }
 
-    /// <summary>Gets the host a readiness probe should connect to for a mapped TCP port.</summary>
-    public string GetProbeHost(int containerPort) => ResolveProbeAddress(containerPort).ToString();
+    /// <summary>
+    /// Gets the Windows endpoint a readiness probe should connect to for a mapped TCP port:
+    /// the runtime-assigned host port and the address the mapping is actually bound to.
+    /// The default/wildcard binding resolves to loopback: IPv4 <c>127.0.0.1</c> for
+    /// <c>0.0.0.0</c> and IPv6 <c>::1</c> for <c>::</c>.
+    /// </summary>
+    public IPEndPoint GetConnectEndpoint(int containerPort) =>
+        new(ResolveProbeAddress(containerPort), GetMappedPort(containerPort));
 
     /// <summary>
     /// Connects to the address the mapping is actually bound to. Wildcard bindings
-    /// (<c>0.0.0.0</c>/<c>::</c>) accept loopback; an unbound or unparsable entry falls
-    /// back to the SDK default (IPv4 loopback).
+    /// resolve to their loopback (<c>0.0.0.0</c> to IPv4, <c>::</c> to IPv6); an unbound or
+    /// unparsable entry falls back to the SDK default (IPv4 loopback).
     /// </summary>
     private IPAddress ResolveProbeAddress(int containerPort)
     {

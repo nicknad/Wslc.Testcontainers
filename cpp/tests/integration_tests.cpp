@@ -191,8 +191,8 @@ TEST(Integration, MapsPortsAndServesHttp)
     {
         container.Start();
 
-        const int mappedPort = container.GetMappedPort(8080);
-        EXPECT_GT(mappedPort, 0);
+        const wslc::WslEndpoint endpoint = container.GetConnectEndpoint(8080);
+        EXPECT_GT(endpoint.Port, 0);
         EXPECT_TRUE(container.IsStarted());
     }
     catch (...)
@@ -237,7 +237,7 @@ TEST(Integration, IsolatedNetworkingRunsCommandsWithoutPorts)
 
         EXPECT_EQ(result.ExitCode, 0);
         EXPECT_NE(result.StdoutText.find("offline-ok"), std::string::npos);
-        EXPECT_THROW(container.GetMappedPort(8080), WslNetworkException);
+        EXPECT_THROW(container.GetConnectEndpoint(8080), WslNetworkException);
     }
     catch (...)
     {

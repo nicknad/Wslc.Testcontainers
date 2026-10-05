@@ -166,14 +166,23 @@ TEST(PortMapping, BindAddressIsForwardedToTheContainerMapping)
     EXPECT_EQ(unbound->windowsAddress, nullptr);
 }
 
-TEST(PortMapping, ProbeHostFollowsTheBindAddress)
+TEST(PortMapping, ConnectEndpointFollowsTheBindAddress)
 {
-    EXPECT_EQ(PortMapping::Create({Port(8080)}).GetProbeHost(8080), std::string("127.0.0.1"));
-    EXPECT_EQ(PortMapping::Create({Port(8080, "0.0.0.0")}).GetProbeHost(8080), std::string("127.0.0.1"));
-    EXPECT_EQ(PortMapping::Create({Port(8080, "127.0.0.1")}).GetProbeHost(8080), std::string("127.0.0.1"));
-    EXPECT_EQ(PortMapping::Create({Port(8080, "192.168.1.10")}).GetProbeHost(8080), std::string("192.168.1.10"));
-    EXPECT_EQ(PortMapping::Create({Port(8080, "::")}).GetProbeHost(8080), std::string("::1"));
-    EXPECT_EQ(PortMapping::Create({Port(8080, "::1")}).GetProbeHost(8080), std::string("::1"));
+    const std::string inspect = "{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"4514\"}]}}";
+    const auto endpointFor = [&inspect](std::optional<std::string> bindAddress)
+    {
+        PortMapping mapping = PortMapping::Create({Port(8080, std::move(bindAddress))});
+        mapping.ResolveFromInspect(inspect);
+        return mapping.GetConnectEndpoint(8080);
+    };
+
+    EXPECT_EQ(endpointFor(std::nullopt).Host, std::string("127.0.0.1"));
+    EXPECT_EQ(endpointFor("0.0.0.0").Host, std::string("127.0.0.1"));
+    EXPECT_EQ(endpointFor("127.0.0.1").Host, std::string("127.0.0.1"));
+    EXPECT_EQ(endpointFor("192.168.1.10").Host, std::string("192.168.1.10"));
+    EXPECT_EQ(endpointFor("::").Host, std::string("::1"));
+    EXPECT_EQ(endpointFor("::1").Host, std::string("::1"));
+    EXPECT_EQ(endpointFor(std::nullopt).Port, 4514);
 }
 
 TEST(PortMapping, InspectPayloadResolvesDynamicPorts)

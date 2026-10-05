@@ -217,20 +217,18 @@ TEST(WaitStrategy, HttpSucceedsForNonServerErrors)
 {
     TinyHttpServer server(200);
     FakeWaitTarget target;
-    target.MappedPort = server.Port();
+    target.ConnectEndpoint.Port = server.Port();
 
     auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(50ms).UntilHttpRequestIsSucceeded("/health", 8080);
 
     strategy->Wait(target, std::stop_token{});
 }
 
-TEST(WaitStrategy, HttpProbesTheMappedPortsHost)
+TEST(WaitStrategy, HttpProbesTheConnectEndpoint)
 {
     TinyHttpServer server(200);
     FakeWaitTarget target;
-    target.HostAddress = "192.0.2.1";
-    target.ProbeHostAddress = "127.0.0.1";
-    target.MappedPort = server.Port();
+    target.ConnectEndpoint = {"127.0.0.1", server.Port()};
 
     auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(50ms).UntilHttpRequestIsSucceeded("/health", 8080);
 
@@ -241,7 +239,7 @@ TEST(WaitStrategy, HttpTimesOutForServerErrors)
 {
     TinyHttpServer server(500);
     FakeWaitTarget target;
-    target.MappedPort = server.Port();
+    target.ConnectEndpoint.Port = server.Port();
 
     auto strategy = ForWsl().WithTimeout(300ms).WithRetryInterval(25ms).UntilHttpRequestIsSucceeded("/health", 8080);
 

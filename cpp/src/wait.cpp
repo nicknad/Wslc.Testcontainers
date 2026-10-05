@@ -391,9 +391,8 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestIsSucceeded(std::
         "HTTP request to '" + path + "' on port " + std::to_string(validated) + " to succeed",
         [path, validated](IWaitTarget& target, std::stop_token token)
         {
-            const int MappedPort = target.GetMappedPort(validated);
-            const std::string probe_host = target.GetProbeHost(validated);
-            return internal::HttpGetSucceeds(probe_host, MappedPort, path, token);
+            const WslEndpoint endpoint = target.GetConnectEndpoint(validated);
+            return internal::HttpGetSucceeds(endpoint.Host, endpoint.Port, path, token);
         },
         true));
 }

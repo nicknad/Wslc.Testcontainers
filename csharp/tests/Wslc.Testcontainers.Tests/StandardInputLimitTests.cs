@@ -36,6 +36,7 @@ public sealed class StandardInputLimitTests
         var exception = await Assert.ThrowsAsync<WslProcessException>(
             () => container.ExecAsync(
                 "cat",
+                null,
                 new ExecOptions { StandardInput = oversized },
                 TestContext.Current.CancellationToken));
 

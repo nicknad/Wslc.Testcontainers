@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Internal;
 using Wslc.Testcontainers.Networking;
@@ -250,6 +251,7 @@ public sealed class WslContainerBuilderTests
         await Assert.ThrowsAsync<ArgumentException>(
             () => container.ExecAsync(
                 "echo",
+                null,
                 new ExecOptions { Environment = new Dictionary<string, string> { [name] = "value" } },
                 CancellationToken.None));
     }
@@ -439,8 +441,31 @@ public sealed class WslContainerBuilderTests
         await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
 
         Assert.False(container.IsStarted);
-        Assert.Throws<WslcException>(() => container.GetMappedPort(8080));
-        await Assert.ThrowsAsync<WslcException>(() => container.ExecAsync("echo"));
+        Assert.Throws<WslcException>(() => container.GetConnectEndpoint(8080));
+        await Assert.ThrowsAsync<WslcException>(
+            () => container.ExecAsync("echo", cancellationToken: TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task StartProcess_rejects_exec_only_options_before_container_work()
+    {
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+
+        var standardInput = Assert.Throws<ArgumentException>(
+            () => container.StartProcess(
+                "cat",
+                null,
+                new ExecOptions { StandardInput = "text" },
+                TestContext.Current.CancellationToken));
+        Assert.Contains("StandardInput", standardInput.Message, StringComparison.Ordinal);
+
+        var timeout = Assert.Throws<ArgumentException>(
+            () => container.StartProcess(
+                "cat",
+                null,
+                new ExecOptions { Timeout = TimeSpan.FromSeconds(1) },
+                TestContext.Current.CancellationToken));
+        Assert.Contains("Timeout", timeout.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -478,6 +503,59 @@ public sealed class WslContainerBuilderTests
 
         Assert.Equal(2, container.Configuration.WaitStrategies.Count);
         Assert.Equal("192.168.1.10", Assert.Single(container.Configuration.PortMappings).BindAddress);
+    }
+
+    [Fact]
+    public void WithPort_normalizes_and_conflict_checks_ipaddress_like_the_string_overload()
+    {
+        var container = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(8080, IPAddress.Any)
+            .Build();
+        Assert.Equal("0.0.0.0", Assert.Single(container.Configuration.PortMappings).BindAddress);
+
+        // The same address expressed as a literal is not a conflict.
+        var same = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(8080, "0.0.0.0")
+            .WithPort(8080, IPAddress.Any);
+        Assert.Equal("0.0.0.0", Assert.Single(same.Build().Configuration.PortMappings).BindAddress);
+
+        // A different address for the same port is rejected identically.
+        var conflict = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(8080, IPAddress.Any);
+        Assert.Throws<WslcException>(() => conflict.WithPort(8080, "127.0.0.1"));
+        Assert.Throws<WslcException>(() => conflict.WithPort(8080, IPAddress.Loopback));
+
+        var literalConflict = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(8080, "0.0.0.0");
+        Assert.Throws<WslcException>(() => literalConflict.WithPort(8080, IPAddress.Loopback));
+    }
+
+    [Fact]
+    public void WithPort_normalizes_ipv6_and_non_loopback_addresses()
+    {
+        var ipv6 = new WslContainerBuilder().WithImage("alpine").WithPort(8080, IPAddress.IPv6Loopback).Build();
+        Assert.Equal("::1", Assert.Single(ipv6.Configuration.PortMappings).BindAddress);
+
+        var nonLoopback = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(8080, IPAddress.Parse("192.168.1.10"))
+            .Build();
+        Assert.Equal("192.168.1.10", Assert.Single(nonLoopback.Configuration.PortMappings).BindAddress);
+
+        // The expanded IPv6 literal normalizes to the same canonical address, so it is not a conflict.
+        var same = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(8080, IPAddress.IPv6Loopback)
+            .WithPort(8080, "0:0:0:0:0:0:0:1");
+        Assert.Equal("::1", Assert.Single(same.Build().Configuration.PortMappings).BindAddress);
+
+        var conflict = new WslContainerBuilder().WithImage("alpine").WithPort(8080, IPAddress.IPv6Loopback);
+        Assert.Throws<WslcException>(() => conflict.WithPort(8080, IPAddress.Parse("192.168.1.10")));
+        Assert.Throws<WslcException>(() => conflict.WithPort(8080, "0.0.0.0"));
     }
 
     [Fact]
@@ -651,6 +729,7 @@ public sealed class WslContainerBuilderTests
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => container.ExecAsync(
                 "echo",
+                null,
                 new ExecOptions { Timeout = BuilderLimits.MaxExecTimeout + TimeSpan.FromSeconds(1) },
                 CancellationToken.None));
 
@@ -659,6 +738,7 @@ public sealed class WslContainerBuilderTests
         await Assert.ThrowsAsync<WslcException>(
             () => container.ExecAsync(
                 "echo",
+                null,
                 new ExecOptions { Timeout = BuilderLimits.MaxExecTimeout },
                 CancellationToken.None));
     }
@@ -672,12 +752,14 @@ public sealed class WslContainerBuilderTests
         Array.Fill(atCap, "arg");
         // At the cap the arguments pass validation; the unstarted container then fails, which
         // proves the list itself was accepted.
-        var atCapException = await Assert.ThrowsAsync<WslcException>(() => container.ExecAsync("echo", atCap));
+        var atCapException = await Assert.ThrowsAsync<WslcException>(
+            () => container.ExecAsync("echo", atCap, cancellationToken: TestContext.Current.CancellationToken));
         Assert.DoesNotContain("Too many", atCapException.Message);
 
         var overCap = new string[BuilderLimits.MaxCommandArguments + 1];
         Array.Fill(overCap, "arg");
-        var overCapException = await Assert.ThrowsAsync<WslcException>(() => container.ExecAsync("echo", overCap));
+        var overCapException = await Assert.ThrowsAsync<WslcException>(
+            () => container.ExecAsync("echo", overCap, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Contains("maximum", overCapException.Message);
     }
 
@@ -690,6 +772,7 @@ public sealed class WslContainerBuilderTests
         var atCapException = await Assert.ThrowsAsync<WslcException>(
             () => container.ExecAsync(
                 "echo",
+                null,
                 new ExecOptions { Environment = new Dictionary<string, string> { ["BIG"] = atCap } },
                 CancellationToken.None));
         Assert.DoesNotContain("Environment variable", atCapException.Message);
@@ -697,6 +780,7 @@ public sealed class WslContainerBuilderTests
         var overValue = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => container.ExecAsync(
                 "echo",
+                null,
                 new ExecOptions { Environment = new Dictionary<string, string> { ["BIG"] = atCap + "a" } },
                 CancellationToken.None));
         Assert.Contains("maximum", overValue.Message);
@@ -710,6 +794,7 @@ public sealed class WslContainerBuilderTests
         var overCountException = await Assert.ThrowsAsync<WslcException>(
             () => container.ExecAsync(
                 "echo",
+                null,
                 new ExecOptions { Environment = overCount },
                 CancellationToken.None));
         Assert.Contains("maximum", overCountException.Message);

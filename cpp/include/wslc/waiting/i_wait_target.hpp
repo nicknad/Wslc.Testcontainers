@@ -1,5 +1,6 @@
 #pragma once
 
+#include "wslc/endpoint.hpp"
 #include "wslc/exec.hpp"
 #include "wslc/log_line.hpp"
 
@@ -22,20 +23,19 @@ public:
     /// <summary>Gets the WSLC instance Name.</summary>
     virtual const std::string& Name() const = 0;
 
-    /// <summary>Gets the Host exposing mapped ports.</summary>
-    virtual std::string Host() const = 0;
-
-    /// <summary>Gets the mapped Host port for a Linux port.</summary>
-    virtual int GetMappedPort(int ContainerPort) const = 0;
-
-    /// <summary>Gets the Host address a probe should connect to for a mapped Linux TCP port.</summary>
-    virtual std::string GetProbeHost(int ContainerPort) const = 0;
+    /// <summary>
+    /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
+    /// Host port and the port's configured bind address. The default/wildcard binding resolves to
+    /// loopback: IPv4 127.0.0.1 for 0.0.0.0 and IPv6 ::1 for ::. Before startup completes this
+    /// throws; network probes Run only while started.
+    /// </summary>
+    virtual WslEndpoint GetConnectEndpoint(int containerPort) const = 0;
 
     /// <summary>Executes a command inside the Environment.</summary>
     virtual ExecResult Exec(std::string command, std::vector<std::string> arguments, std::stop_token token) = 0;
 
     /// <summary>Probes a Linux TCP port.</summary>
-    virtual bool IsTcpPortOpen(int ContainerPort, std::stop_token token) = 0;
+    virtual bool IsTcpPortOpen(int containerPort, std::stop_token token) = 0;
 
     /// <summary>Probes whether a Linux process is running.</summary>
     virtual bool IsProcessRunning(std::string processName, std::stop_token token) = 0;

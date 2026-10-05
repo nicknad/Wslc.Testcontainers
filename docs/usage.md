@@ -81,7 +81,7 @@ await using var container = new WslContainerBuilder()
 await container.StartAsync();
 
 var whoami = await container.ExecAsync(
-    "sh", new[] { "-c", "echo $HELLO && uname -a" }, null, CancellationToken.None);
+    "sh", ["-c", "echo $HELLO && uname -a"], cancellationToken: CancellationToken.None);
 whoami.EnsureSuccess();
 Console.WriteLine($"exit={whoami.ExitCode} stdout={whoami.Stdout.Trim()}");
 ```
@@ -141,7 +141,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithCommand(cmd, params args)` | Init process. WSLC never runs the image's ENTRYPOINT/CMD automatically; the default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules override this with the image entrypoint (e.g. `docker-entrypoint.sh postgres`) — do not override it for modules. |
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
-| `WithPort(containerPort)` / `WithPort(port, bindAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve with `GetMappedPort()`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass `bindAddress` (e.g. `0.0.0.0`) to override. TCP/HTTP readiness probes honor the configured bind address. |
+| `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve the address and port with `GetConnectEndpoint(containerPort)`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address. |
 | `WithNetworkingMode(mode)` | `Bridged` (default) or `None` (no NIC — full isolation; no ports or network waits allowed; the only containment mode the runtime enforces). |
 | `WithCpuCount(n)` / `WithMemoryMB(n)` | Caps for the session VM (megabytes). Null (default) leaves the runtime default. |
 | `WithSessionVolume(name, containerPath, sizeBytes, ...)` | Session VHD volume (native ext4, recreated empty every start). Prefer over bind mounts when data must not be exposed as Windows host files (the VHD still lives under the session storage directory). |
@@ -205,8 +205,8 @@ var strategy = Wait.ForWsl()
 
 Rules that bite:
 
-- `WithPort(n)` every port you probe — `GetMappedPort(n)` throws `WslNetworkException`
-  otherwise, and before `StartAsync()`.
+- `WithPort(n)` every port you probe — `GetConnectEndpoint(n)` throws `WslNetworkException`
+  for an undeclared/unassigned port, and `WslcException` before `StartAsync()`.
 - `And(...)` flattens nested composites and keeps the left operand's timeout, which bounds the
   whole sequence: two composed 60 s waits get a 60 s budget, not 120 s. Set the budget on the
   left operand. The composite keeps the left retry interval too, but it does not poll itself —
@@ -229,21 +229,21 @@ Rules that bite:
 Host ports are dynamic. Never hardcode them:
 
 ```csharp
+var endpoint = postgres.GetConnectEndpoint(PostgreSqlContainer.ContainerPort);
 var connectionString =
-    $"Host={postgres.Host};Port={postgres.GetMappedPort(5432)};Username=postgres;Password=secret";
-// Host is always a Windows loopback address (127.0.0.1).
-// Non-loopback binds: use GetMappedHost(containerPort) instead of Host.
+    $"Host={endpoint.Address};Port={endpoint.Port};Username=postgres;Password=secret";
+// endpoint.Address is the mapping's bind address; wildcard/default bindings resolve to
+// loopback (127.0.0.1 for 0.0.0.0, ::1 for ::).
 ```
 
-- `Host` is `127.0.0.1` and works for loopback-bound ports (the default);
-  `GetMappedPort(containerPort)` resolves the runtime-assigned port. Mappings are
-  TCP-only because the WSLC runtime returns `E_NOTIMPL` for UDP. For a non-loopback
-  bind address, connect to `GetMappedHost(containerPort)` (wildcard bindings resolve
-  to loopback).
+- `GetConnectEndpoint(containerPort)` returns an `IPEndPoint`: the runtime-assigned
+  host port plus the address the mapping is actually bound to (IPv4 `127.0.0.1` for
+  `0.0.0.0`, IPv6 `::1` for `::`). Mappings are TCP-only because the WSLC runtime
+  returns `E_NOTIMPL` for UDP.
 - Only declared ports are mapped; each `WslContainer` gets its own mapping so
   parallel tests never collide. UDP mapping support must come from the runtime.
 - The Windows side binds loopback (`127.0.0.1`) by default. Override it only when you
-  need LAN exposure, e.g. `WithPort(8080, "0.0.0.0")`.
+  need LAN exposure, e.g. `WithPort(8080, "0.0.0.0")` or `WithPort(8080, IPAddress.Any)`.
 - Published ports are reachable via loopback from Windows. Treat them as test-only
   listeners, not public endpoints.
 
@@ -298,11 +298,11 @@ appears, egress belongs there, not inside the container.
 
 ```csharp
 // One-shot command; captures exit code + stdout/stderr (each capped ~1 MiB).
-ExecResult r = await container.ExecAsync("ps", "aux");
+ExecResult r = await container.ExecAsync("ps", ["aux"]);
 r.EnsureSuccess(); // throws WslProcessException with truncated output on failure
 
-// With options (env, cwd, stdin, timeout). Pass null for defaults.
-var r2 = await container.ExecAsync("psql", new[] { "-c", "SELECT 1" }, new ExecOptions
+// With options (env, cwd, stdin, timeout). Pass null for arguments/options to use defaults.
+var r2 = await container.ExecAsync("psql", ["-c", "SELECT 1"], new ExecOptions
 {
     Environment = new Dictionary<string, string> { ["PGPASSWORD"] = "secret" },
     WorkingDirectory = "/tmp",
@@ -310,8 +310,8 @@ var r2 = await container.ExecAsync("psql", new[] { "-c", "SELECT 1" }, new ExecO
     Timeout = TimeSpan.FromSeconds(30),
 }, CancellationToken.None);
 
-// Long-running process. StandardInput/Timeout are Exec-only and throw here.
-IWslProcess proc = container.StartProcess("sleep", "3600");
+// Long-running process. ProcessOptions carries working directory + environment only.
+IWslProcess proc = container.StartProcess("sleep", ["3600"]);
 Console.WriteLine(proc.Id);
 await proc.KillAsync();          // SIGTERM → SIGKILL
 await proc.DisposeAsync();       // must dispose; container also kills leftovers on Stop/Dispose
@@ -336,7 +336,7 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
 Notes:
 
 - `ExecAsync` timeout throws `WslTimeoutException` and kills the process.
-- `StartProcess` with `StandardInput`/`Timeout` throws `ArgumentException` by design.
+- `StartProcess` takes `ProcessOptions` (working directory + environment only); `StandardInput`/`Timeout` exist only on `ExecOptions` for `ExecAsync`, and passing an `ExecOptions` with either set to `StartProcess` throws `ArgumentException`.
 - `CopyToAsync` requires the host file to exist; `CopyFromAsync` creates parent dirs.
 - Init-process output, exec output and `StartProcess` output all flow through `LogsAsync()`.
 

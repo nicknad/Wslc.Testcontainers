@@ -22,9 +22,12 @@ public sealed class PostgreSqlContainer : WslModuleContainer
     }
 
     /// <summary>Gets the Windows port mapped to <see cref="ContainerPort"/>.</summary>
-    public int GetMappedPort() => base.GetMappedPort(ContainerPort);
+    public int GetMappedPort() => GetConnectEndpoint(ContainerPort).Port;
 
     /// <summary>Renders an Npgsql connection string for the running container.</summary>
-    public string GetConnectionString() =>
-        $"Host={Host};Port={GetMappedPort()};Username={_username};Password={_password};Database={_database}";
+    public string GetConnectionString()
+    {
+        var endpoint = GetConnectEndpoint(ContainerPort);
+        return $"Host={endpoint.Address};Port={endpoint.Port};Username={_username};Password={_password};Database={_database}";
+    }
 }

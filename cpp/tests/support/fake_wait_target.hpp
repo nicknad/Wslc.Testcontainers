@@ -16,11 +16,7 @@ class FakeWaitTarget : public waiting::IWaitTarget
 public:
     const std::string& Name() const override { return TargetName; }
 
-    std::string Host() const override { return HostAddress; }
-
-    int GetMappedPort(int) const override { return MappedPort; }
-
-    std::string GetProbeHost(int) const override { return ProbeHostAddress.empty() ? HostAddress : ProbeHostAddress; }
+    WslEndpoint GetConnectEndpoint(int) const override { return ConnectEndpoint; }
 
     ExecResult Exec(std::string command, std::vector<std::string> arguments, std::stop_token token) override
     {
@@ -45,9 +41,7 @@ public:
     std::vector<LogLine> GetRecentLogs() const override { return Logs; }
 
     std::string TargetName = "fake-container";
-    std::string HostAddress = "127.0.0.1";
-    std::string ProbeHostAddress;
-    int MappedPort = 15000;
+    WslEndpoint ConnectEndpoint{"127.0.0.1", 15000};
     std::function<ExecResult(std::string, std::vector<std::string>, std::stop_token)> ExecHandler;
     std::function<bool(int, std::stop_token)> PortHandler;
     std::function<bool(std::string, std::stop_token)> ProcessHandler;

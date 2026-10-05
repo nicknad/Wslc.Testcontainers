@@ -1,3 +1,5 @@
+using System.Net;
+
 namespace Wslc.Testcontainers;
 
 /// <summary>
@@ -24,8 +26,12 @@ public abstract class WslModuleContainer : IWslContainer
     /// <summary>Gets a value indicating whether the container has been started.</summary>
     public bool IsStarted => _inner.IsStarted;
 
-    /// <summary>Gets the host address that exposes mapped ports.</summary>
-    public string Host => _inner.Host;
+    /// <summary>
+    /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
+    /// host port and the port's configured bind address. The default/wildcard binding resolves to
+    /// loopback: IPv4 <c>127.0.0.1</c> for <c>0.0.0.0</c> and IPv6 <c>::1</c> for <c>::</c>.
+    /// </summary>
+    public IPEndPoint GetConnectEndpoint(int containerPort) => _inner.GetConnectEndpoint(containerPort);
 
     /// <summary>Creates and provisions the environment.</summary>
     public Task StartAsync(CancellationToken cancellationToken = default) =>
@@ -36,23 +42,19 @@ public abstract class WslModuleContainer : IWslContainer
         _inner.StopAsync(cancellationToken);
 
     /// <summary>Executes a command and captures its exit code, stdout and stderr.</summary>
-    public Task<ExecResult> ExecAsync(string command, params string[] arguments) =>
-        _inner.ExecAsync(command, arguments);
-
-    /// <summary>Executes a command with additional options (pass <c>null</c> for defaults).</summary>
-    public Task<ExecResult> ExecAsync(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
+    public Task<ExecResult> ExecAsync(
+        string command,
+        string[]? arguments = null,
+        ExecOptions? options = null,
+        CancellationToken cancellationToken = default) =>
         _inner.ExecAsync(command, arguments, options, cancellationToken);
 
-    /// <summary>Executes a command with additional options and no arguments.</summary>
-    public Task<ExecResult> ExecAsync(string command, ExecOptions? options, CancellationToken cancellationToken) =>
-        _inner.ExecAsync(command, options, cancellationToken);
-
     /// <summary>Starts a long-running process inside the environment.</summary>
-    public IWslProcess StartProcess(string command, params string[] arguments) =>
-        _inner.StartProcess(command, arguments);
-
-    /// <summary>Starts a long-running process with additional options.</summary>
-    public IWslProcess StartProcess(string command, string[] arguments, ExecOptions? options, CancellationToken cancellationToken = default) =>
+    public IWslProcess StartProcess(
+        string command,
+        string[]? arguments = null,
+        ProcessOptions? options = null,
+        CancellationToken cancellationToken = default) =>
         _inner.StartProcess(command, arguments, options, cancellationToken);
 
     /// <summary>Copies a Windows file into the environment.</summary>
@@ -80,10 +82,4 @@ public abstract class WslModuleContainer : IWslContainer
         GC.SuppressFinalize(this);
         return _inner.DisposeAsync();
     }
-
-    /// <summary>Gets the Windows port mapped to a Linux TCP service port.</summary>
-    public int GetMappedPort(int port) => _inner.GetMappedPort(port);
-
-    /// <summary>Gets the Windows address to connect to for a mapped Linux TCP port.</summary>
-    public string GetMappedHost(int port) => _inner.GetMappedHost(port);
 }

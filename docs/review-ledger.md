@@ -54,16 +54,16 @@ and must be checked against `PublicAPI.Unshipped.txt` before the first shipped s
 
 | ID | Theme | Status |
 |----|-------|--------|
-| M1 | `ExecAsync` overload collapse + `StartProcessOptions` split | UNVERIFIED |
+| M1 | `ExecAsync` overload collapse + `StartProcessOptions` split | FIXED | Collapsed to `ExecAsync(string, string[]? = null, ExecOptions? = null, CT = default)`; `ProcessOptions` (env + cwd) is the base of `ExecOptions` (stdin + timeout) and is what `StartProcess` takes. `StartProcess` runtime-rejects exec-only members (C# `ArgumentException`, C++ `WslcException` via RTTI). |
 | M2 | Argument vs runtime exception taxonomy; platform exception nesting | UNVERIFIED |
-| M3 | `WithPort(IPAddress)`; one `GetConnectEndpoint` replacing host getters; unify `containerPort` | UNVERIFIED |
-| M4 | `StartProcessAsync` / honor CT | UNVERIFIED |
+| M3 | `WithPort(IPAddress)`; one `GetConnectEndpoint` replacing host getters; unify `containerPort` | FIXED | `GetConnectEndpoint(int containerPort)` replaces `Host`/`GetMappedPort`/`GetMappedHost`/`GetProbeHost` on the container and wait target in both languages; `WithPort(int, IPAddress)` joins the string overload. Residual: C# returns `IPEndPoint`, C++ a `WslEndpoint` value type; module parameterless `GetMappedPort()` retained. |
+| M4 | `StartProcessAsync` / honor CT | FIXED | No async variant (sync by design); `StartProcess` keeps the cancellation token and checks it before container work, and `StartProcessAsync` stays removed. |
 | M5 | `DumpAsync(container, tail)`; `And()` timeout sum | UNVERIFIED |
 | M6 | Drop `WithReadOnlyVolume` / parameterless `GetMappedPort` | UNVERIFIED |
 | M7 | `IsReuseEffective` | UNVERIFIED |
 | M8 | `Inner` visibility; TimeSpan/ms, dict/map, Version parity | UNVERIFIED |
 | M9 | Reversible builders; drop `SuppressFinalize`/`RequireNetwork` | UNVERIFIED |
-| M10 | Clamp sums; unify pre-start behavior; `127.0.0.1` vs `::1` | UNVERIFIED |
+| M10 | Clamp sums; unify pre-start behavior; `127.0.0.1` vs `::1` | FIXED | Wait-timeout sums saturate (F18); `GetConnectEndpoint` throws the same unstarted error in both languages; wildcard bindings resolve per family (`0.0.0.0` -> `127.0.0.1`, `::` -> `::1`) and docs now say so. |
 | M11 | Naming batch (Host, guard types, WithMemoryMegabytes, Until*, SubscribeLogs/GetEndpoint, ScratchVolume, Isolated, ToString, InnerContainer, ConfigureContainer, WithReadinessTimeout, enum scoping, DefaultPort, Command casing, Stdout) | UNVERIFIED; land before first `PublicAPI.Shipped.txt` |
 | M12 | Split god classes (1043/1406 lines) | UNVERIFIED |
 | M13 | Limits/Timeouts/Validation hubs | Slice 1 starts Validation (F15-F17) |

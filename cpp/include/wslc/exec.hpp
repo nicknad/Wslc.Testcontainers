@@ -8,20 +8,32 @@
 namespace wslc
 {
 
-/// <summary>Optional settings for Exec() and StartProcess().</summary>
+/// <summary>Optional settings shared by Exec() and StartProcess().</summary>
 /// <remarks>
-/// <c>StandardInput</c> and <c>Timeout</c> apply only to Exec(); StartProcess() rejects them
-/// with <see cref="WslcException"/>.
+/// Pass a default-constructed value for defaults. ExecOptions derives from this type, so it
+/// can be passed anywhere a ProcessOptions is accepted; StartProcess uses RTTI to reject an
+/// ExecOptions carrying StandardInput/Timeout (which apply only to Exec) with WslcException.
+/// The virtual destructor makes this type polymorphic for that runtime check.
 /// </remarks>
-struct ExecOptions
+struct ProcessOptions
 {
     /// <summary>Environment variables for the command. Overrides container-level variables with the same
-    /// Name.</summary>
+    /// name.</summary>
     std::map<std::string, std::string> Environment;
 
     /// <summary>Linux working directory for the command. Must be non-empty when set.</summary>
     std::optional<std::string> WorkingDirectory;
 
+    virtual ~ProcessOptions() = default;
+};
+
+/// <summary>Optional settings for Exec().</summary>
+/// <remarks>
+/// <c>StandardInput</c> and <c>Timeout</c> apply only to Exec(); passing an ExecOptions with
+/// either set to StartProcess() (which accepts ProcessOptions) throws WslcException.
+/// </remarks>
+struct ExecOptions : ProcessOptions
+{
     /// <summary>Text written to the command standard input (Exec only).</summary>
     std::optional<std::string> StandardInput;
 

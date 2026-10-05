@@ -23,10 +23,9 @@ const char* SourceName(LogSource Source)
         return "stdout";
     case LogSource::Stderr:
         return "stderr";
-    case LogSource::System:
-        return "system";
     default:
         // LogSource is a public enum, so callers can supply values outside the enumerator set.
+        // The System enumerator renders as "system" through this fallback.
         return "system";
     }
 }

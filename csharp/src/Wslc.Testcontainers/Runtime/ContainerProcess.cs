@@ -201,10 +201,15 @@ internal sealed class ContainerProcess : IWslProcess
         }
     }
 
-    /// <summary>Incrementally decodes UTF-8 byte chunks into complete lines (pending capped at 256 KiB).</summary>
+    /// <summary>
+    /// Incrementally decodes UTF-8 byte chunks into complete lines (pending capped at 256 KiB).
+    /// All state is guarded by <see cref="_gate"/> because the native stdout/stderr callbacks and
+    /// the exit/dispose flush paths can run concurrently.
+    /// </summary>
     internal sealed class LineAssembler
     {
         private const int MaxPendingChars = 256 * 1024;
+        private readonly object _gate = new();
         private readonly Decoder _decoder = Encoding.UTF8.GetDecoder();
         private readonly Action<string> _onLine;
         private char[] _pending = new char[256];
@@ -215,37 +220,49 @@ internal sealed class ContainerProcess : IWslProcess
 
         public void Append(byte[] data)
         {
-            EnsureCapacity(_count + data.Length + 1);
-            _decoder.Convert(data, 0, data.Length, _pending, _count, _pending.Length - _count, flush: false, out _, out var charsUsed, out _);
-            _count += charsUsed;
-            EmitCompleteLines();
-
-            // A process that emits a giant single line without '\n' would otherwise grow
-            // the buffer without bound. Flush early to keep memory capped; the line is split
-            // but no data is lost beyond the normal history cap downstream.
-            if (_count > MaxPendingChars)
+            List<string>? completed;
+            lock (_gate)
             {
-                _onLine(new string(_pending, 0, _count));
-                _count = 0;
-                _scanFrom = 0;
+                EnsureCapacity(_count + data.Length + 1);
+                _decoder.Convert(data, 0, data.Length, _pending, _count, _pending.Length - _count, flush: false, out _, out var charsUsed, out _);
+                _count += charsUsed;
+                completed = EmitCompleteLines();
+
+                // A process that emits a giant single line without '\n' would otherwise grow
+                // the buffer without bound. Flush early to keep memory capped; the line is split
+                // but no data is lost beyond the normal history cap downstream.
+                if (_count > MaxPendingChars)
+                {
+                    (completed ??= new List<string>()).Add(new string(_pending, 0, _count));
+                    _count = 0;
+                    _scanFrom = 0;
+                }
             }
+
+            Publish(completed);
         }
 
         public void Flush()
         {
-            EnsureCapacity(_count + 1);
-            _decoder.Convert(Array.Empty<byte>(), 0, 0, _pending, _count, _pending.Length - _count, flush: true, out _, out var charsUsed, out _);
-            _count += charsUsed;
-            _decoder.Reset();
-
-            EmitCompleteLines();
-            if (_count > 0)
+            List<string>? completed;
+            lock (_gate)
             {
-                _onLine(new string(_pending, 0, _count));
-                _count = 0;
+                EnsureCapacity(_count + 1);
+                _decoder.Convert(Array.Empty<byte>(), 0, 0, _pending, _count, _pending.Length - _count, flush: true, out _, out var charsUsed, out _);
+                _count += charsUsed;
+                _decoder.Reset();
+
+                completed = EmitCompleteLines();
+                if (_count > 0)
+                {
+                    (completed ??= new List<string>()).Add(new string(_pending, 0, _count));
+                    _count = 0;
+                }
+
+                _scanFrom = 0;
             }
 
-            _scanFrom = 0;
+            Publish(completed);
         }
 
         private void EnsureCapacity(int required)
@@ -264,8 +281,10 @@ internal sealed class ContainerProcess : IWslProcess
             Array.Resize(ref _pending, size);
         }
 
-        private void EmitCompleteLines()
+        private List<string>? EmitCompleteLines()
         {
+            List<string>? completed = null;
+
             // Scanning resumes where the previous call stopped: the earlier characters are
             // known to contain no newline, so a long line spanning many chunks is scanned once.
             var lineStart = 0;
@@ -277,7 +296,7 @@ internal sealed class ContainerProcess : IWslProcess
                 }
 
                 var end = i > 0 && _pending[i - 1] == '\r' ? i - 1 : i;
-                _onLine(new string(_pending, lineStart, end - lineStart));
+                (completed ??= new List<string>()).Add(new string(_pending, lineStart, end - lineStart));
                 lineStart = i + 1;
             }
 
@@ -292,6 +311,22 @@ internal sealed class ContainerProcess : IWslProcess
             }
 
             _scanFrom = _count;
+            return completed;
+        }
+
+        // Callbacks run outside the state lock so an observer that re-enters the assembler (or
+        // blocks) cannot deadlock the native stdout/stderr and exit callback threads.
+        private void Publish(List<string>? completed)
+        {
+            if (completed is null)
+            {
+                return;
+            }
+
+            foreach (var line in completed)
+            {
+                _onLine(line);
+            }
         }
     }
 

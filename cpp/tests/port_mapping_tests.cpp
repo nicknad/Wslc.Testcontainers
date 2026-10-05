@@ -209,6 +209,51 @@ TEST(PortMapping, InspectPayloadIgnoresInvalidHostPorts)
     EXPECT_EQ(mapping.GetMappedPort(8080), 4515);
 }
 
+TEST(PortMapping, InspectPayloadRejectsLaxPortStrings)
+{
+    PortMapping mapping = PortMapping::Create({Port(8080)});
+    mapping.ResolveFromInspect("{\"Ports\":{\"8080/"
+                               "tcp\":[{\"HostPort\":\" 8080\"},{\"HostPort\":\"+8080\"},{\"HostPort\":\"4514.9\"},"
+                               "{\"HostPort\":\"8080.0\"},{\"HostPort\":\"0\"},{\"HostPort\":\"65536\"},"
+                               "{\"HostPort\":\"-1\"},{\"HostPort\":\"1e2\"},{\"HostPort\":\"4515\"}]}}");
+
+    EXPECT_EQ(mapping.GetMappedPort(8080), 4515);
+}
+
+TEST(PortMapping, InspectPayloadRejectsFractionalNumericHostPorts)
+{
+    PortMapping mapping = PortMapping::Create({Port(8080)});
+    mapping.ResolveFromInspect(
+        "{\"Ports\":{\"8080/tcp\":[{\"HostPort\":4514.9},{\"HostPort\":-1},{\"HostPort\":65536.0},"
+        "{\"HostPort\":1e999},{\"HostPort\":4515}]}}");
+
+    EXPECT_EQ(mapping.GetMappedPort(8080), 4515);
+}
+
+TEST(PortMapping, InspectPayloadAcceptsLeadingZeros)
+{
+    PortMapping mapping = PortMapping::Create({Port(8080), Port(9090)});
+    mapping.ResolveFromInspect("{\"Ports\":{\"08080/tcp\":[{\"HostPort\":\"04514\"}],"
+                               "\"9090\":[{\"HostPort\":\" 9090\"},{\"HostPort\":\"9095\"}]}}");
+
+    EXPECT_EQ(mapping.GetMappedPort(8080), 4514);
+    EXPECT_EQ(mapping.GetMappedPort(9090), 9095);
+}
+
+TEST(PortMapping, InspectPayloadRejectsLaxPortKeys)
+{
+    PortMapping mapping = PortMapping::Create({Port(8080), Port(8081), Port(8082), Port(8083), Port(8084), Port(8085)});
+    mapping.ResolveFromInspect(
+        "{\"Ports\":{\" 8080/tcp\":[{\"HostPort\":\"4514\"}],\"+8081/tcp\":[{\"HostPort\":\"4515\"}],"
+        "\"8082.0/tcp\":[{\"HostPort\":\"4516\"}],\"0/tcp\":[{\"HostPort\":\"4517\"}],"
+        "\"65536/tcp\":[{\"HostPort\":\"4518\"}],\"-1/tcp\":[{\"HostPort\":\"4519\"}]}}");
+
+    for (const int port : {8080, 8081, 8082, 8083, 8084, 8085})
+    {
+        EXPECT_THROW(mapping.GetMappedPort(port), WslNetworkException) << "port " << port;
+    }
+}
+
 TEST(PortMapping, UnknownPortsThrow)
 {
     const PortMapping mapping = PortMapping::Create({Port(8080)});

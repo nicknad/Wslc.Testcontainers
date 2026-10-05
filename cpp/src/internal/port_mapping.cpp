@@ -5,7 +5,8 @@
 #include "internal/util.hpp"
 #include "wslc/exceptions.hpp"
 
-#include <cstdlib>
+#include <cmath>
+#include <cstdint>
 
 namespace wslc::internal
 {
@@ -13,24 +14,43 @@ namespace wslc::internal
 namespace
 {
 
+bool TryParsePortDigits(std::string_view text, int& port)
+{
+    port = 0;
+    if (text.empty())
+    {
+        return false;
+    }
+
+    std::uint32_t parsed = 0;
+    for (const char character : text)
+    {
+        if (character < '0' || character > '9')
+        {
+            return false;
+        }
+
+        parsed = (parsed * 10) + static_cast<std::uint32_t>(character - '0');
+        if (parsed > 65535)
+        {
+            return false;
+        }
+    }
+
+    port = static_cast<int>(parsed);
+    return port > 0;
+}
+
 bool TryParseInspectPort(std::string key, int& ContainerPort)
 {
     ContainerPort = 0;
     const std::size_t separator = key.find('/');
     const std::string port_part = separator == std::string::npos ? key : key.substr(0, separator);
-    if (port_part.empty())
+    if (!TryParsePortDigits(port_part, ContainerPort))
     {
         return false;
     }
 
-    char* end = nullptr;
-    const long parsed = std::strtol(port_part.c_str(), &end, 10);
-    if (end == nullptr || *end != '\0' || parsed < 1 || parsed > 65535)
-    {
-        return false;
-    }
-
-    ContainerPort = static_cast<int>(parsed);
     if (separator == std::string::npos)
     {
         return true;
@@ -45,25 +65,22 @@ bool TryReadMappedPort(const json::Value& element, int& port)
     port = 0;
     if (element.IsString())
     {
-        char* end = nullptr;
-        const long parsed = std::strtol(element.String.c_str(), &end, 10);
-        if (end == nullptr || *end != '\0')
+        return TryParsePortDigits(element.String, port);
+    }
+
+    if (element.IsNumber())
+    {
+        const double value = element.Number;
+        if (!std::isfinite(value) || value < 1.0 || value > 65535.0 || value != std::trunc(value))
         {
             return false;
         }
 
-        port = static_cast<int>(parsed);
-    }
-    else if (element.IsNumber())
-    {
-        port = static_cast<int>(element.Number);
-    }
-    else
-    {
-        return false;
+        port = static_cast<int>(value);
+        return true;
     }
 
-    return port > 0 && port <= 65535;
+    return false;
 }
 
 void FillSockaddr(const std::string& address, sockaddr_storage& storage)

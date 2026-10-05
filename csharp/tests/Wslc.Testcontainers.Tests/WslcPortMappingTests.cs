@@ -87,6 +87,53 @@ public sealed class WslcPortMappingTests
     }
 
     [Fact]
+    public void Inspect_payload_rejects_lax_port_strings()
+    {
+        var mapping = WslcPortMapping.Create(new[] { Port(8080) });
+        mapping.ResolveFromInspect(
+            """{"Ports":{"8080/tcp":[{"HostPort":" 8080"},{"HostPort":"+8080"},{"HostPort":"4514.9"},{"HostPort":"8080.0"},{"HostPort":"0"},{"HostPort":"65536"},{"HostPort":"-1"},{"HostPort":"1e2"},{"HostPort":"4515"}]}}""");
+
+        Assert.Equal(4515, mapping.GetMappedPort(8080));
+    }
+
+    [Fact]
+    public void Inspect_payload_rejects_fractional_numeric_host_ports()
+    {
+        var mapping = WslcPortMapping.Create(new[] { Port(8080) });
+        mapping.ResolveFromInspect(
+            """{"Ports":{"8080/tcp":[{"HostPort":4514.9},{"HostPort":-1},{"HostPort":65536.0},{"HostPort":4515}]}}""");
+
+        Assert.Equal(4515, mapping.GetMappedPort(8080));
+    }
+
+    [Fact]
+    public void Inspect_payload_accepts_leading_zeros()
+    {
+        var mapping = WslcPortMapping.Create(new[] { Port(8080), Port(9090) });
+        mapping.ResolveFromInspect(
+            """{"Ports":{"08080/tcp":[{"HostPort":"04514"}],"9090":[{"HostPort":" 9090"},{"HostPort":"9095"}]}}""");
+
+        Assert.Equal(4514, mapping.GetMappedPort(8080));
+        Assert.Equal(9095, mapping.GetMappedPort(9090));
+    }
+
+    [Fact]
+    public void Inspect_payload_rejects_lax_port_keys()
+    {
+        var mapping = WslcPortMapping.Create(new[]
+        {
+            Port(8080), Port(8081), Port(8082), Port(8083), Port(8084), Port(8085),
+        });
+        mapping.ResolveFromInspect(
+            """{"Ports":{" 8080/tcp":[{"HostPort":"4514"}],"+8081/tcp":[{"HostPort":"4515"}],"8082.0/tcp":[{"HostPort":"4516"}],"0/tcp":[{"HostPort":"4517"}],"65536/tcp":[{"HostPort":"4518"}],"-1/tcp":[{"HostPort":"4519"}]}}""");
+
+        foreach (var port in new[] { 8080, 8081, 8082, 8083, 8084, 8085 })
+        {
+            Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(port));
+        }
+    }
+
+    [Fact]
     public void Unknown_ports_throw()
     {
         var mapping = WslcPortMapping.Create(new[] { Port(8080) });

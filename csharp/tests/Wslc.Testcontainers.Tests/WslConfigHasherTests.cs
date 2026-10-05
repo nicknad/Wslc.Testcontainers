@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Provisioning;
 using Xunit;
@@ -191,4 +192,146 @@ public sealed class WslConfigHasherTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void Shared_golden_hash_vectors_match()
+    {
+        var vectors = LoadGoldenVectors();
+
+        Assert.NotEmpty(vectors);
+        foreach (var vector in vectors)
+        {
+            var actual = WslConfigHasher.Compute(vector.Configuration);
+            Assert.True(
+                string.Equals(actual, vector.Sha256, StringComparison.Ordinal),
+                $"Golden vector '{vector.Name}' diverged: expected {vector.Sha256}, got {actual}.");
+        }
+    }
+
+    [Fact]
+    public void Reuse_flag_does_not_change_the_hash()
+    {
+        // Reuse is a session policy switch, not configuration metadata: the two vectors differ
+        // only in their reuse flag and are expected to share one identity.
+        var configurations = LoadGoldenVectors().ToDictionary(
+            vector => vector.Name,
+            vector => vector.Configuration,
+            StringComparer.Ordinal);
+
+        Assert.Equal(
+            WslConfigHasher.Compute(configurations["reuse-true"]),
+            WslConfigHasher.Compute(configurations["reuse-false"]));
+    }
+
+    private static List<(string Name, WslContainerConfiguration Configuration, string Sha256)>
+        LoadGoldenVectors()
+    {
+        var fixturePath = Path.Combine(FindRepositoryRoot(), "tests", "fixtures", "config_hash_vectors.json");
+        using var document = JsonDocument.Parse(File.ReadAllText(fixturePath));
+
+        var vectors = new List<(string Name, WslContainerConfiguration Configuration, string Sha256)>();
+        foreach (var element in document.RootElement.EnumerateArray())
+        {
+            vectors.Add((
+                element.GetProperty("name").GetString()!,
+                ToConfiguration(element),
+                element.GetProperty("sha256").GetString()!));
+        }
+
+        return vectors;
+    }
+
+    private static string FindRepositoryRoot()
+    {
+        for (var directory = new DirectoryInfo(AppContext.BaseDirectory);
+             directory is not null;
+             directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException($"Could not locate the repository root from {AppContext.BaseDirectory}.");
+    }
+
+    private static WslContainerConfiguration ToConfiguration(JsonElement element)
+    {
+        var environment = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var property in element.GetProperty("env").EnumerateObject())
+        {
+            environment[property.Name] = property.Value.GetString()!;
+        }
+
+        return new WslContainerConfiguration
+        {
+            Image = ReadNullableString(element, "image"),
+            Command = ReadNullableString(element, "command"),
+            CommandArguments = element.GetProperty("args")
+                .EnumerateArray()
+                .Select(value => value.GetString()!)
+                .ToArray(),
+            WorkingDirectory = ReadNullableString(element, "workingDirectory"),
+            Environment = environment,
+            Files = element.GetProperty("files")
+                .EnumerateArray()
+                .Select(value => new WslFileCopy(
+                    value.GetProperty("host").GetString()!,
+                    value.GetProperty("container").GetString()!))
+                .ToArray(),
+            Volumes = element.GetProperty("volumes")
+                .EnumerateArray()
+                .Select(value => new WslVolumeMount(
+                    value.GetProperty("host").GetString()!,
+                    value.GetProperty("container").GetString()!,
+                    value.GetProperty("readOnly").GetBoolean()))
+                .ToArray(),
+            SessionVolumes = element.GetProperty("sessionVolumes")
+                .EnumerateArray()
+                .Select(value => new WslSessionVolume(
+                    value.GetProperty("name").GetString()!,
+                    value.GetProperty("container").GetString()!,
+                    value.GetProperty("readOnly").GetBoolean(),
+                    value.GetProperty("size").GetUInt64(),
+                    value.GetProperty("type").GetString() == "fixed"
+                        ? VhdAllocationType.Fixed
+                        : VhdAllocationType.Dynamic))
+                .ToArray(),
+            PortMappings = element.GetProperty("ports")
+                .EnumerateArray()
+                .Select(value => new WslPortMapping(
+                    value.GetProperty("container").GetInt32(),
+                    ReadNullableString(value, "bind")))
+                .ToArray(),
+            NetworkingMode = ReadNetworkingMode(element),
+            CpuCount = ReadNullableUInt32(element, "cpu"),
+            MemorySizeInMB = ReadNullableUInt32(element, "memoryMB"),
+            Reuse = ReadNullableBool(element, "reuse"),
+        };
+    }
+
+    private static string? ReadNullableString(JsonElement element, string propertyName) =>
+        element.GetProperty(propertyName).ValueKind == JsonValueKind.Null
+            ? null
+            : element.GetProperty(propertyName).GetString();
+
+    private static uint? ReadNullableUInt32(JsonElement element, string propertyName) =>
+        element.GetProperty(propertyName).ValueKind == JsonValueKind.Null
+            ? null
+            : element.GetProperty(propertyName).GetUInt32();
+
+    private static bool? ReadNullableBool(JsonElement element, string propertyName) =>
+        element.GetProperty(propertyName).ValueKind == JsonValueKind.Null
+            ? null
+            : element.GetProperty(propertyName).GetBoolean();
+
+    private static ContainerNetworkMode? ReadNetworkingMode(JsonElement element) =>
+        ReadNullableString(element, "networkingMode") switch
+        {
+            null => null,
+            "bridged" => ContainerNetworkMode.Bridged,
+            "none" => ContainerNetworkMode.None,
+            var value => throw new InvalidOperationException($"Unknown networkingMode '{value}'."),
+        };
 }

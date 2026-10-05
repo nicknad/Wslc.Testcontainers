@@ -27,6 +27,7 @@ endif()
 add_executable(wslc_tests
   atomic_file_tests.cpp
   capture_buffer_tests.cpp
+  config_hash_fixture_tests.cpp
   config_hasher_tests.cpp
   container_builder_tests.cpp
   container_lifecycle_tests.cpp
@@ -52,6 +53,9 @@ add_executable(wslc_tests
 target_include_directories(wslc_tests PRIVATE
   "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_SOURCE_DIR}/src")
+# The shared golden-vector fixture lives at the repository root, outside the CMake tree.
+get_filename_component(_wslc_repo_root "${CMAKE_SOURCE_DIR}/.." ABSOLUTE)
+target_compile_definitions(wslc_tests PRIVATE WSLC_REPO_ROOT="${_wslc_repo_root}")
 target_link_libraries(wslc_tests PRIVATE wslc wslc_postgresql wslc_redis GTest::gtest_main)
 wslc_apply_strict_options(wslc_tests)
 wslc_copy_sdk_runtime(wslc_tests)

@@ -90,7 +90,10 @@ public:
     /// <summary>The configured Timeout.</summary>
     std::chrono::milliseconds Timeout() const noexcept { return m_timeout; }
 
-    /// <summary>Recent log lines captured when the Wait failed.</summary>
+    /// <summary>
+    /// Recent log lines captured when the Wait failed. Captured output is untrusted, may contain
+    /// secrets, and is truncated by Describe().
+    /// </summary>
     const std::vector<LogLine>& Logs() const noexcept { return m_logs; }
 
     /// <summary>The container Image reference, when known.</summary>
@@ -102,10 +105,16 @@ public:
     /// <summary>The exit code of the main process, when it had already exited.</summary>
     std::optional<int> ExitCode() const noexcept { return m_exitCode; }
 
-    /// <summary>Captured standard output tail.</summary>
+    /// <summary>
+    /// Captured standard output tail. Captured output is untrusted, may contain secrets, and is
+    /// truncated by Describe().
+    /// </summary>
     const std::optional<std::string>& StdoutText() const noexcept { return m_stdoutText; }
 
-    /// <summary>Captured standard error tail.</summary>
+    /// <summary>
+    /// Captured standard error tail. Captured output is untrusted, may contain secrets, and is
+    /// truncated by Describe().
+    /// </summary>
     const std::optional<std::string>& StderrText() const noexcept { return m_stderrText; }
 
     /// <summary>Returns a copy with the container diagnostics filled in.</summary>
@@ -113,7 +122,12 @@ public:
                                           std::optional<int> ExitCode, std::optional<std::string> StdoutText,
                                           std::optional<std::string> StderrText) const;
 
-    /// <summary>Renders the full Diagnostic report required for failed readiness.</summary>
+    /// <summary>
+    /// Renders the full Diagnostic report required for failed readiness. Captured output is
+    /// untrusted, may contain secrets, and can be arbitrarily large: each captured section is
+    /// capped at 8 KiB, each line at 4 KiB, and the whole report at 64 KiB. The header is never
+    /// truncated.
+    /// </summary>
     std::string Describe() const;
 
 private:

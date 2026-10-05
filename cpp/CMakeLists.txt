@@ -132,6 +132,7 @@ add_library(wslc STATIC
   src/internal/port_mapping.cpp
   src/internal/process_runner.cpp
   src/internal/tcp_http.cpp
+  src/internal/text_truncation.cpp
   src/internal/util.cpp)
 
 add_library(wslc::wslc ALIAS wslc)

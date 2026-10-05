@@ -45,7 +45,7 @@ items are already fixed here; verify against this ledger before starting.
 | F24 | Custom waits bypass the no-network rule and ignore CT past startup | UNVERIFIED | `WslContainerBuilder.cs:390-404`, `wsl_container_builder.cpp:383-396`. |
 | F25 | Assembler state mutated from native threads without a lock | UNVERIFIED | `ContainerProcess.cs:165-287`, `line_assembler.hpp`, `container_process.cpp:376-410`. |
 | F26 | stdin unbounded; `written == 0` can spin | FIXED | 64 MiB cap validated before any process exists in both languages (`WslcProcessRunner.cs:15,118`, `util.hpp:31-32`, `process_runner.cpp:170-173`); C# writes 64 KiB chunks with cancellation checks; C++ `Run` and `CopyTo` write loops throw on a zero-byte successful write. Zero-write paths need a live WSL handle to exercise. |
-| F27 | `Describe` can emit ~12 MiB including secrets/paths | UNVERIFIED | `Exceptions.cs:110-157`, `exceptions.cpp:52-96`. |
+| F27 | `Describe` can emit ~12 MiB including secrets/paths | FIXED | `Describe()` caps the body at 64 KiB total, 8 KiB per section (head + `... [N bytes omitted] ...` + tail), 4 KiB per line, UTF-8-safe, header never truncated (`Internal/TextTruncation.cs`, `internal/text_truncation.*`). Captured output is documented as untrusted. Residual: a pathological header can exceed 64 KiB; the global cap is defense-in-depth; C# uses `Environment.NewLine` vs C++ `\n` (pre-existing). |
 
 ## MED / API and quality
 

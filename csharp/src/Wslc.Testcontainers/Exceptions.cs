@@ -1,3 +1,5 @@
+using Wslc.Testcontainers.Internal;
+
 namespace Wslc.Testcontainers;
 
 /// <summary>
@@ -69,6 +71,10 @@ public sealed class WslReadinessException : WslTimeoutException
     public TimeSpan Timeout { get; }
 
     /// <summary>Recent log lines captured when the wait failed.</summary>
+    /// <remarks>
+    /// Captured process output is untrusted, may contain secrets, and is truncated by
+    /// <see cref="Describe"/>.
+    /// </remarks>
     public IReadOnlyList<LogLine> Logs { get; }
 
     /// <summary>The container image reference.</summary>
@@ -81,9 +87,17 @@ public sealed class WslReadinessException : WslTimeoutException
     public int? ExitCode { get; }
 
     /// <summary>Captured standard output.</summary>
+    /// <remarks>
+    /// Captured process output is untrusted, may contain secrets, and is truncated by
+    /// <see cref="Describe"/>.
+    /// </remarks>
     public string? Stdout { get; }
 
     /// <summary>Captured standard error.</summary>
+    /// <remarks>
+    /// Captured process output is untrusted, may contain secrets, and is truncated by
+    /// <see cref="Describe"/>.
+    /// </remarks>
     public string? Stderr { get; }
 
     /// <summary>
@@ -108,52 +122,67 @@ public sealed class WslReadinessException : WslTimeoutException
             stderr ?? Stderr);
 
     /// <summary>Renders the full diagnostic report required for failed readiness.</summary>
+    /// <remarks>
+    /// Captured output is untrusted, may contain secrets, and can be arbitrarily large. Each
+    /// captured section is capped at 8 KiB (head and tail around an omitted marker), each line at
+    /// 4 KiB, and the whole report at 64 KiB. The header is never truncated.
+    /// </remarks>
     public string Describe()
     {
-        var builder = new System.Text.StringBuilder(512);
-        builder.AppendLine("WSLC readiness failed");
-        builder.AppendLine();
-        builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Image:        {Image ?? "<unknown>"}");
-        builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Command:      {Command ?? "<none>"}");
+        var header = new System.Text.StringBuilder(512);
+        header.AppendLine("WSLC readiness failed");
+        header.AppendLine();
+        header.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Image:        {Image ?? "<unknown>"}");
+        header.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Command:      {Command ?? "<none>"}");
         if (Command is null)
         {
-            builder.AppendLine("Hint:         no init command was configured, so only a keep-alive shell is running.");
-            builder.AppendLine("              WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder.");
+            header.AppendLine("Hint:         no init command was configured, so only a keep-alive shell is running.");
+            header.AppendLine("              WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder.");
         }
 
-        builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Expected:     {ExpectedCondition}");
-        builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Timeout:      {Timeout.TotalSeconds:0.###}s");
+        header.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Expected:     {ExpectedCondition}");
+        header.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Timeout:      {Timeout.TotalSeconds:0.###}s");
 
         if (ExitCode is int exitCode)
         {
-            builder.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Exit code:    {exitCode}");
+            header.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Exit code:    {exitCode}");
         }
 
+        var body = new System.Text.StringBuilder(512);
         if (!string.IsNullOrWhiteSpace(Stdout))
         {
-            builder.AppendLine();
-            builder.AppendLine("Last stdout:");
-            builder.AppendLine(Stdout);
+            body.AppendLine();
+            body.AppendLine("Last stdout:");
+            body.AppendLine(TextTruncation.CapLines(Stdout.Split('\n'), TextTruncation.MaxLineBytes, TextTruncation.MaxSectionBytes));
         }
 
         if (!string.IsNullOrWhiteSpace(Stderr))
         {
-            builder.AppendLine();
-            builder.AppendLine("Last stderr:");
-            builder.AppendLine(Stderr);
+            body.AppendLine();
+            body.AppendLine("Last stderr:");
+            body.AppendLine(TextTruncation.CapLines(Stderr.Split('\n'), TextTruncation.MaxLineBytes, TextTruncation.MaxSectionBytes));
         }
 
         if (Logs.Count > 0)
         {
-            builder.AppendLine();
-            builder.AppendLine("Recent logs:");
-            foreach (var line in Logs)
-            {
-                builder.AppendLine(line.ToString());
-            }
+            body.AppendLine();
+            body.AppendLine("Recent logs:");
+            body.AppendLine(TextTruncation.CapLines(
+                Logs.Select(line => line.ToString()),
+                TextTruncation.MaxLineBytes,
+                TextTruncation.MaxSectionBytes,
+                Environment.NewLine));
         }
 
-        return builder.ToString();
+        var headerText = header.ToString();
+        var remaining = Math.Max(0, TextTruncation.MaxDescribeBytes - System.Text.Encoding.UTF8.GetByteCount(headerText));
+        var bodyText = body.ToString();
+        if (System.Text.Encoding.UTF8.GetByteCount(bodyText) > remaining)
+        {
+            bodyText = TextTruncation.Cap(bodyText, remaining);
+        }
+
+        return headerText + bodyText;
     }
 }
 

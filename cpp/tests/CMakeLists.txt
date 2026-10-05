@@ -32,6 +32,7 @@ add_executable(wslc_tests
   container_lifecycle_tests.cpp
   copy_cancel_tests.cpp
   environment_tests.cpp
+  exceptions_tests.cpp
   image_resolver_tests.cpp
   instance_store_tests.cpp
   line_assembler_tests.cpp

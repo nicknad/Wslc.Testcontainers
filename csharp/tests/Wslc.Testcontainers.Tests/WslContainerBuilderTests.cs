@@ -152,6 +152,14 @@ public sealed class WslContainerBuilderTests
             .WithNetworkingMode(ContainerNetworkMode.None);
         Assert.Throws<WslcException>(() => composite.Build());
 
+        // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and
+        // can still be combined with None (documented bypass).
+        var custom = new WslContainerBuilder().WithImage("alpine")
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().Until("custom", (_, _) => Task.FromResult(true)))
+            .WithNetworkingMode(ContainerNetworkMode.None)
+            .Build();
+        Assert.Equal(ContainerNetworkMode.None, custom.Configuration.NetworkingMode);
+
         // Non-network waits are fine without networking.
         var offline = new WslContainerBuilder().WithImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilFileExists("/tmp/ready"))

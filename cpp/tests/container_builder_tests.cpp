@@ -12,6 +12,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <stop_token>
 #include <string>
 
 using namespace std::chrono_literals;
@@ -182,6 +183,14 @@ TEST(ContainerBuilder, WithNetworkingModeNoneRejectsPortsAndNetworkWaits)
             ForWsl().UntilMessageIsLogged("ready")->And(ForWsl().UntilHttpRequestIsSucceeded("/health", 8080)))
         .WithNetworkingMode(ContainerNetworkMode::None);
     EXPECT_THROW(composite.Build(), WslcException);
+
+    // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and can
+    // still be combined with None (documented bypass).
+    WslContainerBuilder custom;
+    custom.WithImage("alpine")
+        .WithWaitStrategy(ForWsl().Until("custom", [](wslc::waiting::IWaitTarget&, std::stop_token) { return true; }))
+        .WithNetworkingMode(ContainerNetworkMode::None);
+    EXPECT_NO_THROW(custom.Build());
 
     // Non-network waits are fine without networking.
     WslContainerBuilder offline;

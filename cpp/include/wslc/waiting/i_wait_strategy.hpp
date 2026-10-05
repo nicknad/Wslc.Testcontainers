@@ -38,7 +38,10 @@ public:
     /// </summary>
     virtual std::shared_ptr<IWaitStrategy> And(std::shared_ptr<IWaitStrategy> other) const = 0;
 
-    /// <summary>Waits until the condition is satisfied or the Timeout elapses.</summary>
+    /// <summary>
+    /// Waits until the condition is satisfied or the Timeout elapses. The token is linked to the
+    /// startup Timeout, so implementations should observe it and return promptly when signalled.
+    /// </summary>
     virtual void Wait(IWaitTarget& target, std::stop_token token) const = 0;
 };
 

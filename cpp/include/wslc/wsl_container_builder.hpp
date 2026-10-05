@@ -20,7 +20,11 @@ enum class ContainerNetworkMode
     /// <summary>Bridged networking with a NIC (default). Ports and network waits apply.</summary>
     Bridged = 0,
 
-    /// <summary>No NIC: the container is fully isolated. Cannot be combined with ports or network waits.</summary>
+    /// <summary>
+    /// No NIC: the container is fully isolated. Cannot be combined with ports or network waits.
+    /// Detection covers only the built-in TCP/HTTP Wait Strategies; a custom IWaitStrategy that
+    /// needs the network bypasses this validation.
+    /// </summary>
     None = 1,
 };
 
@@ -132,7 +136,9 @@ public:
 
     /// <summary>
     /// Sets the container networking mode. None fully isolates the container (no NIC): no
-    /// <c>WithPort</c> and no network Wait Strategies may be combined with it.
+    /// <c>WithPort</c> and no network Wait Strategies may be combined with it. Note that
+    /// detection covers only the built-in TCP/HTTP Wait Strategies; a custom IWaitStrategy that
+    /// needs the network bypasses this validation.
     /// </summary>
     WslContainerBuilder& WithNetworkingMode(ContainerNetworkMode mode);
 

@@ -84,7 +84,7 @@ public sealed class WslWaitBuilder
 
     /// <summary>
     /// Waits until a custom condition returns <c>true</c>. The delegate receives the environment
-    /// and the linked timeout/cancellation token, so it should observe cancellation. Exceptions
+    /// and a token linked to the startup timeout, so it should observe cancellation. Exceptions
     /// are not retried: an <see cref="OperationCanceledException"/> is reported as a
     /// <see cref="WslReadinessException"/> timeout unless the caller cancelled, and through
     /// <c>StartAsync</c> any other exception surfaces as <see cref="WslProvisioningException"/>

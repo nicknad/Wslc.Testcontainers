@@ -45,7 +45,7 @@ public:
 
     /// <summary>
     /// Waits until a custom condition returns true. The condition receives the Environment and
-    /// the Timeout/cancellation token, so it should observe the token. Exceptions are not
+    /// a token linked to the startup Timeout, so it should observe the token. Exceptions are not
     /// retried: OperationCanceledException is reported as a readiness Timeout unless the caller
     /// cancelled, and through Start() other exceptions surface as WslProvisioningException.
     /// </summary>

@@ -27,6 +27,9 @@ public interface IWaitStrategy
     /// </summary>
     IWaitStrategy And(IWaitStrategy other);
 
-    /// <summary>Waits until the condition is satisfied or the timeout elapses.</summary>
+    /// <summary>
+    /// Waits until the condition is satisfied or the timeout elapses. The token is linked to the
+    /// startup timeout, so implementations should observe it and return promptly when cancelled.
+    /// </summary>
     Task WaitAsync(IWaitTarget target, CancellationToken cancellationToken);
 }

@@ -51,9 +51,9 @@ TEST(Environment, DataDirectoryAcceptsLocalAbsolutePath)
 
 TEST(Environment, DataDirectoryRejectsUncAndDevicePaths)
 {
-    EXPECT_THROW(wslc::internal::ResolveDataDirectory(std::string("\\\\server\\share")), wslc::WslcException);
-    EXPECT_THROW(wslc::internal::ResolveDataDirectory(std::string("\\\\?\\C:\\x")), wslc::WslcException);
-    EXPECT_THROW(wslc::internal::ResolveDataDirectory(std::string("\\\\.\\x")), wslc::WslcException);
+    EXPECT_THROW(wslc::internal::ResolveDataDirectory(std::string("\\\\server\\share")), wslc::WslException);
+    EXPECT_THROW(wslc::internal::ResolveDataDirectory(std::string("\\\\?\\C:\\x")), wslc::WslException);
+    EXPECT_THROW(wslc::internal::ResolveDataDirectory(std::string("\\\\.\\x")), wslc::WslException);
 }
 
 TEST(Environment, SessionIdAcceptsValidValues)
@@ -74,12 +74,12 @@ TEST(Environment, SessionIdRejectsInvalidValues)
     const std::string slash("has/slash");
     const std::string backslash("has\\backslash");
 
-    EXPECT_THROW((wslc::internal::ResolveSessionId(empty)), wslc::WslcException);
-    EXPECT_THROW((wslc::internal::ResolveSessionId(tooLong)), wslc::WslcException);
-    EXPECT_THROW((wslc::internal::ResolveSessionId(space)), wslc::WslcException);
-    EXPECT_THROW((wslc::internal::ResolveSessionId(dot)), wslc::WslcException);
-    EXPECT_THROW((wslc::internal::ResolveSessionId(slash)), wslc::WslcException);
-    EXPECT_THROW((wslc::internal::ResolveSessionId(backslash)), wslc::WslcException);
+    EXPECT_THROW((wslc::internal::ResolveSessionId(empty)), wslc::WslException);
+    EXPECT_THROW((wslc::internal::ResolveSessionId(tooLong)), wslc::WslException);
+    EXPECT_THROW((wslc::internal::ResolveSessionId(space)), wslc::WslException);
+    EXPECT_THROW((wslc::internal::ResolveSessionId(dot)), wslc::WslException);
+    EXPECT_THROW((wslc::internal::ResolveSessionId(slash)), wslc::WslException);
+    EXPECT_THROW((wslc::internal::ResolveSessionId(backslash)), wslc::WslException);
 }
 
 TEST(Environment, GeneratedSessionIdMatchesCharsetAndLengthBound)

@@ -75,7 +75,7 @@ void ProcessRunner::CreateNative(WslcContainer container, const ProcessSettings&
 {
     if (settings.CommandLine.empty())
     {
-        throw WslcException("A command line is required.");
+        throw WslException("A command line is required.");
     }
 
     WslcProcessSettings nativeSettings{};

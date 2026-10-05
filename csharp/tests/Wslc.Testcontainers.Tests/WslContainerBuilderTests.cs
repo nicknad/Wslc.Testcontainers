@@ -14,13 +14,13 @@ public sealed class WslContainerBuilderTests
     {
         var builder = new WslContainerBuilder();
 
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslException>(() => builder.Build());
     }
 
     [Fact]
     public void FromTarball_rejects_a_missing_tarball()
     {
-        Assert.Throws<WslcException>(() => new WslContainerBuilder().FromTarball("does-not-exist.tar"));
+        Assert.Throws<WslException>(() => new WslContainerBuilder().FromTarball("does-not-exist.tar"));
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class WslContainerBuilderTests
         Assert.Throws<ArgumentException>(() => builder.WithPort(8080, ""));
 
         var bound = builder.WithPort(8080, "127.0.0.1");
-        Assert.Throws<WslcException>(() => bound.WithPort(8080, "0.0.0.0"));
+        Assert.Throws<WslException>(() => bound.WithPort(8080, "0.0.0.0"));
     }
 
     [Fact]
@@ -139,19 +139,19 @@ public sealed class WslContainerBuilderTests
     public void WithNetworkingMode_None_rejects_ports_and_network_waits()
     {
         var ports = new WslContainerBuilder().WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode.None);
-        Assert.Throws<WslcException>(() => ports.Build());
+        Assert.Throws<WslException>(() => ports.Build());
 
         var waits = new WslContainerBuilder().WithImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(80))
             .WithNetworkingMode(ContainerNetworkMode.None);
-        Assert.Throws<WslcException>(() => waits.Build());
+        Assert.Throws<WslException>(() => waits.Build());
 
         var composite = new WslContainerBuilder().WithImage("alpine")
             .WithWaitStrategy(
                 Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilMessageIsLogged("ready")
                     .And(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080)))
             .WithNetworkingMode(ContainerNetworkMode.None);
-        Assert.Throws<WslcException>(() => composite.Build());
+        Assert.Throws<WslException>(() => composite.Build());
 
         // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and
         // can still be combined with None (documented bypass).
@@ -196,8 +196,8 @@ public sealed class WslContainerBuilderTests
         Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("a b", "/data", 100));
         Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "relative", 100));
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithSessionVolume("data", "/data", 0));
-        Assert.Throws<WslcException>(() => builder.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100));
-        Assert.Throws<WslcException>(() => builder.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100));
+        Assert.Throws<WslException>(() => builder.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100));
+        Assert.Throws<WslException>(() => builder.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100));
 
         var readOnlyFixed = new WslContainerBuilder()
             .WithImage("alpine")
@@ -261,7 +261,7 @@ public sealed class WslContainerBuilderTests
     {
         var builder = new WslContainerBuilder();
 
-        Assert.Throws<WslcException>(() => builder.WithFile("missing.txt", "/tmp/missing.txt"));
+        Assert.Throws<WslException>(() => builder.WithFile("missing.txt", "/tmp/missing.txt"));
     }
 
     [Fact]
@@ -355,7 +355,7 @@ public sealed class WslContainerBuilderTests
     {
         var builder = new WslContainerBuilder();
 
-        Assert.Throws<WslcException>(() => builder.WithVolume("missing-directory", "/data"));
+        Assert.Throws<WslException>(() => builder.WithVolume("missing-directory", "/data"));
     }
 
     [Fact]
@@ -402,7 +402,7 @@ public sealed class WslContainerBuilderTests
                 Assert.Skip("Symbolic link creation is not available in this environment.");
             }
 
-            Assert.Throws<WslcException>(() => new WslContainerBuilder().WithFile(link, "/tmp/link.txt"));
+            Assert.Throws<WslException>(() => new WslContainerBuilder().WithFile(link, "/tmp/link.txt"));
         }
         finally
         {
@@ -427,7 +427,7 @@ public sealed class WslContainerBuilderTests
                 Assert.Skip("Symbolic link creation is not available in this environment.");
             }
 
-            Assert.Throws<WslcException>(() => new WslContainerBuilder().WithVolume(link, "/data"));
+            Assert.Throws<WslException>(() => new WslContainerBuilder().WithVolume(link, "/data"));
         }
         finally
         {
@@ -441,8 +441,8 @@ public sealed class WslContainerBuilderTests
         await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
 
         Assert.False(container.IsStarted);
-        Assert.Throws<WslcException>(() => container.GetConnectEndpoint(8080));
-        await Assert.ThrowsAsync<WslcException>(
+        Assert.Throws<WslException>(() => container.GetConnectEndpoint(8080));
+        await Assert.ThrowsAsync<WslException>(
             () => container.ExecAsync("echo", cancellationToken: TestContext.Current.CancellationToken));
     }
 
@@ -525,13 +525,13 @@ public sealed class WslContainerBuilderTests
         var conflict = new WslContainerBuilder()
             .WithImage("alpine")
             .WithPort(8080, IPAddress.Any);
-        Assert.Throws<WslcException>(() => conflict.WithPort(8080, "127.0.0.1"));
-        Assert.Throws<WslcException>(() => conflict.WithPort(8080, IPAddress.Loopback));
+        Assert.Throws<WslException>(() => conflict.WithPort(8080, "127.0.0.1"));
+        Assert.Throws<WslException>(() => conflict.WithPort(8080, IPAddress.Loopback));
 
         var literalConflict = new WslContainerBuilder()
             .WithImage("alpine")
             .WithPort(8080, "0.0.0.0");
-        Assert.Throws<WslcException>(() => literalConflict.WithPort(8080, IPAddress.Loopback));
+        Assert.Throws<WslException>(() => literalConflict.WithPort(8080, IPAddress.Loopback));
     }
 
     [Fact]
@@ -554,8 +554,8 @@ public sealed class WslContainerBuilderTests
         Assert.Equal("::1", Assert.Single(same.Build().Configuration.PortMappings).BindAddress);
 
         var conflict = new WslContainerBuilder().WithImage("alpine").WithPort(8080, IPAddress.IPv6Loopback);
-        Assert.Throws<WslcException>(() => conflict.WithPort(8080, IPAddress.Parse("192.168.1.10")));
-        Assert.Throws<WslcException>(() => conflict.WithPort(8080, "0.0.0.0"));
+        Assert.Throws<WslException>(() => conflict.WithPort(8080, IPAddress.Parse("192.168.1.10")));
+        Assert.Throws<WslException>(() => conflict.WithPort(8080, "0.0.0.0"));
     }
 
     [Fact]
@@ -625,7 +625,7 @@ public sealed class WslContainerBuilderTests
 
         builder.WithWaitStrategy(
             Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(1)).UntilFileExists("/tmp/one-too-many"));
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslException>(() => builder.Build());
     }
 
     [Fact]
@@ -636,7 +636,7 @@ public sealed class WslContainerBuilderTests
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.MaxValue).UntilFileExists("/tmp/a"))
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.MaxValue).UntilFileExists("/tmp/b"));
 
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslException>(() => builder.Build());
     }
 
     [Fact]
@@ -651,7 +651,7 @@ public sealed class WslContainerBuilderTests
         var overCap = new string[BuilderLimits.MaxCommandArguments + 1];
         Array.Fill(overCap, "arg");
         var builder = new WslContainerBuilder().WithImage("alpine").WithCommand("echo", overCap);
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslException>(() => builder.Build());
     }
 
     [Fact]
@@ -673,7 +673,7 @@ public sealed class WslContainerBuilderTests
         Assert.Equal(BuilderLimits.MaxEnvironmentVariables, builder.Build().Configuration.Environment.Count);
 
         builder.WithEnvironment("VAR_ONE_TOO_MANY", "1");
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslException>(() => builder.Build());
     }
 
     [Fact]
@@ -693,7 +693,7 @@ public sealed class WslContainerBuilderTests
 
             Assert.Equal(BuilderLimits.MaxFileCopies, files.Build().Configuration.Files.Count);
             files.WithFile(source, "/tmp/payload-one-too-many.txt");
-            Assert.Throws<WslcException>(() => files.Build());
+            Assert.Throws<WslException>(() => files.Build());
 
             var volumes = new WslContainerBuilder().WithImage("alpine");
             for (var i = 0; i < BuilderLimits.MaxVolumeMounts; i++)
@@ -703,7 +703,7 @@ public sealed class WslContainerBuilderTests
 
             Assert.Equal(BuilderLimits.MaxVolumeMounts, volumes.Build().Configuration.Volumes.Count);
             volumes.WithVolume(directory.FullName, "/data-one-too-many");
-            Assert.Throws<WslcException>(() => volumes.Build());
+            Assert.Throws<WslException>(() => volumes.Build());
         }
         finally
         {
@@ -733,9 +733,9 @@ public sealed class WslContainerBuilderTests
                 new ExecOptions { Timeout = BuilderLimits.MaxExecTimeout + TimeSpan.FromSeconds(1) },
                 CancellationToken.None));
 
-        // At the cap validation passes; an unstarted container then fails with WslcException,
+        // At the cap validation passes; an unstarted container then fails with WslException,
         // which proves the timeout itself was accepted.
-        await Assert.ThrowsAsync<WslcException>(
+        await Assert.ThrowsAsync<WslException>(
             () => container.ExecAsync(
                 "echo",
                 null,
@@ -752,13 +752,13 @@ public sealed class WslContainerBuilderTests
         Array.Fill(atCap, "arg");
         // At the cap the arguments pass validation; the unstarted container then fails, which
         // proves the list itself was accepted.
-        var atCapException = await Assert.ThrowsAsync<WslcException>(
+        var atCapException = await Assert.ThrowsAsync<WslException>(
             () => container.ExecAsync("echo", atCap, cancellationToken: TestContext.Current.CancellationToken));
         Assert.DoesNotContain("Too many", atCapException.Message);
 
         var overCap = new string[BuilderLimits.MaxCommandArguments + 1];
         Array.Fill(overCap, "arg");
-        var overCapException = await Assert.ThrowsAsync<WslcException>(
+        var overCapException = await Assert.ThrowsAsync<WslException>(
             () => container.ExecAsync("echo", overCap, cancellationToken: TestContext.Current.CancellationToken));
         Assert.Contains("maximum", overCapException.Message);
     }
@@ -769,7 +769,7 @@ public sealed class WslContainerBuilderTests
         await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
 
         var atCap = new string('a', BuilderLimits.MaxEnvironmentValueBytes);
-        var atCapException = await Assert.ThrowsAsync<WslcException>(
+        var atCapException = await Assert.ThrowsAsync<WslException>(
             () => container.ExecAsync(
                 "echo",
                 null,
@@ -791,7 +791,7 @@ public sealed class WslContainerBuilderTests
             overCount[$"VAR_{i}"] = "1";
         }
 
-        var overCountException = await Assert.ThrowsAsync<WslcException>(
+        var overCountException = await Assert.ThrowsAsync<WslException>(
             () => container.ExecAsync(
                 "echo",
                 null,
@@ -814,7 +814,7 @@ public sealed class WslContainerBuilderTests
 
         var composite = Assert.IsType<Wslc.Testcontainers.Waiting.CompositeWaitStrategy>(strategy);
         Assert.Equal(BuilderLimits.MaxWaitStrategies, composite.Strategies.Count);
-        Assert.Throws<WslcException>(
+        Assert.Throws<WslException>(
             () => strategy.And(
                 Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(1)).UntilFileExists("/tmp/one-too-many")));
     }
@@ -831,7 +831,7 @@ public sealed class WslContainerBuilderTests
         Assert.Equal(BuilderLimits.MaxSessionVolumes, builder.Build().Configuration.SessionVolumes.Count);
 
         builder.WithSessionVolume("one-too-many", "/data-extra", 1024);
-        Assert.Throws<WslcException>(() => builder.Build());
+        Assert.Throws<WslException>(() => builder.Build());
     }
 
     [Fact]
@@ -864,7 +864,7 @@ public sealed class WslContainerBuilderTests
                 }
             }
 
-            Assert.Throws<WslcException>(() => new WslContainerBuilder().FromTarball(path));
+            Assert.Throws<WslException>(() => new WslContainerBuilder().FromTarball(path));
         }
         finally
         {

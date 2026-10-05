@@ -26,7 +26,7 @@ internal static class WslContainerHost
         HookProcessExit();
         await Task.Run(WslcHost.EnsureAvailable).ConfigureAwait(false);
 
-        if (WslcEnvironment.CleanupEnabled)
+        if (WslEnvironment.CleanupEnabled)
         {
             try
             {

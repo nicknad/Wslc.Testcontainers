@@ -21,7 +21,7 @@ public interface IWaitTarget
     /// loopback: IPv4 <c>127.0.0.1</c> for <c>0.0.0.0</c> and IPv6 <c>::1</c> for <c>::</c>.
     /// Before startup completes this throws; network probes run only while started.
     /// </summary>
-    /// <exception cref="WslcException">The container has not been started.</exception>
+    /// <exception cref="WslException">The container has not been started.</exception>
     /// <exception cref="WslNetworkException">The port was not declared with <c>WithPort</c> or the runtime has not assigned it.</exception>
     IPEndPoint GetConnectEndpoint(int containerPort);
 

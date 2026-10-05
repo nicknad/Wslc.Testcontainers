@@ -29,7 +29,7 @@ std::string HresultHex(HRESULT hr)
 namespace
 {
 
-std::unique_ptr<WslcException> CreateException(ErrorKind Kind, std::string message)
+std::unique_ptr<WslException> CreateException(ErrorKind Kind, std::string message)
 {
     switch (Kind)
     {

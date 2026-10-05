@@ -26,7 +26,7 @@ const ExecResult& ExecResult::EnsureSuccess() const
     if (!Succeeded())
     {
         throw WslProcessException("Command failed with exit code " + std::to_string(ExitCode) + ".\nstdout:\n" +
-                                  truncate(StdoutText) + "\nstderr:\n" + truncate(StderrText));
+                                  truncate(Stdout) + "\nstderr:\n" + truncate(Stderr));
     }
 
     return *this;

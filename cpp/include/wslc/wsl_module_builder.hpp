@@ -31,7 +31,7 @@ public:
     {
         if (image.find_first_not_of(" \t\r\n") == std::string::npos)
         {
-            throw WslcException("Image must not be empty.");
+            throw WslException("Image must not be empty.");
         }
 
         m_image = std::move(image);
@@ -47,7 +47,7 @@ public:
     {
         if (timeout <= std::chrono::milliseconds::zero())
         {
-            throw WslcException("Wait timeout must be positive.");
+            throw WslException("Wait timeout must be positive.");
         }
 
         m_timeout = timeout;
@@ -70,7 +70,7 @@ public:
     {
         if (!customize)
         {
-            throw WslcException("Customizer must not be null.");
+            throw WslException("Customizer must not be null.");
         }
 
         m_customizers.push_back(std::move(customize));

@@ -58,7 +58,7 @@ public:
     /// Host port and the port's configured bind address. The default/wildcard binding resolves to
     /// loopback: IPv4 127.0.0.1 for 0.0.0.0 and IPv6 ::1 for ::.
     /// </summary>
-    /// <exception cref="WslcException">The container has not been started.</exception>
+    /// <exception cref="WslException">The container has not been started.</exception>
     /// <exception cref="WslNetworkException">The port was not declared with WithPort or the runtime
     /// has not assigned it.</exception>
     WslEndpoint GetConnectEndpoint(int containerPort) const override;
@@ -86,7 +86,7 @@ public:
     /// Handle; destroying it terminates a still-running process. At most 1000 arguments may be
     /// passed; options carry only the working directory and per-process Environment.
     /// </summary>
-    /// <exception cref="WslcException">options is an ExecOptions carrying StandardInput or Timeout;
+    /// <exception cref="WslException">options is an ExecOptions carrying StandardInput or Timeout;
     /// those apply only to Exec().</exception>
     std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments = {},
                                               const ProcessOptions& options = {}, std::stop_token token = {});

@@ -119,7 +119,7 @@ public sealed class WslInstanceStoreTests : IDisposable
 
         if (exception is not null)
         {
-            Assert.IsType<WslcException>(exception);
+            Assert.IsType<WslException>(exception);
             return;
         }
 

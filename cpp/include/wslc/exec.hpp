@@ -12,7 +12,7 @@ namespace wslc
 /// <remarks>
 /// Pass a default-constructed value for defaults. ExecOptions derives from this type, so it
 /// can be passed anywhere a ProcessOptions is accepted; StartProcess uses RTTI to reject an
-/// ExecOptions carrying StandardInput/Timeout (which apply only to Exec) with WslcException.
+/// ExecOptions carrying StandardInput/Timeout (which apply only to Exec) with WslException.
 /// The virtual destructor makes this type polymorphic for that runtime check.
 /// </remarks>
 struct ProcessOptions
@@ -30,7 +30,7 @@ struct ProcessOptions
 /// <summary>Optional settings for Exec().</summary>
 /// <remarks>
 /// <c>StandardInput</c> and <c>Timeout</c> apply only to Exec(); passing an ExecOptions with
-/// either set to StartProcess() (which accepts ProcessOptions) throws WslcException.
+/// either set to StartProcess() (which accepts ProcessOptions) throws WslException.
 /// </remarks>
 struct ExecOptions : ProcessOptions
 {
@@ -49,10 +49,10 @@ struct ExecResult
     int ExitCode = 0;
 
     /// <summary>Captured standard output.</summary>
-    std::string StdoutText;
+    std::string Stdout;
 
     /// <summary>Captured standard error.</summary>
-    std::string StderrText;
+    std::string Stderr;
 
     /// <summary>Gets a value indicating whether the command exited successfully.</summary>
     bool Succeeded() const noexcept { return ExitCode == 0; }

@@ -148,7 +148,7 @@ void ContainerHost::EnsureInitialized(std::stop_token token)
                            HookProcessExit();
                            WslcHost::EnsureAvailable();
 
-                           if (WslcEnvironment::CleanupEnabled())
+                           if (WslEnvironment::CleanupEnabled())
                            {
                                try
                                {

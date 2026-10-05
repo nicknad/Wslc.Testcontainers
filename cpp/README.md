@@ -106,7 +106,7 @@ Behavioral notes:
 - `IWslProcess` is owned by the caller; destroying it terminates a still-running process.
 - `LogStream::Next` blocks until a line arrives, the stream completes, or the stop token fires
   (then it returns `std::nullopt`). Let the object go out of scope to release the subscription.
-- Exceptions mirror the C# hierarchy: `WslcException`, `WslRuntimeException`,
+- Exceptions mirror the C# hierarchy: `WslException`, `WslRuntimeException`,
   `WslProvisioningException`, `WslProcessException`, `WslTimeoutException`,
   `WslReadinessException` (with `Describe()`), `WslNetworkException`, `WslCleanupException`,
   plus `PlatformNotSupportedException` and `OperationCanceledException`.

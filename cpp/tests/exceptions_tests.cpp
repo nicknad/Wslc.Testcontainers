@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "internal/readiness_diagnostics.hpp"
 #include "internal/text_truncation.hpp"
 #include "wslc/exceptions.hpp"
 
@@ -115,9 +116,9 @@ std::vector<LogLine> MakeHugeLogs()
 
 TEST(Exceptions, DescribeBoundsCapturedOutput)
 {
-    const auto enriched =
-        WslReadinessException("Timed out waiting for readiness", "TCP port 5432", 5s, MakeHugeLogs())
-            .WithDiagnostics("alpine:latest", "sleep infinity", 1, MakeHugeStream(), MakeHugeStream());
+    const auto enriched = wslc::internal::ReadinessDiagnostics::Enrich(
+        WslReadinessException("Timed out waiting for readiness", "TCP port 5432", 5s, MakeHugeLogs()), "alpine:latest",
+        "sleep infinity", 1, MakeHugeStream(), MakeHugeStream());
 
     const std::string described = enriched.Describe();
 
@@ -138,9 +139,10 @@ TEST(Exceptions, DescribeBoundsCapturedOutput)
 TEST(Exceptions, DescribeIsUnchangedForSmallDiagnostics)
 {
     const std::string logText = "00:00:00.000 [stderr] oops";
-    const auto enriched = WslReadinessException("Timed out waiting for readiness", "TCP port 5432", 5s,
-                                                std::vector<LogLine>{LogLine{LogSource::Stderr, "oops", {}}})
-                              .WithDiagnostics("alpine:latest", "sleep infinity", 3, "hello", "bad");
+    const auto enriched = wslc::internal::ReadinessDiagnostics::Enrich(
+        WslReadinessException("Timed out waiting for readiness", "TCP port 5432", 5s,
+                              std::vector<LogLine>{LogLine{LogSource::Stderr, "oops", {}}}),
+        "alpine:latest", "sleep infinity", 3, "hello", "bad");
 
     std::string expected = "WSLC readiness failed\n"
                            "\n"

@@ -194,7 +194,7 @@ TEST_F(InstanceStoreTest, InstanceDirectoryCannotEscapeInstancesDirectory)
                       CSTR_EQUAL)
                 << name;
         }
-        catch (const wslc::WslcException&)
+        catch (const wslc::WslException&)
         {
             // Rejected outright; also contained.
         }

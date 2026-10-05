@@ -17,7 +17,7 @@ PostgreSqlBuilder& PostgreSqlBuilder::WithUsername(std::string username)
 {
     if (username.empty())
     {
-        throw WslcException("Username must not be empty.");
+        throw WslException("Username must not be empty.");
     }
 
     m_username = std::move(username);
@@ -34,7 +34,7 @@ PostgreSqlBuilder& PostgreSqlBuilder::WithDatabase(std::string database)
 {
     if (database.empty())
     {
-        throw WslcException("Database must not be empty.");
+        throw WslException("Database must not be empty.");
     }
 
     m_database = std::move(database);

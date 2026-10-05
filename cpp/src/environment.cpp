@@ -157,7 +157,7 @@ std::optional<std::chrono::milliseconds> ParseClockTime(std::string_view value)
 
 } // namespace
 
-std::optional<std::string> WslcEnvironment::GetNonEmpty(const char* Name)
+std::optional<std::string> WslEnvironment::GetNonEmpty(const char* Name)
 {
     const std::string value = internal::ReadEnvironmentVariable(Name);
     if (internal::IsBlank(value))
@@ -168,7 +168,7 @@ std::optional<std::string> WslcEnvironment::GetNonEmpty(const char* Name)
     return internal::trim(value);
 }
 
-std::optional<bool> WslcEnvironment::ParseBool(const std::optional<std::string>& value)
+std::optional<bool> WslEnvironment::ParseBool(const std::optional<std::string>& value)
 {
     if (!value)
     {
@@ -178,7 +178,7 @@ std::optional<bool> WslcEnvironment::ParseBool(const std::optional<std::string>&
     return internal::ParseBoolValue(*value);
 }
 
-std::optional<std::chrono::milliseconds> WslcEnvironment::ParseTimeout(const std::optional<std::string>& value)
+std::optional<std::chrono::milliseconds> WslEnvironment::ParseTimeout(const std::optional<std::string>& value)
 {
     if (!value || internal::IsBlank(*value))
     {
@@ -196,39 +196,39 @@ std::optional<std::chrono::milliseconds> WslcEnvironment::ParseTimeout(const std
     return ParseClockTime(Text);
 }
 
-std::optional<std::string> WslcEnvironment::DefaultImage()
+std::optional<std::string> WslEnvironment::DefaultImage()
 {
     return GetNonEmpty(DefaultImageVariable);
 }
 
-const std::filesystem::path& WslcEnvironment::DataDirectory()
+const std::filesystem::path& WslEnvironment::DataDirectory()
 {
     static const std::filesystem::path value = internal::ResolveDataDirectory(GetNonEmpty(DataDirectoryVariable));
     return value;
 }
 
-bool WslcEnvironment::ReuseByDefault()
+bool WslEnvironment::ReuseByDefault()
 {
     return ParseBool(GetNonEmpty(ReuseVariable)).value_or(false);
 }
 
-bool WslcEnvironment::CleanupEnabled()
+bool WslEnvironment::CleanupEnabled()
 {
     return ParseBool(GetNonEmpty(CleanupVariable)).value_or(true);
 }
 
-const std::string& WslcEnvironment::SessionId()
+const std::string& WslEnvironment::SessionId()
 {
     static const std::string value = internal::ResolveSessionId(GetNonEmpty(SessionIdVariable));
     return value;
 }
 
-std::chrono::milliseconds WslcEnvironment::DefaultWaitTimeout()
+std::chrono::milliseconds WslEnvironment::DefaultWaitTimeout()
 {
     return ParseTimeout(GetNonEmpty(TimeoutVariable)).value_or(std::chrono::seconds(60));
 }
 
-bool WslcEnvironment::ReuseAllowed()
+bool WslEnvironment::ReuseAllowed()
 {
     if (!IsContinuousIntegration())
     {

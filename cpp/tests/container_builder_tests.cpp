@@ -19,8 +19,8 @@ using namespace std::chrono_literals;
 using wslc::ContainerNetworkMode;
 using wslc::VhdAllocationType;
 using wslc::VolumeAccess;
-using wslc::WslcException;
 using wslc::WslContainerBuilder;
+using wslc::WslException;
 using wslc::waiting::ForWsl;
 
 namespace
@@ -69,14 +69,14 @@ TEST(ContainerBuilder, BuildRequiresAnImageSource)
 {
     WslContainerBuilder builder;
 
-    EXPECT_THROW(builder.Build(), WslcException);
+    EXPECT_THROW(builder.Build(), WslException);
 }
 
 TEST(ContainerBuilder, FromTarballRejectsAMissingTarball)
 {
     WslContainerBuilder builder;
 
-    EXPECT_THROW(builder.FromTarball("does-not-exist.tar"), WslcException);
+    EXPECT_THROW(builder.FromTarball("does-not-exist.tar"), WslException);
 }
 
 TEST(ContainerBuilder, WithImageRecordsTheImage)
@@ -126,8 +126,8 @@ TEST(ContainerBuilder, WithPortValidatesAndDeduplicates)
 {
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine").WithPort(8080).WithPort(8080).WithPort(5432).Build());
-    EXPECT_THROW(WslContainerBuilder{}.WithPort(0), WslcException);
-    EXPECT_THROW(WslContainerBuilder{}.WithPort(70000), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithPort(0), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithPort(70000), WslException);
 }
 
 TEST(ContainerBuilder, WithPortSupportsBindAddresses)
@@ -140,11 +140,11 @@ TEST(ContainerBuilder, WithPortRejectsInvalidBindAddressesAndConflicts)
 {
     WslContainerBuilder builder;
     builder.WithImage("alpine");
-    EXPECT_THROW(builder.WithPort(8080, "not-an-ip"), WslcException);
-    EXPECT_THROW(builder.WithPort(8080, ""), WslcException);
+    EXPECT_THROW(builder.WithPort(8080, "not-an-ip"), WslException);
+    EXPECT_THROW(builder.WithPort(8080, ""), WslException);
 
     builder.WithPort(8080, "127.0.0.1");
-    EXPECT_THROW(builder.WithPort(8080, "0.0.0.0"), WslcException);
+    EXPECT_THROW(builder.WithPort(8080, "0.0.0.0"), WslException);
 }
 
 TEST(ContainerBuilder, WithPortNormalizesTheBindAddress)
@@ -161,28 +161,28 @@ TEST(ContainerBuilder, WithCpuCountAndMemoryMBRecordLimits)
 {
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine").WithCpuCount(2).WithMemoryMB(2048).Build());
-    EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(0), WslcException);
-    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(0), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(0), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(0), WslException);
 }
 
 TEST(ContainerBuilder, WithNetworkingModeNoneRejectsPortsAndNetworkWaits)
 {
     WslContainerBuilder ports;
     ports.WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode::None);
-    EXPECT_THROW(ports.Build(), WslcException);
+    EXPECT_THROW(ports.Build(), WslException);
 
     WslContainerBuilder waits;
     waits.WithImage("alpine")
         .WithWaitStrategy(ForWsl().UntilTcpPortIsAvailable(80))
         .WithNetworkingMode(ContainerNetworkMode::None);
-    EXPECT_THROW(waits.Build(), WslcException);
+    EXPECT_THROW(waits.Build(), WslException);
 
     WslContainerBuilder composite;
     composite.WithImage("alpine")
         .WithWaitStrategy(
             ForWsl().UntilMessageIsLogged("ready")->And(ForWsl().UntilHttpRequestIsSucceeded("/health", 8080)))
         .WithNetworkingMode(ContainerNetworkMode::None);
-    EXPECT_THROW(composite.Build(), WslcException);
+    EXPECT_THROW(composite.Build(), WslException);
 
     // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and can
     // still be combined with None (documented bypass).
@@ -204,7 +204,7 @@ TEST(ContainerBuilder, WithNetworkingModeRejectsUnknownValues)
 {
     WslContainerBuilder builder;
 
-    EXPECT_THROW(builder.WithNetworkingMode(static_cast<ContainerNetworkMode>(99)), WslcException);
+    EXPECT_THROW(builder.WithNetworkingMode(static_cast<ContainerNetworkMode>(99)), WslException);
 }
 
 TEST(ContainerBuilder, WithSessionVolumeRecordsAndValidates)
@@ -214,13 +214,13 @@ TEST(ContainerBuilder, WithSessionVolumeRecordsAndValidates)
 
     WslContainerBuilder invalid;
     invalid.WithImage("alpine");
-    EXPECT_THROW(invalid.WithSessionVolume("", "/data", 100), WslcException);
-    EXPECT_THROW(invalid.WithSessionVolume("a/b", "/data", 100), WslcException);
-    EXPECT_THROW(invalid.WithSessionVolume("a b", "/data", 100), WslcException);
-    EXPECT_THROW(invalid.WithSessionVolume("data", "relative", 100), WslcException);
-    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", 0), WslcException);
-    EXPECT_THROW(invalid.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100), WslcException);
-    EXPECT_THROW(invalid.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100), WslcException);
+    EXPECT_THROW(invalid.WithSessionVolume("", "/data", 100), WslException);
+    EXPECT_THROW(invalid.WithSessionVolume("a/b", "/data", 100), WslException);
+    EXPECT_THROW(invalid.WithSessionVolume("a b", "/data", 100), WslException);
+    EXPECT_THROW(invalid.WithSessionVolume("data", "relative", 100), WslException);
+    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", 0), WslException);
+    EXPECT_THROW(invalid.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100), WslException);
+    EXPECT_THROW(invalid.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100), WslException);
 
     WslContainerBuilder readOnlyFixed;
     EXPECT_NO_THROW(readOnlyFixed.WithImage("alpine")
@@ -232,9 +232,9 @@ TEST(ContainerBuilder, WithEnvironmentRejectsInvalidNames)
 {
     WslContainerBuilder builder;
 
-    EXPECT_THROW(builder.WithEnvironment("", "value"), WslcException);
-    EXPECT_THROW(builder.WithEnvironment("1INVALID", "value"), WslcException);
-    EXPECT_THROW(builder.WithEnvironment("HAS-DASH", "value"), WslcException);
+    EXPECT_THROW(builder.WithEnvironment("", "value"), WslException);
+    EXPECT_THROW(builder.WithEnvironment("1INVALID", "value"), WslException);
+    EXPECT_THROW(builder.WithEnvironment("HAS-DASH", "value"), WslException);
 }
 
 TEST(ContainerBuilder, WithEnvironmentRejectsNonAsciiNames)
@@ -242,9 +242,9 @@ TEST(ContainerBuilder, WithEnvironmentRejectsNonAsciiNames)
     WslContainerBuilder builder;
     builder.WithImage("alpine");
 
-    EXPECT_THROW(builder.WithEnvironment("café", "value"), WslcException);
-    EXPECT_THROW(builder.WithEnvironment("Ωmega", "value"), WslcException);
-    EXPECT_THROW(builder.WithEnvironment("Aé", "value"), WslcException);
+    EXPECT_THROW(builder.WithEnvironment("café", "value"), WslException);
+    EXPECT_THROW(builder.WithEnvironment("Ωmega", "value"), WslException);
+    EXPECT_THROW(builder.WithEnvironment("Aé", "value"), WslException);
 
     EXPECT_NO_THROW(WslContainerBuilder{}.WithImage("alpine").WithEnvironment("A_B", "value").Build());
     EXPECT_NO_THROW(WslContainerBuilder{}.WithImage("alpine").WithEnvironment("_x1", "value").Build());
@@ -254,7 +254,7 @@ TEST(ContainerBuilder, WithFileRequiresAnExistingFile)
 {
     WslContainerBuilder builder;
 
-    EXPECT_THROW(builder.WithFile("missing.txt", "/tmp/missing.txt"), WslcException);
+    EXPECT_THROW(builder.WithFile("missing.txt", "/tmp/missing.txt"), WslException);
 }
 
 TEST(ContainerBuilder, WithFileAbsolutizesTheHostPathAtBuildTime)
@@ -309,7 +309,7 @@ TEST(ContainerBuilder, WithVolumeRequiresAnExistingDirectory)
 {
     WslContainerBuilder builder;
 
-    EXPECT_THROW(builder.WithVolume("missing-directory", "/data"), WslcException);
+    EXPECT_THROW(builder.WithVolume("missing-directory", "/data"), WslException);
 }
 
 TEST(ContainerBuilder, HostSourcesRejectReparsePoints)
@@ -328,7 +328,7 @@ TEST(ContainerBuilder, HostSourcesRejectReparsePoints)
         GTEST_SKIP() << "Symbolic link creation is not available: " << error;
     }
 
-    EXPECT_THROW(WslContainerBuilder{}.WithFile(link, "/tmp/link.txt"), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithFile(link, "/tmp/link.txt"), WslException);
     std::filesystem::remove_all(directory);
 }
 
@@ -346,7 +346,7 @@ TEST(ContainerBuilder, VolumeSourcesRejectReparsePoints)
         GTEST_SKIP() << "Directory symbolic link creation is not available: " << error;
     }
 
-    EXPECT_THROW(WslContainerBuilder{}.WithVolume(link, "/data"), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithVolume(link, "/data"), WslException);
     std::filesystem::remove_all(directory);
 }
 
@@ -356,8 +356,8 @@ TEST(ContainerBuilder, ContainerGuardsAccessBeforeStart)
     auto container = builder.WithImage("alpine:latest").Build();
 
     EXPECT_FALSE(container.IsStarted());
-    EXPECT_THROW(container.GetConnectEndpoint(8080), WslcException);
-    EXPECT_THROW(container.Exec("echo"), WslcException);
+    EXPECT_THROW(container.GetConnectEndpoint(8080), WslException);
+    EXPECT_THROW(container.Exec("echo"), WslException);
 }
 
 TEST(ContainerBuilder, StartProcessRejectsExecOnlyOptionsBeforeContainerWork)
@@ -370,9 +370,9 @@ TEST(ContainerBuilder, StartProcessRejectsExecOnlyOptionsBeforeContainerWork)
     try
     {
         container.StartProcess("cat", {}, withStandardInput);
-        FAIL() << "Expected WslcException for StandardInput.";
+        FAIL() << "Expected WslException for StandardInput.";
     }
-    catch (const WslcException& exception)
+    catch (const WslException& exception)
     {
         EXPECT_NE(std::string(exception.what()).find("StandardInput"), std::string::npos);
     }
@@ -382,9 +382,9 @@ TEST(ContainerBuilder, StartProcessRejectsExecOnlyOptionsBeforeContainerWork)
     try
     {
         container.StartProcess("cat", {}, withTimeout);
-        FAIL() << "Expected WslcException for Timeout.";
+        FAIL() << "Expected WslException for Timeout.";
     }
-    catch (const WslcException& exception)
+    catch (const WslException& exception)
     {
         EXPECT_NE(std::string(exception.what()).find("Timeout"), std::string::npos);
     }
@@ -406,7 +406,7 @@ TEST(ContainerBuilder, WaitStrategiesAccumulate)
         .WithWaitStrategy(ForWsl().WithTimeout(100s).UntilFileExists("/tmp/ready"))
         .WithWaitStrategy(ForWsl().WithTimeout(100s).UntilProcessIsRunning("nginx"))
         .WithStartupTimeout(150s);
-    EXPECT_THROW(tooSmall.Build(), WslcException);
+    EXPECT_THROW(tooSmall.Build(), WslException);
 
     WslContainerBuilder enough;
     enough.WithImage("alpine:latest")
@@ -433,14 +433,14 @@ TEST(ContainerBuilder, ContainerPathsRejectInjectionAcrossMethods)
                                    "/./proc/self",       "//sys/kernel"};
     for (const std::string& path : invalid)
     {
-        EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(path), WslcException) << path;
-        EXPECT_THROW(WslContainerBuilder{}.WithSessionVolume("data", path, 100), WslcException) << path;
-        EXPECT_THROW(WslContainerBuilder{}.WithFile("missing.txt", path), WslcException) << path;
-        EXPECT_THROW(WslContainerBuilder{}.WithVolume("missing", path), WslcException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(path), WslException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithSessionVolume("data", path, 100), WslException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithFile("missing.txt", path), WslException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithVolume("missing", path), WslException) << path;
     }
 
-    EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory("relative"), WslcException);
-    EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(std::string("/tmp/bad\x01name")), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory("relative"), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(std::string("/tmp/bad\x01name")), WslException);
 
     // Spaces are legal inside container paths even though the HTTP probe rejects them.
     EXPECT_NO_THROW(
@@ -454,8 +454,8 @@ TEST(ContainerBuilder, CpuAndMemoryCapsAreInclusive)
                         .WithCpuCount(wslc::internal::c_maxCpuCount)
                         .WithMemoryMB(wslc::internal::c_maxMemoryMb)
                         .Build());
-    EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(wslc::internal::c_maxCpuCount + 1), WslcException);
-    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(wslc::internal::c_maxMemoryMb + 1), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(wslc::internal::c_maxCpuCount + 1), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(wslc::internal::c_maxMemoryMb + 1), WslException);
 }
 
 TEST(ContainerBuilder, SessionVolumeSizeCapIsInclusive)
@@ -467,19 +467,18 @@ TEST(ContainerBuilder, SessionVolumeSizeCapIsInclusive)
 
     WslContainerBuilder invalid;
     invalid.WithImage("alpine");
-    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", wslc::internal::c_maxSessionVolumeBytes + 1),
-                 WslcException);
+    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", wslc::internal::c_maxSessionVolumeBytes + 1), WslException);
 }
 
 TEST(ContainerBuilder, StartupTimeoutCapIsInclusiveAndRejectsLongerTimeoutsBeforeStart)
 {
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine").WithStartupTimeout(wslc::internal::c_maxStartupTimeout).Build());
-    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(wslc::internal::c_maxStartupTimeout + 1s), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(wslc::internal::c_maxStartupTimeout + 1s), WslException);
 
     // 3650 days is past the startup budget ceiling; the builder must reject it before any
     // startup timer observes it.
-    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(std::chrono::hours(24 * 3650)), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(std::chrono::hours(24 * 3650)), WslException);
 }
 
 TEST(ContainerBuilder, BuildLimitsWaitStrategies)
@@ -493,7 +492,7 @@ TEST(ContainerBuilder, BuildLimitsWaitStrategies)
 
     EXPECT_NO_THROW(builder.Build());
     builder.WithWaitStrategy(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/one-too-many"));
-    EXPECT_THROW(builder.Build(), WslcException);
+    EXPECT_THROW(builder.Build(), WslException);
 }
 
 TEST(ContainerBuilder, BuildRejectsASaturatedWaitTimeoutSum)
@@ -502,7 +501,7 @@ TEST(ContainerBuilder, BuildRejectsASaturatedWaitTimeoutSum)
     builder.WithImage("alpine")
         .WithWaitStrategy(ForWsl().WithTimeout(std::chrono::milliseconds::max()).UntilFileExists("/tmp/a"))
         .WithWaitStrategy(ForWsl().WithTimeout(std::chrono::milliseconds::max()).UntilFileExists("/tmp/b"));
-    EXPECT_THROW(builder.Build(), WslcException);
+    EXPECT_THROW(builder.Build(), WslException);
 }
 
 TEST(ContainerBuilder, BuildLimitsCommandArguments)
@@ -513,7 +512,7 @@ TEST(ContainerBuilder, BuildLimitsCommandArguments)
 
     arguments.push_back("extra");
     WslContainerBuilder tooMany;
-    EXPECT_THROW(tooMany.WithImage("alpine").WithCommand("echo", arguments).Build(), WslcException);
+    EXPECT_THROW(tooMany.WithImage("alpine").WithCommand("echo", arguments).Build(), WslException);
 }
 
 TEST(ContainerBuilder, WithEnvironmentEnforcesTheValueCap)
@@ -521,7 +520,7 @@ TEST(ContainerBuilder, WithEnvironmentEnforcesTheValueCap)
     const std::string atCap(wslc::internal::c_maxEnvironmentValueBytes, 'a');
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine").WithEnvironment("BIG", atCap).Build());
-    EXPECT_THROW(WslContainerBuilder{}.WithEnvironment("BIG", atCap + "a"), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.WithEnvironment("BIG", atCap + "a"), WslException);
 }
 
 TEST(ContainerBuilder, BuildLimitsEnvironmentCount)
@@ -535,7 +534,7 @@ TEST(ContainerBuilder, BuildLimitsEnvironmentCount)
 
     EXPECT_NO_THROW(builder.Build());
     builder.WithEnvironment("VAR_ONE_TOO_MANY", "1");
-    EXPECT_THROW(builder.Build(), WslcException);
+    EXPECT_THROW(builder.Build(), WslException);
 }
 
 TEST(ContainerBuilder, BuildLimitsFileCopiesAndVolumeMounts)
@@ -555,7 +554,7 @@ TEST(ContainerBuilder, BuildLimitsFileCopiesAndVolumeMounts)
 
     EXPECT_NO_THROW(files.Build());
     files.WithFile(source, "/tmp/payload-one-too-many.txt");
-    EXPECT_THROW(files.Build(), WslcException);
+    EXPECT_THROW(files.Build(), WslException);
 
     WslContainerBuilder volumes;
     volumes.WithImage("alpine");
@@ -566,7 +565,7 @@ TEST(ContainerBuilder, BuildLimitsFileCopiesAndVolumeMounts)
 
     EXPECT_NO_THROW(volumes.Build());
     volumes.WithVolume(directory, "/data-one-too-many");
-    EXPECT_THROW(volumes.Build(), WslcException);
+    EXPECT_THROW(volumes.Build(), WslException);
 
     std::filesystem::remove_all(directory);
 }
@@ -577,7 +576,7 @@ TEST(ContainerBuilder, ModuleBuilderRejectsAnUnboundedWaitTimeoutAtBuild)
     builder.WithWaitTimeout(std::chrono::milliseconds::max());
 
     // The derived startup timeout is capped; the failure must happen while the module builds.
-    EXPECT_THROW(builder.Build(), WslcException);
+    EXPECT_THROW(builder.Build(), WslException);
 }
 
 TEST(ContainerBuilder, ExecTimeoutCapIsEnforced)
@@ -587,16 +586,16 @@ TEST(ContainerBuilder, ExecTimeoutCapIsEnforced)
 
     wslc::ExecOptions atCap;
     atCap.Timeout = wslc::internal::c_maxExecTimeout;
-    EXPECT_THROW(container.Exec("echo", {}, atCap), WslcException);
+    EXPECT_THROW(container.Exec("echo", {}, atCap), WslException);
 
     wslc::ExecOptions overCap;
     overCap.Timeout = wslc::internal::c_maxExecTimeout + 1s;
     try
     {
         container.Exec("echo", {}, overCap);
-        FAIL() << "Expected WslcException for an over-cap exec timeout.";
+        FAIL() << "Expected WslException for an over-cap exec timeout.";
     }
-    catch (const WslcException& exception)
+    catch (const WslException& exception)
     {
         EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
     }
@@ -610,15 +609,15 @@ TEST(ContainerBuilder, ExecRejectsMoreThanTheArgumentCap)
     const std::vector<std::string> atCap(wslc::internal::c_maxCommandArguments, "arg");
     // At the cap the arguments pass validation; the unstarted container then fails, which
     // proves the list itself was accepted.
-    EXPECT_THROW(container.Exec("echo", atCap), WslcException);
+    EXPECT_THROW(container.Exec("echo", atCap), WslException);
 
     const std::vector<std::string> overCap(wslc::internal::c_maxCommandArguments + 1, "arg");
     try
     {
         container.Exec("echo", overCap);
-        FAIL() << "Expected WslcException for an over-cap argument list.";
+        FAIL() << "Expected WslException for an over-cap argument list.";
     }
-    catch (const WslcException& exception)
+    catch (const WslException& exception)
     {
         EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
     }
@@ -632,16 +631,16 @@ TEST(ContainerBuilder, ExecRejectsEnvironmentAboveTheCaps)
     const std::string atCapValue(wslc::internal::c_maxEnvironmentValueBytes, 'a');
     wslc::ExecOptions atCap;
     atCap.Environment["BIG"] = atCapValue;
-    EXPECT_THROW(container.Exec("echo", {}, atCap), WslcException);
+    EXPECT_THROW(container.Exec("echo", {}, atCap), WslException);
 
     wslc::ExecOptions overValue;
     overValue.Environment["BIG"] = atCapValue + "a";
     try
     {
         container.Exec("echo", {}, overValue);
-        FAIL() << "Expected WslcException for an over-cap exec environment value.";
+        FAIL() << "Expected WslException for an over-cap exec environment value.";
     }
-    catch (const WslcException& exception)
+    catch (const WslException& exception)
     {
         EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
     }
@@ -655,9 +654,9 @@ TEST(ContainerBuilder, ExecRejectsEnvironmentAboveTheCaps)
     try
     {
         container.Exec("echo", {}, overCount);
-        FAIL() << "Expected WslcException for an over-cap exec environment.";
+        FAIL() << "Expected WslException for an over-cap exec environment.";
     }
-    catch (const WslcException& exception)
+    catch (const WslException& exception)
     {
         EXPECT_NE(std::string(exception.what()).find("maximum"), std::string::npos);
     }
@@ -671,7 +670,7 @@ TEST(ContainerBuilder, CompositeWaitCountCapIsEnforcedAtComposition)
         strategy = strategy->And(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/wait-" + std::to_string(i)));
     }
 
-    EXPECT_THROW(strategy->And(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/one-too-many")), WslcException);
+    EXPECT_THROW(strategy->And(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/one-too-many")), WslException);
 }
 
 TEST(ContainerBuilder, BuildLimitsSessionVolumeCount)
@@ -685,7 +684,7 @@ TEST(ContainerBuilder, BuildLimitsSessionVolumeCount)
 
     EXPECT_NO_THROW(builder.Build());
     builder.WithSessionVolume("one-too-many", "/data-extra", 1024);
-    EXPECT_THROW(builder.Build(), WslcException);
+    EXPECT_THROW(builder.Build(), WslException);
 }
 
 TEST(ContainerBuilder, FromTarballRejectsATarballAboveTheSizeCap)
@@ -712,7 +711,7 @@ TEST(ContainerBuilder, FromTarballRejectsATarballAboveTheSizeCap)
         GTEST_SKIP() << "Sparse file allocation is not available: " << error.message();
     }
 
-    EXPECT_THROW(WslContainerBuilder{}.FromTarball(path), WslcException);
+    EXPECT_THROW(WslContainerBuilder{}.FromTarball(path), WslException);
 
     std::filesystem::remove(path);
 }

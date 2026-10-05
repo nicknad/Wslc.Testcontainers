@@ -11,6 +11,7 @@
 #include "internal/port_mapping.hpp"
 #include "internal/process_registry.hpp"
 #include "internal/process_runner.hpp"
+#include "internal/readiness_diagnostics.hpp"
 #include "internal/util.hpp"
 #include "wslc/environment.hpp"
 #include "wslc/exceptions.hpp"
@@ -48,21 +49,21 @@ void ValidateEnvironmentName(const std::string& Name)
 {
     if (internal::IsBlank(Name))
     {
-        throw WslcException("Environment variable name must not be empty.");
+        throw WslException("Environment variable name must not be empty.");
     }
 
     const char first = Name[0];
     if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
     {
-        throw WslcException("Environment variable name '" + Name + "' must start with a letter or underscore.");
+        throw WslException("Environment variable name '" + Name + "' must start with a letter or underscore.");
     }
 
     for (const char character : Name)
     {
         if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
         {
-            throw WslcException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
-                                character + "'.");
+            throw WslException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
+                               character + "'.");
         }
     }
 }
@@ -188,7 +189,7 @@ struct WslContainer::Impl
 
     explicit Impl(internal::Configuration config)
         : configuration(std::move(config)), store(internal::InstanceStore::DefaultStore()),
-          Reuse((configuration.Reuse.value_or(WslcEnvironment::ReuseByDefault())) && WslcEnvironment::ReuseAllowed()),
+          Reuse((configuration.Reuse.value_or(WslEnvironment::ReuseByDefault())) && WslEnvironment::ReuseAllowed()),
           Name(Reuse ? internal::WslNaming::CreateReuseName(internal::WslConfigHasher::Compute(configuration))
                      : internal::WslNaming::CreateInstanceName(store.SessionId())),
           owner_pid(std::to_string(internal::CurrentProcessId()))
@@ -263,7 +264,7 @@ struct WslContainer::Impl
         auto Handle = get_container();
         if (!Handle)
         {
-            throw WslcException("Container '" + Name + "' has not been started. Call Start() first.");
+            throw WslException("Container '" + Name + "' has not been started. Call Start() first.");
         }
 
         return Handle;
@@ -308,7 +309,7 @@ void WslContainer::Impl::Start(WslContainer& target, std::stop_token caller)
     std::unique_lock lifecycle_lock(lifecycle);
     if (disposed)
     {
-        throw WslcException("Container '" + Name + "' has been disposed.");
+        throw WslException("Container '" + Name + "' has been disposed.");
     }
 
     if (started)
@@ -470,7 +471,7 @@ void WslContainer::Impl::CreateSessionVolumes()
                             &error);
             publish_diagnostic(std::format("created session volume '{}' ({} bytes)", volume.Name, volume.SizeBytes));
         }
-        catch (const WslcException& exception)
+        catch (const WslException& exception)
         {
             throw WslProvisioningException("Failed to create session volume '" + volume.Name +
                                            "': " + exception.what());
@@ -872,7 +873,7 @@ void WslContainer::Impl::Stop(std::stop_token token)
     std::unique_lock lifecycle_lock(lifecycle);
     if (disposed)
     {
-        throw WslcException("Container '" + Name + "' has been disposed.");
+        throw WslException("Container '" + Name + "' has been disposed.");
     }
 
     StopLocked(token, true);
@@ -1141,7 +1142,7 @@ void WslContainer::Impl::TranslateAndThrow(std::stop_token caller, const std::st
     {
         throw enrich(readiness);
     }
-    catch (const WslcException&)
+    catch (const WslException&)
     {
         throw;
     }
@@ -1171,12 +1172,12 @@ WslReadinessException WslContainer::Impl::enrich(const WslReadinessException& re
                    : (configuration.TarballPath
                           ? std::optional<std::string>(internal::ToUtf8(configuration.TarballPath->wstring()))
                           : std::nullopt));
-    const std::optional<std::string> command = readiness.command() ? readiness.command() : configuration.Command;
-    const std::optional<std::string> StdoutText =
-        readiness.StdoutText() ? readiness.StdoutText() : JoinLast(*logs_snapshot, LogSource::Stdout, c_maxRecentLogs);
-    const std::optional<std::string> StderrText =
-        readiness.StderrText() ? readiness.StderrText() : JoinLast(*logs_snapshot, LogSource::Stderr, c_maxRecentLogs);
-    return readiness.WithDiagnostics(Image, command, ExitCode, StdoutText, StderrText);
+    const std::optional<std::string> Command = readiness.Command() ? readiness.Command() : configuration.Command;
+    const std::optional<std::string> Stdout =
+        readiness.Stdout() ? readiness.Stdout() : JoinLast(*logs_snapshot, LogSource::Stdout, c_maxRecentLogs);
+    const std::optional<std::string> Stderr =
+        readiness.Stderr() ? readiness.Stderr() : JoinLast(*logs_snapshot, LogSource::Stderr, c_maxRecentLogs);
+    return internal::ReadinessDiagnostics::Enrich(readiness, Image, Command, ExitCode, Stdout, Stderr);
 }
 
 std::map<std::string, std::string> WslContainer::Impl::BuildEnvironment(
@@ -1239,7 +1240,7 @@ ExecResult WslContainer::Impl::Exec(std::string command, std::vector<std::string
     internal::EnsureComInitialized();
     if (internal::IsBlank(command))
     {
-        throw WslcException("Command must not be empty.");
+        throw WslException("Command must not be empty.");
     }
 
     internal::RequireCount(arguments.size(), internal::c_maxCommandArguments, "command arguments");
@@ -1253,7 +1254,7 @@ ExecResult WslContainer::Impl::Exec(std::string command, std::vector<std::string
         return internal::ProcessRunner::Run(containerHandle->get(), settings, options.StandardInput, options.Timeout,
                                             token, [this](LogLine line) { Logs->Publish(line); });
     }
-    catch (const WslcException&)
+    catch (const WslException&)
     {
         throw;
     }
@@ -1270,7 +1271,7 @@ std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string comman
     internal::ThrowIfStopped(token);
     if (internal::IsBlank(command))
     {
-        throw WslcException("Command must not be empty.");
+        throw WslException("Command must not be empty.");
     }
 
     internal::RequireCount(arguments.size(), internal::c_maxCommandArguments, "command arguments");
@@ -1281,8 +1282,8 @@ std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string comman
     if (const auto* exec = dynamic_cast<const ExecOptions*>(&options);
         exec != nullptr && (exec->StandardInput.has_value() || exec->Timeout.has_value()))
     {
-        throw WslcException("StandardInput and Timeout apply only to Exec, not to long-running StartProcess. Use "
-                            "Exec for stdin or kill the IWslProcess when done.");
+        throw WslException("StandardInput and Timeout apply only to Exec, not to long-running StartProcess. Use "
+                           "Exec for stdin or kill the IWslProcess when done.");
     }
 
     ValidateProcessOptions(options);
@@ -1313,7 +1314,7 @@ void WslContainer::Impl::CopyTo(const std::filesystem::path& HostPath, std::stri
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
     if (internal::IsBlank(hostText))
     {
-        throw WslcException("Host path must not be empty.");
+        throw WslException("Host path must not be empty.");
     }
 
     internal::ValidateContainerPath(ContainerPath);
@@ -1322,7 +1323,7 @@ void WslContainer::Impl::CopyTo(const std::filesystem::path& HostPath, std::stri
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || std::filesystem::is_directory(HostPath, error))
     {
-        throw WslcException("Host file '" + hostText + "' does not exist. Only file copies are supported.");
+        throw WslException("Host file '" + hostText + "' does not exist. Only file copies are supported.");
     }
 
     internal::ProcessRunner::CopyTo(containerHandle->get(), std::filesystem::absolute(HostPath), ContainerPath, token,
@@ -1337,7 +1338,7 @@ void WslContainer::Impl::CopyFrom(std::string ContainerPath, const std::filesyst
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
     if (internal::IsBlank(hostText))
     {
-        throw WslcException("Host path must not be empty.");
+        throw WslException("Host path must not be empty.");
     }
 
     auto containerHandle = RequireContainer();
@@ -1349,7 +1350,7 @@ std::vector<LogLine> WslContainer::Impl::RecentLogs(int maxLines) const
 {
     if (maxLines <= 0)
     {
-        throw WslcException("maxLines must be positive.");
+        throw WslException("maxLines must be positive.");
     }
 
     return TakeLast(*Logs->Snapshot(), static_cast<std::size_t>(maxLines));
@@ -1360,8 +1361,8 @@ WslEndpoint WslContainer::Impl::connect_endpoint(int containerPort) const
     const auto networkSnapshot = get_network();
     if (!networkSnapshot)
     {
-        throw WslcException("Container '" + Name + "' has not been started, so port " + std::to_string(containerPort) +
-                            " is not mapped yet. Call Start() first.");
+        throw WslException("Container '" + Name + "' has not been started, so port " + std::to_string(containerPort) +
+                           " is not mapped yet. Call Start() first.");
     }
 
     return networkSnapshot->GetConnectEndpoint(containerPort);

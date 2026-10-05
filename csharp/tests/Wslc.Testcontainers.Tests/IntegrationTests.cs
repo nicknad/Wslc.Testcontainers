@@ -176,8 +176,8 @@ public sealed class IntegrationTests
     {
         // Reuse is forced off under CI unless WSLC_REUSE_IN_CI is set; the integration
         // pipeline runs with GITHUB_ACTIONS=1, so opt in for this test only.
-        var previous = Environment.GetEnvironmentVariable(WslcEnvironment.ReuseInCiVariable);
-        Environment.SetEnvironmentVariable(WslcEnvironment.ReuseInCiVariable, "1");
+        var previous = Environment.GetEnvironmentVariable(WslEnvironment.ReuseInCiVariable);
+        Environment.SetEnvironmentVariable(WslEnvironment.ReuseInCiVariable, "1");
         try
         {
             // A per-run environment value makes the configuration hash unique, so the first
@@ -240,7 +240,7 @@ public sealed class IntegrationTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable(WslcEnvironment.ReuseInCiVariable, previous);
+            Environment.SetEnvironmentVariable(WslEnvironment.ReuseInCiVariable, previous);
         }
     }
 

@@ -17,7 +17,7 @@ int main()
 
         const wslc::ExecResult result =
             postgres.Exec("/bin/sh", {"-c", "PGPASSWORD=secret psql -U postgres -d customers -tAc 'SELECT version()'"});
-        std::cout << result.StdoutText;
+        std::cout << result.Stdout;
     }
     catch (const std::exception& exception)
     {

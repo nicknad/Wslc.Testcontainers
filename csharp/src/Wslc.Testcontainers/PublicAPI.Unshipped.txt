@@ -1,11 +1,11 @@
 #nullable enable
-const Wslc.Testcontainers.WslcEnvironment.CleanupVariable = "WSLC_CLEANUP" -> string!
-const Wslc.Testcontainers.WslcEnvironment.DataDirectoryVariable = "WSLC_DATA_DIRECTORY" -> string!
-const Wslc.Testcontainers.WslcEnvironment.DefaultImageVariable = "WSLC_DEFAULT_IMAGE" -> string!
-const Wslc.Testcontainers.WslcEnvironment.ReuseInCiVariable = "WSLC_REUSE_IN_CI" -> string!
-const Wslc.Testcontainers.WslcEnvironment.ReuseVariable = "WSLC_REUSE" -> string!
-const Wslc.Testcontainers.WslcEnvironment.SessionIdVariable = "WSLC_SESSION_ID" -> string!
-const Wslc.Testcontainers.WslcEnvironment.TimeoutVariable = "WSLC_TIMEOUT" -> string!
+const Wslc.Testcontainers.WslEnvironment.CleanupVariable = "WSLC_CLEANUP" -> string!
+const Wslc.Testcontainers.WslEnvironment.DataDirectoryVariable = "WSLC_DATA_DIRECTORY" -> string!
+const Wslc.Testcontainers.WslEnvironment.DefaultImageVariable = "WSLC_DEFAULT_IMAGE" -> string!
+const Wslc.Testcontainers.WslEnvironment.ReuseInCiVariable = "WSLC_REUSE_IN_CI" -> string!
+const Wslc.Testcontainers.WslEnvironment.ReuseVariable = "WSLC_REUSE" -> string!
+const Wslc.Testcontainers.WslEnvironment.SessionIdVariable = "WSLC_SESSION_ID" -> string!
+const Wslc.Testcontainers.WslEnvironment.TimeoutVariable = "WSLC_TIMEOUT" -> string!
 override Wslc.Testcontainers.ExecOptions.Equals(object? obj) -> bool
 override Wslc.Testcontainers.ExecOptions.GetHashCode() -> int
 override Wslc.Testcontainers.ExecOptions.ToString() -> string!
@@ -26,11 +26,11 @@ static Wslc.Testcontainers.Provisioning.WslResourceReaper.CleanupIncludingReuseA
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.PurgeReuseAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 static Wslc.Testcontainers.Testing.LogDumper.DumpAsync(System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>! logs, System.Action<string!>! writeLine, int maxLines = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static Wslc.Testcontainers.Waiting.Wait.ForWsl() -> Wslc.Testcontainers.Waiting.WslWaitBuilder!
-static Wslc.Testcontainers.WslcEnvironment.CleanupEnabled.get -> bool
-static Wslc.Testcontainers.WslcEnvironment.DataDirectory.get -> string!
-static Wslc.Testcontainers.WslcEnvironment.DefaultImage.get -> string?
-static Wslc.Testcontainers.WslcEnvironment.ReuseByDefault.get -> bool
-static Wslc.Testcontainers.WslcEnvironment.SessionId.get -> string!
+static Wslc.Testcontainers.WslEnvironment.CleanupEnabled.get -> bool
+static Wslc.Testcontainers.WslEnvironment.DataDirectory.get -> string!
+static Wslc.Testcontainers.WslEnvironment.DefaultImage.get -> string?
+static Wslc.Testcontainers.WslEnvironment.ReuseByDefault.get -> bool
+static Wslc.Testcontainers.WslEnvironment.SessionId.get -> string!
 virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.Configure(Wslc.Testcontainers.WslContainerBuilder! builder) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.ExecOptions
 Wslc.Testcontainers.ExecOptions.Equals(Wslc.Testcontainers.ExecOptions? other) -> bool
@@ -115,9 +115,9 @@ Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilProcessIsRunning(string! process
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilTcpPortIsAvailable(int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.WithRetryInterval(System.TimeSpan retryInterval) -> Wslc.Testcontainers.Waiting.WslWaitBuilder!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.WithTimeout(System.TimeSpan timeout) -> Wslc.Testcontainers.Waiting.WslWaitBuilder!
-Wslc.Testcontainers.WslcEnvironment
-Wslc.Testcontainers.WslcException
-Wslc.Testcontainers.WslcException.WslcException(string! message, System.Exception? innerException = null) -> void
+Wslc.Testcontainers.WslEnvironment
+Wslc.Testcontainers.WslException
+Wslc.Testcontainers.WslException.WslException(string! message, System.Exception? innerException = null) -> void
 Wslc.Testcontainers.WslCleanupException
 Wslc.Testcontainers.WslCleanupException.WslCleanupException(string! message, System.Exception? innerException = null) -> void
 Wslc.Testcontainers.WslContainer

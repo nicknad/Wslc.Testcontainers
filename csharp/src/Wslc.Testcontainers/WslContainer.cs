@@ -55,7 +55,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         _configuration = configuration;
         _store = store;
-        _reuse = (configuration.Reuse ?? WslcEnvironment.ReuseByDefault) && WslcEnvironment.ReuseAllowed;
+        _reuse = (configuration.Reuse ?? WslEnvironment.ReuseByDefault) && WslEnvironment.ReuseAllowed;
 
         _name = _reuse
             ? WslNaming.CreateReuseName(WslConfigHasher.Compute(configuration))
@@ -78,7 +78,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     public IPEndPoint GetConnectEndpoint(int containerPort)
     {
         var network = _network
-            ?? throw new WslcException($"Container '{Name}' has not been started, so port {containerPort} is not mapped yet. Call StartAsync() first.");
+            ?? throw new WslException($"Container '{Name}' has not been started, so port {containerPort} is not mapped yet. Call StartAsync() first.");
         return network.GetConnectEndpoint(containerPort);
     }
 
@@ -167,7 +167,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         var container = RequireContainer();
         if (!File.Exists(hostPath))
         {
-            throw new WslcException($"Host file '{hostPath}' does not exist. Only file copies are supported.");
+            throw new WslException($"Host file '{hostPath}' does not exist. Only file copies are supported.");
         }
 
         return WslcProcessRunner.CopyToAsync(container, hostPath, containerPath, cancellationToken, _logs.Publish);
@@ -268,7 +268,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 .RunAsync(container, settings, options.StandardInput, options.Timeout, cancellationToken, _logs.Publish)
                 .ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is not WslcException and not OperationCanceledException)
+        catch (Exception exception) when (exception is not WslException and not OperationCanceledException)
         {
             throw new WslProcessException($"Command '{command}' failed: {exception.Message}", exception);
         }
@@ -769,7 +769,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     private Microsoft.WSL.Containers.Container RequireContainer() =>
-        _container ?? throw new WslcException($"Container '{Name}' has not been started. Call StartAsync() first.");
+        _container ?? throw new WslException($"Container '{Name}' has not been started. Call StartAsync() first.");
 
     private async Task CleanupAsync(bool throwOnError, CancellationToken cancellationToken)
     {
@@ -937,7 +937,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 : exception;
         }
 
-        return exception is WslcException
+        return exception is WslException
             ? exception
             : new WslProvisioningException($"Failed to start container '{Name}': {exception.Message}", exception);
     }

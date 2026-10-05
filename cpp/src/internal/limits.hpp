@@ -36,13 +36,13 @@ inline void RequireCpuCount(std::uint32_t cpuCount)
 {
     if (cpuCount == 0)
     {
-        throw WslcException("CPU count must be positive.");
+        throw WslException("CPU count must be positive.");
     }
 
     if (cpuCount > c_maxCpuCount)
     {
-        throw WslcException("CPU count " + std::to_string(cpuCount) + " exceeds the maximum of " +
-                            std::to_string(c_maxCpuCount) + ".");
+        throw WslException("CPU count " + std::to_string(cpuCount) + " exceeds the maximum of " +
+                           std::to_string(c_maxCpuCount) + ".");
     }
 }
 
@@ -50,13 +50,13 @@ inline void RequireMemoryMb(std::uint32_t megabytes)
 {
     if (megabytes == 0)
     {
-        throw WslcException("Memory limit must be positive.");
+        throw WslException("Memory limit must be positive.");
     }
 
     if (megabytes > c_maxMemoryMb)
     {
-        throw WslcException("Memory limit " + std::to_string(megabytes) + " MB exceeds the maximum of " +
-                            std::to_string(c_maxMemoryMb) + " MB (1 TiB).");
+        throw WslException("Memory limit " + std::to_string(megabytes) + " MB exceeds the maximum of " +
+                           std::to_string(c_maxMemoryMb) + " MB (1 TiB).");
     }
 }
 
@@ -64,13 +64,13 @@ inline void RequireSessionVolumeSize(std::uint64_t sizeBytes)
 {
     if (sizeBytes == 0)
     {
-        throw WslcException("Session volume size must be positive.");
+        throw WslException("Session volume size must be positive.");
     }
 
     if (sizeBytes > c_maxSessionVolumeBytes)
     {
-        throw WslcException("Session volume size " + std::to_string(sizeBytes) + " bytes exceeds the maximum of " +
-                            std::to_string(c_maxSessionVolumeBytes) + " bytes (1 TiB).");
+        throw WslException("Session volume size " + std::to_string(sizeBytes) + " bytes exceeds the maximum of " +
+                           std::to_string(c_maxSessionVolumeBytes) + " bytes (1 TiB).");
     }
 }
 
@@ -78,13 +78,13 @@ inline void RequireStartupTimeout(std::chrono::milliseconds timeout)
 {
     if (timeout <= std::chrono::milliseconds::zero())
     {
-        throw WslcException("Timeout must be positive.");
+        throw WslException("Timeout must be positive.");
     }
 
     if (timeout > c_maxStartupTimeout)
     {
-        throw WslcException("Startup timeout " + FormatMilliseconds(timeout) + "s exceeds the maximum of " +
-                            FormatMilliseconds(c_maxStartupTimeout) + "s (24 h).");
+        throw WslException("Startup timeout " + FormatMilliseconds(timeout) + "s exceeds the maximum of " +
+                           FormatMilliseconds(c_maxStartupTimeout) + "s (24 h).");
     }
 }
 
@@ -92,13 +92,13 @@ inline void RequireExecTimeout(std::chrono::milliseconds timeout)
 {
     if (timeout <= std::chrono::milliseconds::zero())
     {
-        throw WslcException("Exec Timeout must be positive.");
+        throw WslException("Exec Timeout must be positive.");
     }
 
     if (timeout > c_maxExecTimeout)
     {
-        throw WslcException("Exec timeout " + FormatMilliseconds(timeout) + "s exceeds the maximum of " +
-                            FormatMilliseconds(c_maxExecTimeout) + "s (24 h).");
+        throw WslException("Exec timeout " + FormatMilliseconds(timeout) + "s exceeds the maximum of " +
+                           FormatMilliseconds(c_maxExecTimeout) + "s (24 h).");
     }
 }
 
@@ -106,9 +106,9 @@ inline void RequireEnvironmentValue(std::string_view name, std::string_view valu
 {
     if (value.size() > c_maxEnvironmentValueBytes)
     {
-        throw WslcException("Environment variable '" + std::string(name) + "' value is " +
-                            std::to_string(value.size()) + " bytes; the maximum is " +
-                            std::to_string(c_maxEnvironmentValueBytes) + " bytes (128 KiB).");
+        throw WslException("Environment variable '" + std::string(name) + "' value is " + std::to_string(value.size()) +
+                           " bytes; the maximum is " + std::to_string(c_maxEnvironmentValueBytes) +
+                           " bytes (128 KiB).");
     }
 }
 
@@ -116,8 +116,8 @@ inline void RequireTarballSize(const std::string& pathText, std::uintmax_t lengt
 {
     if (length > c_maxTarballBytes)
     {
-        throw WslcException("Tarball '" + pathText + "' is " + std::to_string(length) + " bytes; the maximum is " +
-                            std::to_string(c_maxTarballBytes) + " bytes (1 TiB).");
+        throw WslException("Tarball '" + pathText + "' is " + std::to_string(length) + " bytes; the maximum is " +
+                           std::to_string(c_maxTarballBytes) + " bytes (1 TiB).");
     }
 }
 
@@ -125,8 +125,8 @@ inline void RequireCount(std::size_t count, std::size_t maximum, std::string_vie
 {
     if (count > maximum)
     {
-        throw WslcException("Too many " + std::string(what) + ": " + std::to_string(count) +
-                            " configured, but the maximum is " + std::to_string(maximum) + ".");
+        throw WslException("Too many " + std::string(what) + ": " + std::to_string(count) +
+                           " configured, but the maximum is " + std::to_string(maximum) + ".");
     }
 }
 
@@ -134,8 +134,8 @@ inline void RequireWaitStrategyCount(std::size_t count)
 {
     if (count > c_maxWaitStrategies)
     {
-        throw WslcException("Too many wait strategies: " + std::to_string(count) +
-                            " configured or combined, but the maximum is " + std::to_string(c_maxWaitStrategies) + ".");
+        throw WslException("Too many wait strategies: " + std::to_string(count) +
+                           " configured or combined, but the maximum is " + std::to_string(c_maxWaitStrategies) + ".");
     }
 }
 

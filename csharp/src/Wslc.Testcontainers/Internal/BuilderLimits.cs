@@ -143,7 +143,7 @@ internal static class BuilderLimits
     {
         if ((ulong)length > MaxTarballBytes)
         {
-            throw new WslcException(
+            throw new WslException(
                 $"Tarball '{tarballPath}' is {length} bytes; the maximum is {MaxTarballBytes} bytes (1 TiB).");
         }
     }
@@ -152,7 +152,7 @@ internal static class BuilderLimits
     {
         if (count > maximum)
         {
-            throw new WslcException($"Too many {description}: {count} configured, but the maximum is {maximum}.");
+            throw new WslException($"Too many {description}: {count} configured, but the maximum is {maximum}.");
         }
     }
 
@@ -160,7 +160,7 @@ internal static class BuilderLimits
     {
         if (count > MaxWaitStrategies)
         {
-            throw new WslcException(
+            throw new WslException(
                 $"Too many wait strategies: {count} configured or combined, but the maximum is {MaxWaitStrategies}.");
         }
     }

@@ -104,7 +104,7 @@ TEST(Integration, RunsCommandsAndCapturesOutput)
         const auto result = container.Exec("/bin/sh", {"-c", "echo hello-wslc"});
 
         EXPECT_EQ(result.ExitCode, 0);
-        EXPECT_NE(result.StdoutText.find("hello-wslc"), std::string::npos);
+        EXPECT_NE(result.Stdout.find("hello-wslc"), std::string::npos);
         EXPECT_TRUE(container.IsStarted());
     }
     catch (...)
@@ -129,7 +129,7 @@ TEST(Integration, ExposesEnvironmentVariables)
         const auto result = container.Exec("/bin/sh", {"-c", "printf %s \"$WSLC_TEST_VALUE\""});
 
         EXPECT_EQ(result.ExitCode, 0);
-        EXPECT_EQ(result.StdoutText, std::string("hello"));
+        EXPECT_EQ(result.Stdout, std::string("hello"));
     }
     catch (...)
     {
@@ -155,7 +155,7 @@ TEST(Integration, CopiesFilesIntoAndOutOfTheContainer)
 
         container.CopyTo(source, "/tmp/wslc-test.txt");
         const auto cat = container.Exec("/bin/cat", {"/tmp/wslc-test.txt"});
-        EXPECT_EQ(cat.StdoutText, std::string("wslc-file-content"));
+        EXPECT_EQ(cat.Stdout, std::string("wslc-file-content"));
 
         container.CopyFrom("/tmp/wslc-test.txt", destination);
         std::ifstream output(destination);
@@ -236,7 +236,7 @@ TEST(Integration, IsolatedNetworkingRunsCommandsWithoutPorts)
         const auto result = container.Exec("/bin/sh", {"-c", "echo offline-ok"});
 
         EXPECT_EQ(result.ExitCode, 0);
-        EXPECT_NE(result.StdoutText.find("offline-ok"), std::string::npos);
+        EXPECT_NE(result.Stdout.find("offline-ok"), std::string::npos);
         EXPECT_THROW(container.GetConnectEndpoint(8080), WslNetworkException);
     }
     catch (...)
@@ -261,7 +261,7 @@ TEST(Integration, SessionVolumesMountAndAreRecreatedOnRestart)
         const auto write =
             container.Exec("/bin/sh", {"-c", "echo persisted > /scratch/data.txt && cat /scratch/data.txt"});
         EXPECT_EQ(write.ExitCode, 0);
-        EXPECT_EQ(write.StdoutText.substr(0, write.StdoutText.find('\n')), std::string("persisted"));
+        EXPECT_EQ(write.Stdout.substr(0, write.Stdout.find('\n')), std::string("persisted"));
 
         container.Stop();
         container.Start();
@@ -284,8 +284,8 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
 
     // Reuse is forced off under CI unless WSLC_REUSE_IN_CI is set; the integration pipeline
     // runs with GITHUB_ACTIONS=1, so opt in for this test only.
-    const std::string previous = GetEnvironment(wslc::WslcEnvironment::ReuseInCiVariable);
-    _putenv_s(wslc::WslcEnvironment::ReuseInCiVariable, "1");
+    const std::string previous = GetEnvironment(wslc::WslEnvironment::ReuseInCiVariable);
+    _putenv_s(wslc::WslEnvironment::ReuseInCiVariable, "1");
     try
     {
         // A per-run environment value makes the configuration hash unique, so the first start
@@ -346,12 +346,12 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
     }
     catch (...)
     {
-        _putenv_s(wslc::WslcEnvironment::ReuseInCiVariable, previous.c_str());
+        _putenv_s(wslc::WslEnvironment::ReuseInCiVariable, previous.c_str());
         WslResourceReaper::PurgeReuse();
         throw;
     }
 
-    _putenv_s(wslc::WslcEnvironment::ReuseInCiVariable, previous.c_str());
+    _putenv_s(wslc::WslEnvironment::ReuseInCiVariable, previous.c_str());
     WslResourceReaper::PurgeReuse();
 }
 
@@ -395,10 +395,10 @@ TEST(Integration, ResourceCapsAreAppliedToTheSession)
         container.Start();
 
         const auto cpus = container.Exec("nproc");
-        EXPECT_EQ(std::stoul(cpus.StdoutText), cpuCount);
+        EXPECT_EQ(std::stoul(cpus.Stdout), cpuCount);
 
         const auto memory = container.Exec("/bin/sh", {"-c", "awk '/MemTotal/ {print $2}' /proc/meminfo"});
-        const long memoryKb = std::stol(memory.StdoutText);
+        const long memoryKb = std::stol(memory.Stdout);
         EXPECT_GE(memoryKb, 300'000);
         EXPECT_LE(memoryKb, 1'500'000);
     }
@@ -429,7 +429,7 @@ TEST(Integration, MountsWindowsDirectoriesAsVolumes)
         const auto result = container.Exec("/bin/cat", {"/workspace/data.txt"});
 
         EXPECT_EQ(result.ExitCode, 0);
-        EXPECT_EQ(result.StdoutText, std::string("mounted"));
+        EXPECT_EQ(result.Stdout, std::string("mounted"));
     }
     catch (...)
     {
@@ -457,7 +457,7 @@ TEST(IntegrationModules, PostgreSqlModuleStartsAndServesQueries)
         const auto result =
             postgres.Exec("/bin/sh", {"-c", "PGPASSWORD=secret psql -U postgres -d customers -tAc 'SELECT 1'"});
         EXPECT_EQ(result.ExitCode, 0);
-        EXPECT_NE(result.StdoutText.find('1'), std::string::npos);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
     }
     catch (...)
     {

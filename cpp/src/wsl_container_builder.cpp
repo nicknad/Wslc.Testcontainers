@@ -30,7 +30,7 @@ void RequireText(const std::string& value, const char* what)
 {
     if (internal::IsBlank(value))
     {
-        throw WslcException(std::string(what) + " must not be empty.");
+        throw WslException(std::string(what) + " must not be empty.");
     }
 }
 
@@ -38,21 +38,21 @@ void RequireEnvironmentName(const std::string& Name)
 {
     if (internal::IsBlank(Name))
     {
-        throw WslcException("Environment variable name must not be empty.");
+        throw WslException("Environment variable name must not be empty.");
     }
 
     const char first = Name[0];
     if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
     {
-        throw WslcException("Environment variable name '" + Name + "' must start with a letter or underscore.");
+        throw WslException("Environment variable name '" + Name + "' must start with a letter or underscore.");
     }
 
     for (const char character : Name)
     {
         if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
         {
-            throw WslcException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
-                                character + "'.");
+            throw WslException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
+                               character + "'.");
         }
     }
 }
@@ -61,14 +61,14 @@ void RequireVolumeName(const std::string& Name)
 {
     if (internal::IsBlank(Name))
     {
-        throw WslcException("Volume Name must not be empty.");
+        throw WslException("Volume Name must not be empty.");
     }
 
     for (const char character : Name)
     {
         if (character == '/' || character == '\\' || std::isspace(static_cast<unsigned char>(character)) != 0)
         {
-            throw WslcException("Volume Name '" + Name + "' must not contain path separators or whitespace.");
+            throw WslException("Volume Name '" + Name + "' must not contain path separators or whitespace.");
         }
     }
 }
@@ -77,7 +77,7 @@ int ValidatePort(int port)
 {
     if (port < 1 || port > 65535)
     {
-        throw WslcException("Port must be between 1 and 65535.");
+        throw WslException("Port must be between 1 and 65535.");
     }
 
     return port;
@@ -87,13 +87,13 @@ std::string ValidateBindAddress(const std::string& BindAddress)
 {
     if (internal::IsBlank(BindAddress))
     {
-        throw WslcException("Bind address must not be empty.");
+        throw WslException("Bind address must not be empty.");
     }
 
     const auto normalized = internal::NormalizeIpAddress(BindAddress);
     if (!normalized)
     {
-        throw WslcException("Bind address '" + BindAddress + "' is not a valid IP address.");
+        throw WslException("Bind address '" + BindAddress + "' is not a valid IP address.");
     }
 
     return *normalized;
@@ -126,7 +126,7 @@ WslContainerBuilder& WslContainerBuilder::FromTarball(std::filesystem::path Tarb
     std::error_code error;
     if (!std::filesystem::exists(TarballPath, error))
     {
-        throw WslcException("Tarball '" + pathText + "' does not exist.");
+        throw WslException("Tarball '" + pathText + "' does not exist.");
     }
 
     const std::uintmax_t tarballLength = std::filesystem::file_size(TarballPath, error);
@@ -189,8 +189,8 @@ WslContainerBuilder& WslContainerBuilder::WithPort(int port)
         {
             if (existing.BindAddress)
             {
-                throw WslcException("Port " + std::to_string(port) +
-                                    " is already mapped with a different bind address. Declare each port once.");
+                throw WslException("Port " + std::to_string(port) +
+                                   " is already mapped with a different bind address. Declare each port once.");
             }
 
             return *this;
@@ -212,8 +212,8 @@ WslContainerBuilder& WslContainerBuilder::WithPort(int port, std::string BindAdd
             const bool same = existing.BindAddress && internal::EqualsIgnoreCase(*existing.BindAddress, normalized);
             if (!same)
             {
-                throw WslcException("Port " + std::to_string(port) +
-                                    " is already mapped with a different bind address. Declare each port once.");
+                throw WslException("Port " + std::to_string(port) +
+                                   " is already mapped with a different bind address. Declare each port once.");
             }
 
             return *this;
@@ -228,7 +228,7 @@ WslContainerBuilder& WslContainerBuilder::WithWaitStrategy(std::shared_ptr<waiti
 {
     if (!strategy)
     {
-        throw WslcException("The Wait strategy must not be null.");
+        throw WslException("The Wait strategy must not be null.");
     }
 
     m_state->configuration.WaitStrategies.push_back(std::move(strategy));
@@ -243,20 +243,20 @@ WslContainerBuilder& WslContainerBuilder::WithFile(std::filesystem::path HostPat
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || std::filesystem::is_directory(HostPath, error))
     {
-        throw WslcException("File Source '" + hostText + "' does not exist. Only Files are supported by WithFile.");
+        throw WslException("File Source '" + hostText + "' does not exist. Only Files are supported by WithFile.");
     }
 
     if (internal::IsReparsePoint(HostPath))
     {
-        throw WslcException("File Source '" + hostText +
-                            "' is a reparse point (symlink or junction); refusing to follow it.");
+        throw WslException("File Source '" + hostText +
+                           "' is a reparse point (symlink or junction); refusing to follow it.");
     }
 
     const std::uintmax_t length = std::filesystem::file_size(HostPath, error);
     if (!error && length > c_maxCopyBytes)
     {
-        throw WslcException("File '" + hostText + "' exceeds 1 GiB limit (" + std::to_string(length) +
-                            " bytes) and cannot be copied into the container.");
+        throw WslException("File '" + hostText + "' exceeds 1 GiB limit (" + std::to_string(length) +
+                           " bytes) and cannot be copied into the container.");
     }
 
     m_state->configuration.Files.push_back(
@@ -278,13 +278,13 @@ WslContainerBuilder& WslContainerBuilder::WithVolume(std::filesystem::path HostP
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || !std::filesystem::is_directory(HostPath, error))
     {
-        throw WslcException("Volume Host path '" + hostText + "' does not exist or is not a directory.");
+        throw WslException("Volume Host path '" + hostText + "' does not exist or is not a directory.");
     }
 
     if (internal::IsReparsePoint(HostPath))
     {
-        throw WslcException("Volume Host path '" + hostText +
-                            "' is a reparse point (symlink or junction); pass the resolved directory instead.");
+        throw WslException("Volume Host path '" + hostText +
+                           "' is a reparse point (symlink or junction); pass the resolved directory instead.");
     }
 
     m_state->configuration.Volumes.push_back(internal::WslVolumeMount{
@@ -309,8 +309,8 @@ WslContainerBuilder& WslContainerBuilder::WithSessionVolume(std::string Name, st
     {
         if (internal::EqualsIgnoreCase(existing.Name, Name))
         {
-            throw WslcException("A session volume '" + Name +
-                                "' is already configured. Volume names must be unique per container.");
+            throw WslException("A session volume '" + Name +
+                               "' is already configured. Volume names must be unique per container.");
         }
     }
 
@@ -323,7 +323,7 @@ WslContainerBuilder& WslContainerBuilder::WithNetworkingMode(ContainerNetworkMod
 {
     if (mode != ContainerNetworkMode::Bridged && mode != ContainerNetworkMode::None)
     {
-        throw WslcException("Unknown networking mode.");
+        throw WslException("Unknown networking mode.");
     }
 
     m_state->configuration.NetworkingMode = mode;
@@ -364,7 +364,7 @@ WslContainer WslContainerBuilder::Build()
 
     if (!configuration.Image && !configuration.TarballPath)
     {
-        if (const auto DefaultImage = WslcEnvironment::DefaultImage())
+        if (const auto DefaultImage = WslEnvironment::DefaultImage())
         {
             configuration.Image = *DefaultImage;
         }
@@ -372,9 +372,8 @@ WslContainer WslContainerBuilder::Build()
 
     if (!configuration.Image && !configuration.TarballPath)
     {
-        throw WslcException(
-            std::string("No Image Source configured. Call WithImage(...) or FromTarball(...), or set ") +
-            WslcEnvironment::DefaultImageVariable + ".");
+        throw WslException(std::string("No Image Source configured. Call WithImage(...) or FromTarball(...), or set ") +
+                           WslEnvironment::DefaultImageVariable + ".");
     }
 
     internal::RequireCount(configuration.CommandArguments.size(), internal::c_maxCommandArguments, "command arguments");
@@ -389,14 +388,14 @@ WslContainer WslContainerBuilder::Build()
     {
         if (!configuration.PortMappings.empty())
         {
-            throw WslcException("NetworkingMode.None provides no network: remove WithPort(...) declarations or use "
-                                "Bridged networking.");
+            throw WslException("NetworkingMode.None provides no network: remove WithPort(...) declarations or use "
+                               "Bridged networking.");
         }
 
         if (const auto network_wait = waiting::detail::FindNetworkWait(configuration.WaitStrategies))
         {
-            throw WslcException("NetworkingMode.None provides no network: Wait strategy '" + *network_wait +
-                                "' can never succeed. Remove it or use Bridged networking.");
+            throw WslException("NetworkingMode.None provides no network: Wait strategy '" + *network_wait +
+                               "' can never succeed. Remove it or use Bridged networking.");
         }
     }
 
@@ -416,11 +415,11 @@ WslContainer WslContainerBuilder::Build()
 
         if (total > configuration.StartupTimeout)
         {
-            throw WslcException("Startup Timeout " + internal::FormatMilliseconds(configuration.StartupTimeout) +
-                                "s is smaller than the sum of Wait-strategy timeouts " +
-                                internal::FormatMilliseconds(total) +
-                                "s. Waits Run sequentially, so startup would always fire first. Increase "
-                                "WithStartupTimeout(...) or reduce Wait WithTimeout(...) values.");
+            throw WslException("Startup Timeout " + internal::FormatMilliseconds(configuration.StartupTimeout) +
+                               "s is smaller than the sum of Wait-strategy timeouts " +
+                               internal::FormatMilliseconds(total) +
+                               "s. Waits Run sequentially, so startup would always fire first. Increase "
+                               "WithStartupTimeout(...) or reduce Wait WithTimeout(...) values.");
         }
     }
 

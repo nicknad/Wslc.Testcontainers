@@ -44,8 +44,8 @@ WslReadinessException::WslReadinessException(std::string message, std::string Ex
 WslReadinessException WslReadinessException::WithDiagnostics(std::optional<std::string> Image,
                                                              std::optional<std::string> command,
                                                              std::optional<int> ExitCode,
-                                                             std::optional<std::string> StdoutText,
-                                                             std::optional<std::string> StderrText) const
+                                                             std::optional<std::string> Stdout,
+                                                             std::optional<std::string> Stderr) const
 {
     WslReadinessException result(what(), m_expectedCondition, m_timeout, m_logs);
     if (Image)
@@ -67,18 +67,18 @@ WslReadinessException WslReadinessException::WithDiagnostics(std::optional<std::
     }
 
     result.m_exitCode = ExitCode ? ExitCode : m_exitCode;
-    if (StdoutText)
+    if (Stdout)
     {
-        result.m_stdoutText = std::move(StdoutText);
+        result.m_stdoutText = std::move(Stdout);
     }
     else
     {
         result.m_stdoutText = m_stdoutText;
     }
 
-    if (StderrText)
+    if (Stderr)
     {
-        result.m_stderrText = std::move(StderrText);
+        result.m_stderrText = std::move(Stderr);
     }
     else
     {

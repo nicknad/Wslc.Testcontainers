@@ -9,9 +9,9 @@ namespace Wslc.Testcontainers;
 /// Any other non-empty value is treated as unset (falls back to defaults) — check spelling if
 /// a flag seems ignored. Snapshots (<see cref="DataDirectory"/>, <see cref="SessionId"/>) are
 /// captured on first use; changing env vars afterwards has no effect. Invalid configured paths
-/// or session ids raise <see cref="WslcException"/> on access until the environment is corrected.
+/// or session ids raise <see cref="WslException"/> on access until the environment is corrected.
 /// </summary>
-public static class WslcEnvironment
+public static class WslEnvironment
 {
     /// <summary>Default readiness timeout, in seconds or as a <see cref="TimeSpan"/> string.</summary>
     public const string TimeoutVariable = "WSLC_TIMEOUT";
@@ -60,7 +60,7 @@ public static class WslcEnvironment
     /// <summary>
     /// Resolves a configured data directory to an absolute local path, or the LOCALAPPDATA
     /// default when unset. Relative values are resolved against the current directory; UNC and
-    /// device paths are rejected. Throws <see cref="WslcException"/> for invalid configuration.
+    /// device paths are rejected. Throws <see cref="WslException"/> for invalid configuration.
     /// </summary>
     internal static string ResolveDataDirectory(string? configured)
     {
@@ -79,12 +79,12 @@ public static class WslcEnvironment
         catch (Exception exception) when (
             exception is ArgumentException or IOException or NotSupportedException or System.Security.SecurityException)
         {
-            throw new WslcException($"{DataDirectoryVariable} is not a valid directory path: '{configured}'.", exception);
+            throw new WslException($"{DataDirectoryVariable} is not a valid directory path: '{configured}'.", exception);
         }
 
         if (fullPath.StartsWith(@"\\", StringComparison.Ordinal))
         {
-            throw new WslcException(
+            throw new WslException(
                 $"{DataDirectoryVariable} must be a local absolute directory path; UNC and device paths are not supported: '{configured}'.");
         }
 
@@ -93,7 +93,7 @@ public static class WslcEnvironment
 
     /// <summary>
     /// Validates a configured session identifier or generates a sanitized process-unique value
-    /// when unset. Throws <see cref="WslcException"/> for invalid configuration.
+    /// when unset. Throws <see cref="WslException"/> for invalid configuration.
     /// </summary>
     internal static string ResolveSessionId(string? configured)
     {
@@ -101,7 +101,7 @@ public static class WslcEnvironment
         {
             if (!IsValidSessionId(configured))
             {
-                throw new WslcException(
+                throw new WslException(
                     $"{SessionIdVariable} must be 1-{MaxSessionIdLength} characters using only [A-Za-z0-9_-]: '{configured}'.");
             }
 

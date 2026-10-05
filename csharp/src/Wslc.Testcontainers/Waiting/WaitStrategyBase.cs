@@ -12,7 +12,7 @@ internal abstract record WaitStrategyBase : IWaitStrategy
 
     public abstract string Name { get; }
 
-    public TimeSpan Timeout { get; init; } = WslcEnvironment.DefaultWaitTimeout;
+    public TimeSpan Timeout { get; init; } = WslEnvironment.DefaultWaitTimeout;
 
     public TimeSpan RetryInterval { get; init; } = DefaultRetryInterval;
 

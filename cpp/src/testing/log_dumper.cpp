@@ -10,12 +10,12 @@ void LogDumper::Dump(LogStream& Logs, const std::function<void(const std::string
 {
     if (!write_line)
     {
-        throw WslcException("The write callback must not be null.");
+        throw WslException("The write callback must not be null.");
     }
 
     if (maxLines <= 0)
     {
-        throw WslcException("maxLines must be positive.");
+        throw WslException("maxLines must be positive.");
     }
 
     int count = 0;

@@ -141,18 +141,18 @@ void ValidateContainerPath(std::string_view path)
 {
     if (IsBlank(path))
     {
-        throw WslcException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).");
+        throw WslException("Container path must not be empty and must be an absolute Linux path (e.g. /tmp/file).");
     }
 
     if (path[0] != '/')
     {
-        throw WslcException("Container path '" + std::string(path) +
-                            "' must be an absolute Linux path starting with '/'.");
+        throw WslException("Container path '" + std::string(path) +
+                           "' must be an absolute Linux path starting with '/'.");
     }
 
     if (HasControlCharacter(path))
     {
-        throw WslcException("Container path '" + std::string(path) + "' must not contain control characters.");
+        throw WslException("Container path '" + std::string(path) + "' must not contain control characters.");
     }
 
     std::size_t index = 0;
@@ -162,7 +162,7 @@ void ValidateContainerPath(std::string_view path)
         const std::size_t end = next == std::string_view::npos ? path.size() : next;
         if (path.substr(index, end - index) == "..")
         {
-            throw WslcException("Container path '" + std::string(path) + "' must not contain '..' segments.");
+            throw WslException("Container path '" + std::string(path) + "' must not contain '..' segments.");
         }
 
         if (next == std::string_view::npos)
@@ -176,8 +176,8 @@ void ValidateContainerPath(std::string_view path)
     const std::string_view first = FirstPathSegment(path);
     if (first == "proc" || first == "sys" || first == "dev")
     {
-        throw WslcException("Container path '" + std::string(path) + "' targets the protected '/" + std::string(first) +
-                            "' filesystem.");
+        throw WslException("Container path '" + std::string(path) + "' targets the protected '/" + std::string(first) +
+                           "' filesystem.");
     }
 }
 
@@ -185,18 +185,18 @@ void ValidateHttpPath(std::string_view value)
 {
     if (IsBlank(value))
     {
-        throw WslcException("HTTP wait path must not be empty.");
+        throw WslException("HTTP wait path must not be empty.");
     }
 
     if (value.contains("://") || value.rfind("http:", 0) == 0 || value.rfind("https:", 0) == 0)
     {
-        throw WslcException("HTTP wait path '" + std::string(value) +
-                            "' must be a path-and-query (e.g. /health), not a full URL.");
+        throw WslException("HTTP wait path '" + std::string(value) +
+                           "' must be a path-and-query (e.g. /health), not a full URL.");
     }
 
     if (value[0] != '/')
     {
-        throw WslcException("HTTP wait path '" + std::string(value) + "' must start with '/'.");
+        throw WslException("HTTP wait path '" + std::string(value) + "' must start with '/'.");
     }
 
     for (const char character : value)
@@ -204,8 +204,8 @@ void ValidateHttpPath(std::string_view value)
         const unsigned char byte = static_cast<unsigned char>(character);
         if (byte <= 0x20 || byte == 0x7F)
         {
-            throw WslcException("HTTP wait path '" + std::string(value) +
-                                "' must not contain spaces or control characters; percent-encode them.");
+            throw WslException("HTTP wait path '" + std::string(value) +
+                               "' must not contain spaces or control characters; percent-encode them.");
         }
     }
 }
@@ -388,24 +388,24 @@ std::filesystem::path ResolveDataDirectory(const std::optional<std::string>& con
     const std::wstring wide = ToUtf16(*configured);
     if (wide.starts_with(L"\\\\") || wide.starts_with(L"//"))
     {
-        throw WslcException(std::string(WslcEnvironment::DataDirectoryVariable) +
-                            " must be a local absolute directory path; UNC and device paths are not supported: '" +
-                            *configured + "'.");
+        throw WslException(std::string(WslEnvironment::DataDirectoryVariable) +
+                           " must be a local absolute directory path; UNC and device paths are not supported: '" +
+                           *configured + "'.");
     }
 
     std::error_code error;
     std::filesystem::path path = std::filesystem::absolute(wide, error);
     if (error)
     {
-        throw WslcException(std::string(WslcEnvironment::DataDirectoryVariable) + " is not a valid directory path: '" +
-                            *configured + "'.");
+        throw WslException(std::string(WslEnvironment::DataDirectoryVariable) + " is not a valid directory path: '" +
+                           *configured + "'.");
     }
 
     if (path.native().starts_with(L"\\\\"))
     {
-        throw WslcException(std::string(WslcEnvironment::DataDirectoryVariable) +
-                            " must be a local absolute directory path; UNC and device paths are not supported: '" +
-                            *configured + "'.");
+        throw WslException(std::string(WslEnvironment::DataDirectoryVariable) +
+                           " must be a local absolute directory path; UNC and device paths are not supported: '" +
+                           *configured + "'.");
     }
 
     return path;
@@ -417,8 +417,8 @@ std::string ResolveSessionId(const std::optional<std::string>& configured)
     {
         if (!IsValidSessionId(*configured))
         {
-            throw WslcException(std::string(WslcEnvironment::SessionIdVariable) +
-                                " must be 1-64 characters using only [A-Za-z0-9_-]: '" + *configured + "'.");
+            throw WslException(std::string(WslEnvironment::SessionIdVariable) +
+                               " must be 1-64 characters using only [A-Za-z0-9_-]: '" + *configured + "'.");
         }
 
         return *configured;
@@ -461,7 +461,7 @@ Sha256::Sha256()
     BCRYPT_ALG_HANDLE algorithm = nullptr;
     if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) < 0)
     {
-        throw WslcException("Failed to open the SHA-256 provider.");
+        throw WslException("Failed to open the SHA-256 provider.");
     }
 
     DWORD object_size = 0;
@@ -470,7 +470,7 @@ Sha256::Sha256()
                           &written, 0) < 0)
     {
         BCryptCloseAlgorithmProvider(algorithm, 0);
-        throw WslcException("Failed to query the SHA-256 Object size.");
+        throw WslException("Failed to query the SHA-256 Object size.");
     }
 
     // The hash object buffer must stay alive until BCryptDestroyHash; keep it as a member.
@@ -479,7 +479,7 @@ Sha256::Sha256()
     if (BCryptCreateHash(algorithm, &hash, m_object.data(), object_size, nullptr, 0, 0) < 0)
     {
         BCryptCloseAlgorithmProvider(algorithm, 0);
-        throw WslcException("Failed to create the SHA-256 hash.");
+        throw WslException("Failed to create the SHA-256 hash.");
     }
 
     m_algorithm = algorithm;
@@ -511,7 +511,7 @@ void Sha256::Append(std::span<const std::uint8_t> data)
     if (BCryptHashData(static_cast<BCRYPT_HASH_HANDLE>(m_hash), const_cast<PUCHAR>(data.data()),
                        static_cast<ULONG>(data.size()), 0) < 0)
     {
-        throw WslcException("Failed to Append SHA-256 data.");
+        throw WslException("Failed to Append SHA-256 data.");
     }
 }
 
@@ -521,7 +521,7 @@ std::vector<std::uint8_t> Sha256::Finish()
     if (BCryptFinishHash(static_cast<BCRYPT_HASH_HANDLE>(m_hash), digest.data(), static_cast<ULONG>(digest.size()), 0) <
         0)
     {
-        throw WslcException("Failed to Finish the SHA-256 hash.");
+        throw WslException("Failed to Finish the SHA-256 hash.");
     }
 
     BCryptDestroyHash(static_cast<BCRYPT_HASH_HANDLE>(m_hash));
@@ -556,7 +556,7 @@ std::string RandomHex(int length)
     std::vector<std::uint8_t> bytes(static_cast<std::size_t>(byte_count));
     if (BCryptGenRandom(nullptr, bytes.data(), static_cast<ULONG>(bytes.size()), BCRYPT_USE_SYSTEM_PREFERRED_RNG) < 0)
     {
-        throw WslcException("Failed to generate random bytes.");
+        throw WslException("Failed to generate random bytes.");
     }
 
     return ToHex(bytes).substr(0, static_cast<std::size_t>(length));

@@ -53,7 +53,7 @@ public:
     }
 
     /// <summary>Starts a long-running process inside the Environment.</summary>
-    /// <exception cref="WslcException">options is an ExecOptions carrying StandardInput or Timeout;
+    /// <exception cref="WslException">options is an ExecOptions carrying StandardInput or Timeout;
     /// those apply only to Exec().</exception>
     std::unique_ptr<IWslProcess> StartProcess(std::string command, std::vector<std::string> arguments = {},
                                               const ProcessOptions& options = {}, std::stop_token token = {})

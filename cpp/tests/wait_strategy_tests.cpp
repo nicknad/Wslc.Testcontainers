@@ -18,7 +18,7 @@ using wslc::ExecResult;
 using wslc::LogLine;
 using wslc::LogSource;
 using wslc::OperationCanceledException;
-using wslc::WslcException;
+using wslc::WslException;
 using wslc::WslReadinessException;
 using wslc::test::FakeWaitTarget;
 using wslc::test::TinyHttpServer;
@@ -303,34 +303,34 @@ TEST(WaitStrategy, CompositeTimeoutBoundsChildrenWithLongerTimeouts)
 
 TEST(WaitStrategy, CustomUntilValidatesArguments)
 {
-    EXPECT_THROW(ForWsl().Until(" ", [](wslc::waiting::IWaitTarget&, std::stop_token) { return true; }), WslcException);
+    EXPECT_THROW(ForWsl().Until(" ", [](wslc::waiting::IWaitTarget&, std::stop_token) { return true; }), WslException);
     EXPECT_THROW(ForWsl().Until("condition", std::function<bool(wslc::waiting::IWaitTarget&, std::stop_token)>()),
-                 WslcException);
+                 WslException);
 }
 
 TEST(WaitStrategy, InvalidConfigurationIsRejected)
 {
-    EXPECT_THROW(ForWsl().WithTimeout(0ms), WslcException);
-    EXPECT_THROW(ForWsl().WithRetryInterval(0ms), WslcException);
-    EXPECT_THROW(ForWsl().UntilTcpPortIsAvailable(0), WslcException);
-    EXPECT_THROW(ForWsl().UntilFileExists(" "), WslcException);
+    EXPECT_THROW(ForWsl().WithTimeout(0ms), WslException);
+    EXPECT_THROW(ForWsl().WithRetryInterval(0ms), WslException);
+    EXPECT_THROW(ForWsl().UntilTcpPortIsAvailable(0), WslException);
+    EXPECT_THROW(ForWsl().UntilFileExists(" "), WslException);
 
     // HTTP waits take a path-and-query, never a full URL or a relative path.
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080), WslcException);
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("health", 8080), WslcException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("health", 8080), WslException);
 
     // Raw request lines must not carry spaces or CR/LF that would inject headers.
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health HTTP/1.1\r\nX-Evil: 1", 8080), WslcException);
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/he alth", 8080), WslcException);
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health\tx", 8080), WslcException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health HTTP/1.1\r\nX-Evil: 1", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/he alth", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health\tx", 8080), WslException);
 
     // Container paths cannot escape via '..' or target kernel pseudo-filesystems.
-    EXPECT_THROW(ForWsl().UntilFileExists("/tmp/../etc/passwd"), WslcException);
-    EXPECT_THROW(ForWsl().UntilFileExists("/./proc/self/environ"), WslcException);
-    EXPECT_THROW(ForWsl().UntilFileExists("//sys/kernel"), WslcException);
-    EXPECT_THROW(ForWsl().UntilFileExists("/dev/sda"), WslcException);
-    EXPECT_THROW(ForWsl().UntilFileExists(std::string("/tmp/bad\x01name")), WslcException);
+    EXPECT_THROW(ForWsl().UntilFileExists("/tmp/../etc/passwd"), WslException);
+    EXPECT_THROW(ForWsl().UntilFileExists("/./proc/self/environ"), WslException);
+    EXPECT_THROW(ForWsl().UntilFileExists("//sys/kernel"), WslException);
+    EXPECT_THROW(ForWsl().UntilFileExists("/dev/sda"), WslException);
+    EXPECT_THROW(ForWsl().UntilFileExists(std::string("/tmp/bad\x01name")), WslException);
 
-    EXPECT_THROW(ForWsl().UntilMessageIsLogged("ready", 0), WslcException);
-    EXPECT_THROW(ForWsl().UntilMessageIsLogged(" ", 2), WslcException);
+    EXPECT_THROW(ForWsl().UntilMessageIsLogged("ready", 0), WslException);
+    EXPECT_THROW(ForWsl().UntilMessageIsLogged(" ", 2), WslException);
 }

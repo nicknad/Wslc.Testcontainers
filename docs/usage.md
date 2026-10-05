@@ -129,7 +129,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 ```
 
 - If `WSLC_DEFAULT_IMAGE` is set it is used when no source is configured.
-- `FromTarball` throws `WslcException` when the tarball does not exist (same
+- `FromTarball` throws `WslException` when the tarball does not exist (same
   call-time check as `WithFile`/`WithVolume`); `Build()` throws when no source
   is configured. Pin tags/digests in tests; avoid `:latest` for reproducibility.
 
@@ -206,7 +206,7 @@ var strategy = Wait.ForWsl()
 Rules that bite:
 
 - `WithPort(n)` every port you probe — `GetConnectEndpoint(n)` throws `WslNetworkException`
-  for an undeclared/unassigned port, and `WslcException` before `StartAsync()`.
+  for an undeclared/unassigned port, and `WslException` before `StartAsync()`.
 - `And(...)` flattens nested composites and keeps the left operand's timeout, which bounds the
   whole sequence: two composed 60 s waits get a 60 s budget, not 120 s. Set the budget on the
   left operand. The composite keeps the left retry interval too, but it does not poll itself —

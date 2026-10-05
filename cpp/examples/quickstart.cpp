@@ -13,7 +13,7 @@ int main()
         container.Start();
 
         const wslc::ExecResult result = container.Exec("/bin/sh", {"-c", "echo hello from wslc"});
-        std::cout << "exit=" << result.ExitCode << " stdout=" << result.StdoutText;
+        std::cout << "exit=" << result.ExitCode << " stdout=" << result.Stdout;
     }
     catch (const std::exception& exception)
     {

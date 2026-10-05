@@ -29,7 +29,7 @@ class InstanceStore
 public:
     InstanceStore(std::filesystem::path DataDirectory, std::string SessionId);
 
-    /// <summary>Shared store rooted at WslcEnvironment::DataDirectory().</summary>
+    /// <summary>Shared store rooted at WslEnvironment::DataDirectory().</summary>
     static InstanceStore& DefaultStore();
 
     const std::string& SessionId() const noexcept { return m_sessionId; }

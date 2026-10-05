@@ -36,12 +36,12 @@ void ValidateStandardInputSize(std::size_t byteCount);
 
 /// <summary>
 /// Requires an absolute Linux path that is safe to pass to the WSLC runtime as a working
-/// directory, volume target, or copy destination. Throws WslcException otherwise.
+/// directory, volume target, or copy destination. Throws WslException otherwise.
 /// </summary>
 void ValidateContainerPath(std::string_view path);
 
 /// <summary>
-/// Requires an origin-form path-and-query for the raw HTTP probe. Throws WslcException when
+/// Requires an origin-form path-and-query for the raw HTTP probe. Throws WslException when
 /// the value is a full URL, is relative, or contains spaces/control characters.
 /// </summary>
 void ValidateHttpPath(std::string_view value);
@@ -76,14 +76,14 @@ bool IsValidSessionId(std::string_view value);
 /// <summary>
 /// Resolves the configured data directory: relative values are made absolute, UNC and device
 /// paths are rejected, and unset values fall back to LOCALAPPDATA (then USERPROFILE).
-/// Throws WslcException when the configured value is invalid.
+/// Throws WslException when the configured value is invalid.
 /// </summary>
 std::filesystem::path ResolveDataDirectory(const std::optional<std::string>& configured);
 
 /// <summary>
 /// Resolves the configured session identifier: a configured value must match the allowed
 /// character set and length; unset values generate a sanitized executable-name-plus-PID
-/// identifier. Throws WslcException when the configured value is invalid.
+/// identifier. Throws WslException when the configured value is invalid.
 /// </summary>
 std::string ResolveSessionId(const std::optional<std::string>& configured);
 

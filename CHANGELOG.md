@@ -27,7 +27,7 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 - Builder and exec inputs are now capped, and the caps are part of the documented contract.
   Exceeding a cap fails before reaching the WSLC runtime with an actionable domain exception
-  (`WslcException` / `ArgumentOutOfRangeException` in C#, `WslcException` in C++); single-value
+  (`WslException` / `ArgumentOutOfRangeException` in C#, `WslException` in C++); single-value
   caps fail fast in the `With...` setter or exec call, aggregate caps in `Build()`:
 
   | Input | Maximum | Checked at |
@@ -53,10 +53,18 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 - `And(...)` composites now consistently keep the left operand's timeout (which bounds the whole sequence) and retry interval; the non-composite + non-composite case previously fell back to the default timeout.
 - `CS1591` is no longer globally suppressed: missing XML docs on public members fail the strict build.
 - `WslModuleContainer` now implements `IWslContainer`, so module containers are substitutable wherever the interface is expected.
-- Pre-start errors are unified on `WslcException` (previously `WslNetworkException` for `GetMappedPort` and `InvalidOperationException` for exec/copy/start-process), so `catch (WslcException)` is complete.
+- Pre-start errors are unified on `WslException` (previously `WslNetworkException` for `GetMappedPort` and `InvalidOperationException` for exec/copy/start-process), so `catch (WslException)` is complete.
 - `WslReadinessException` is immutable; the container builds the fully populated instance before throwing instead of mutating properties after creation.
+- `WslcException` was renamed `WslException` and `WslcEnvironment` `WslEnvironment` (C# and C++),
+  so the whole exception/environment hierarchy follows the `Wsl*` prefix; the `WSLC_*` environment
+  variable names are unchanged.
+- C++ accessors now follow the C# names: `WslReadinessException.Command()`, `Image()`, `Stdout()`
+  and `Stderr()` (previously `command()`, `StdoutText()`, `StderrText()`), and `ExecResult.Stdout`/
+  `ExecResult.Stderr` (previously `StdoutText`/`StderrText`). `WslReadinessException::WithDiagnostics`
+  is no longer public API: the container applies the diagnostic enrichment internally before it
+  rethrows the failure.
 - `FromTarball` validates that the tarball exists when called (matching `WithFile`/`WithVolume`) instead of at `Build()`.
-- `WslcEnvironment.DataDirectory` is snapshotted on first use, matching its documentation and `SessionId`.
+- `WslEnvironment.DataDirectory` is snapshotted on first use, matching its documentation and `SessionId`.
 - `WslPlatform.MinimumWslVersion` is a read-only property instead of a public field.
 - `LogLine.Diagnostic` is internal; construct `LogLine` directly for custom lines.
 - Reuse identity (`Name`) covers configuration metadata only: `WithFile` source contents are no longer hashed (they are copied on every start), so `Name` performs no file I/O.
@@ -81,7 +89,7 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   = default)` — so an argument array is explicit (`ExecAsync("ps", ["aux"])`) and `ExecAsync("cmd")`
   still works. Because `ExecOptions` derives from `ProcessOptions`, `StartProcess` still accepts
   an `ExecOptions` but rejects one carrying `StandardInput`/`Timeout` (those apply only to
-  `ExecAsync`): C# throws `ArgumentException`, C++ throws `WslcException` after an RTTI check on
+  `ExecAsync`): C# throws `ArgumentException`, C++ throws `WslException` after an RTTI check on
   the now-polymorphic `ProcessOptions` base (`StartProcess` takes `const ProcessOptions&`, so the
   derived type stays visible and nothing is sliced). C++ `ProcessOptions`/`ExecOptions` are no
   longer aggregates because of that virtual base, so designated-initializer syntax such as
@@ -92,7 +100,7 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   `IWaitTarget`, `WslModuleContainer`, `WslContainer`) and `WslEndpoint GetConnectEndpoint(int
   containerPort)` (C++). It returns the runtime-assigned host port plus the mapping's configured
   bind address (loopback for default/wildcard bindings); wait strategies, module connection
-  helpers and diagnostics all use it. Before `StartAsync`/`Start` it throws `WslcException`
+  helpers and diagnostics all use it. Before `StartAsync`/`Start` it throws `WslException`
   (`WslNetworkException` for undeclared/unassigned ports, unchanged).
 - `WslContainerBuilder.WithPort(int port, System.Net.IPAddress address)` joins the string overload;
   both normalize the address and conflict-check identical ports the same way.

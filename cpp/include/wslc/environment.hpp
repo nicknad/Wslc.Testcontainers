@@ -16,7 +16,7 @@ namespace wslc
 /// Data directory and session Id are snapshotted on first use; changing the Environment
 /// afterwards has no effect on them.
 /// </summary>
-class WslcEnvironment
+class WslEnvironment
 {
 public:
     /// <summary>Default readiness Timeout, in seconds or as a clock string.</summary>
@@ -45,7 +45,7 @@ public:
 
     /// <summary>
     /// Gets the data directory used for instance metadata and caches. Relative values are made
-    /// absolute; UNC/device paths are rejected with WslcException. Snapshotted on first use.
+    /// absolute; UNC/device paths are rejected with WslException. Snapshotted on first use.
     /// </summary>
     static const std::filesystem::path& DataDirectory();
 
@@ -57,7 +57,7 @@ public:
 
     /// <summary>
     /// Gets the session identifier ([A-Za-z0-9_-], 1-64 characters), generating a sanitized
-    /// process-unique value when unset. Invalid configured values throw WslcException.
+    /// process-unique value when unset. Invalid configured values throw WslException.
     /// </summary>
     static const std::string& SessionId();
 

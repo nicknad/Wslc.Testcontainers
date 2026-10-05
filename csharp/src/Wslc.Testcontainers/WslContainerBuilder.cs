@@ -54,7 +54,7 @@ public sealed class WslContainerBuilder
         RequireText(tarballPath, nameof(tarballPath));
         if (!File.Exists(tarballPath))
         {
-            throw new WslcException($"Tarball '{tarballPath}' does not exist.");
+            throw new WslException($"Tarball '{tarballPath}' does not exist.");
         }
 
         BuilderLimits.RequireTarballSize(tarballPath, new FileInfo(tarballPath).Length);
@@ -176,7 +176,7 @@ public sealed class WslContainerBuilder
             {
                 if (!string.Equals(existing.BindAddress, bindAddress, StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new WslcException(
+                    throw new WslException(
                         $"Port {port} is already mapped with a different bind address. Declare each port once.");
                 }
 
@@ -218,19 +218,19 @@ public sealed class WslContainerBuilder
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (!File.Exists(hostPath))
         {
-            throw new WslcException($"File source '{hostPath}' does not exist. Only files are supported by WithFile.");
+            throw new WslException($"File source '{hostPath}' does not exist. Only files are supported by WithFile.");
         }
 
         if ((File.GetAttributes(hostPath) & FileAttributes.ReparsePoint) != 0)
         {
-            throw new WslcException($"File source '{hostPath}' is a reparse point (symlink or junction); refusing to follow it.");
+            throw new WslException($"File source '{hostPath}' is a reparse point (symlink or junction); refusing to follow it.");
         }
 
         const long MaxCopyBytes = 1024L * 1024L * 1024L;
         var length = new FileInfo(hostPath).Length;
         if (length > MaxCopyBytes)
         {
-            throw new WslcException($"File '{hostPath}' exceeds 1 GiB limit ({length} bytes) and cannot be copied into the container.");
+            throw new WslException($"File '{hostPath}' exceeds 1 GiB limit ({length} bytes) and cannot be copied into the container.");
         }
 
         _configuration = _configuration with
@@ -257,12 +257,12 @@ public sealed class WslContainerBuilder
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (!Directory.Exists(hostPath))
         {
-            throw new WslcException($"Volume host path '{hostPath}' does not exist or is not a directory.");
+            throw new WslException($"Volume host path '{hostPath}' does not exist or is not a directory.");
         }
 
         if ((File.GetAttributes(hostPath) & FileAttributes.ReparsePoint) != 0)
         {
-            throw new WslcException($"Volume host path '{hostPath}' is a reparse point (symlink or junction); pass the resolved directory instead.");
+            throw new WslException($"Volume host path '{hostPath}' is a reparse point (symlink or junction); pass the resolved directory instead.");
         }
 
         _configuration = _configuration with
@@ -302,7 +302,7 @@ public sealed class WslContainerBuilder
 
         if (_configuration.SessionVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new WslcException($"A session volume '{name}' is already configured. Volume names must be unique per container.");
+            throw new WslException($"A session volume '{name}' is already configured. Volume names must be unique per container.");
         }
 
         _configuration = _configuration with
@@ -374,7 +374,7 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
-    /// <exception cref="WslcException">
+    /// <exception cref="WslException">
     /// The configuration is incomplete or inconsistent: no image source, ports or network waits
     /// combined with <see cref="ContainerNetworkMode.None"/>, or a startup timeout smaller than
     /// the sum of wait timeouts.
@@ -391,7 +391,7 @@ public sealed class WslContainerBuilder
     {
         if (configuration.Image is null &&
             configuration.TarballPath is null &&
-            WslcEnvironment.DefaultImage is { } defaultImage)
+            WslEnvironment.DefaultImage is { } defaultImage)
         {
             return configuration with { Image = defaultImage };
         }
@@ -410,23 +410,23 @@ public sealed class WslContainerBuilder
 
         if (configuration.Image is null && configuration.TarballPath is null)
         {
-            throw new WslcException(
+            throw new WslException(
                 "No image source configured. Call WithImage(...) or FromTarball(...), or set " +
-                $"{WslcEnvironment.DefaultImageVariable}.");
+                $"{WslEnvironment.DefaultImageVariable}.");
         }
 
         if (configuration.NetworkingMode == ContainerNetworkMode.None)
         {
             if (configuration.PortMappings.Count > 0)
             {
-                throw new WslcException(
+                throw new WslException(
                     "NetworkingMode.None provides no network: remove WithPort(...) declarations or use Bridged networking.");
             }
 
             var networkWait = FindNetworkWaitStrategy(configuration.WaitStrategies);
             if (networkWait is not null)
             {
-                throw new WslcException(
+                throw new WslException(
                     $"NetworkingMode.None provides no network: wait strategy '{networkWait}' can never succeed. Remove it or use Bridged networking.");
             }
         }
@@ -443,7 +443,7 @@ public sealed class WslContainerBuilder
 
             if (totalWaits > configuration.StartupTimeout)
             {
-                throw new WslcException(
+                throw new WslException(
                     $"Startup timeout {configuration.StartupTimeout.TotalSeconds:0.###}s is smaller than the sum of wait-strategy timeouts {totalWaits.TotalSeconds:0.###}s. " +
                     $"Waits run sequentially, so startup would always fire first. Increase WithStartupTimeout(...) or reduce wait WithTimeout(...) values.");
             }

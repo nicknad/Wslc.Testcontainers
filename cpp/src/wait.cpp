@@ -86,7 +86,7 @@ public:
     {
         if (Timeout <= std::chrono::milliseconds::zero())
         {
-            throw WslcException("Timeout must be positive.");
+            throw WslException("Timeout must be positive.");
         }
 
         auto copy = Clone();
@@ -98,7 +98,7 @@ public:
     {
         if (retryInterval <= std::chrono::milliseconds::zero())
         {
-            throw WslcException("Retry interval must be positive.");
+            throw WslException("Retry interval must be positive.");
         }
 
         auto copy = Clone();
@@ -129,7 +129,7 @@ protected:
 
     virtual std::string BuildFailureDetail(IWaitTarget&) const { return {}; }
 
-    std::chrono::milliseconds m_timeout = WslcEnvironment::DefaultWaitTimeout();
+    std::chrono::milliseconds m_timeout = WslEnvironment::DefaultWaitTimeout();
     std::chrono::milliseconds m_retryInterval = std::chrono::milliseconds(250);
 };
 
@@ -295,7 +295,7 @@ std::shared_ptr<IWaitStrategy> WaitStrategyBase::And(std::shared_ptr<IWaitStrate
 {
     if (!other)
     {
-        throw WslcException("The other Wait strategy must not be null.");
+        throw WslException("The other Wait strategy must not be null.");
     }
 
     std::vector<std::shared_ptr<IWaitStrategy>> combined;
@@ -333,7 +333,7 @@ int ValidatePort(int port)
 {
     if (port < 1 || port > 65535)
     {
-        throw WslcException("Port must be between 1 and 65535.");
+        throw WslException("Port must be between 1 and 65535.");
     }
 
     return port;
@@ -343,7 +343,7 @@ std::string RequireText(std::string value, const char* what)
 {
     if (internal::IsBlank(value))
     {
-        throw WslcException(std::string(what) + " must not be empty.");
+        throw WslException(std::string(what) + " must not be empty.");
     }
 
     return value;
@@ -355,7 +355,7 @@ WslWaitBuilder& WslWaitBuilder::WithTimeout(std::chrono::milliseconds Timeout)
 {
     if (Timeout <= std::chrono::milliseconds::zero())
     {
-        throw WslcException("Timeout must be positive.");
+        throw WslException("Timeout must be positive.");
     }
 
     m_timeout = Timeout;
@@ -366,7 +366,7 @@ WslWaitBuilder& WslWaitBuilder::WithRetryInterval(std::chrono::milliseconds retr
 {
     if (retryInterval <= std::chrono::milliseconds::zero())
     {
-        throw WslcException("Retry interval must be positive.");
+        throw WslException("Retry interval must be positive.");
     }
 
     m_retryInterval = retryInterval;
@@ -422,7 +422,7 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilMessageIsLogged(std::string 
 {
     if (occurrences < 1)
     {
-        throw WslcException("Occurrences must be at least 1.");
+        throw WslException("Occurrences must be at least 1.");
     }
 
     const std::string Text = RequireText(std::move(message), "Message");
@@ -476,7 +476,7 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::Until(std::string Name,
 {
     if (!condition)
     {
-        throw WslcException("The condition must not be null.");
+        throw WslException("The condition must not be null.");
     }
 
     return Configure(

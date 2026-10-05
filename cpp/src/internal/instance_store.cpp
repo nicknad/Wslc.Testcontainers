@@ -104,7 +104,7 @@ InstanceStore::InstanceStore(std::filesystem::path DataDirectory, std::string Se
 
 InstanceStore& InstanceStore::DefaultStore()
 {
-    static InstanceStore store(WslcEnvironment::DataDirectory(), WslcEnvironment::SessionId());
+    static InstanceStore store(WslEnvironment::DataDirectory(), WslEnvironment::SessionId());
     return store;
 }
 
@@ -119,20 +119,20 @@ std::filesystem::path InstanceStore::GetInstanceDirectory(const std::string& ins
     const std::filesystem::path instances = std::filesystem::absolute(InstancesDirectory(), error).lexically_normal();
     if (error)
     {
-        throw WslcException("Unable to resolve the instances directory for instance '" + instanceName + "'.");
+        throw WslException("Unable to resolve the instances directory for instance '" + instanceName + "'.");
     }
 
     const std::string sanitizedName = Sanitize(instanceName);
     if (sanitizedName.empty())
     {
-        throw WslcException("Instance name '" + instanceName + "' is not a valid directory name.");
+        throw WslException("Instance name '" + instanceName + "' is not a valid directory name.");
     }
 
     const std::filesystem::path directory =
         std::filesystem::absolute(instances / ToUtf16(sanitizedName), error).lexically_normal();
     if (error)
     {
-        throw WslcException("Instance name '" + instanceName + "' is not a valid directory name.");
+        throw WslException("Instance name '" + instanceName + "' is not a valid directory name.");
     }
 
     std::wstring prefix = instances.native();
@@ -146,8 +146,8 @@ std::filesystem::path InstanceStore::GetInstanceDirectory(const std::string& ins
                                                 static_cast<int>(prefix.size()), TRUE) == CSTR_EQUAL;
     if (!contained)
     {
-        throw WslcException("Instance name '" + instanceName + "' resolves outside the instances directory '" +
-                            ToUtf8(instances.native()) + "'.");
+        throw WslException("Instance name '" + instanceName + "' resolves outside the instances directory '" +
+                           ToUtf8(instances.native()) + "'.");
     }
 
     return directory;

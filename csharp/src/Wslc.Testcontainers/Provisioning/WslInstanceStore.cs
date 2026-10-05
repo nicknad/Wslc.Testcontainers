@@ -14,7 +14,7 @@ internal sealed class WslInstanceStore
     };
 
     private static readonly Lazy<WslInstanceStore> DefaultStore = new(
-        () => new WslInstanceStore(WslcEnvironment.DataDirectory, WslcEnvironment.SessionId),
+        () => new WslInstanceStore(WslEnvironment.DataDirectory, WslEnvironment.SessionId),
         LazyThreadSafetyMode.ExecutionAndPublication);
 
     private readonly string _dataDirectory;
@@ -37,7 +37,7 @@ internal sealed class WslInstanceStore
         var sanitized = Sanitize(instanceName);
         if (sanitized.Length == 0)
         {
-            throw new WslcException($"Instance name '{instanceName}' is not a valid directory name.");
+            throw new WslException($"Instance name '{instanceName}' is not a valid directory name.");
         }
 
         var instancesDirectory = Path.GetFullPath(InstancesDirectory);
@@ -45,7 +45,7 @@ internal sealed class WslInstanceStore
         var prefix = Path.TrimEndingDirectorySeparator(instancesDirectory) + Path.DirectorySeparatorChar;
         if (!directory.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
-            throw new WslcException(
+            throw new WslException(
                 $"Instance name '{instanceName}' resolves outside the instances directory '{instancesDirectory}'.");
         }
 

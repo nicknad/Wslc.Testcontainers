@@ -31,7 +31,7 @@ internal sealed record WslContainerConfiguration
 
     public IReadOnlyList<WslVolumeMount> Volumes { get; init; } = Array.Empty<WslVolumeMount>();
 
-    public IReadOnlyList<WslSessionVolume> SessionVolumes { get; init; } = Array.Empty<WslSessionVolume>();
+    public IReadOnlyList<WslScratchVolume> ScratchVolumes { get; init; } = Array.Empty<WslScratchVolume>();
 
     /// <summary>Container network mode. Null means the runtime default (bridged).</summary>
     public ContainerNetworkMode? NetworkingMode { get; init; }
@@ -59,13 +59,13 @@ internal sealed record WslPortMapping(int ContainerPort, string? BindAddress)
     public override string ToString() => ContainerPort.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>A session VHD volume mounted into the container. Recreated empty on every start.</summary>
-/// <param name="Name">Session volume name.</param>
+/// <summary>A scratch VHD volume mounted into the container. Recreated empty on every start.</summary>
+/// <param name="Name">Scratch volume name.</param>
 /// <param name="ContainerPath">Absolute Linux mount path.</param>
 /// <param name="ReadOnly">Mount read-only.</param>
 /// <param name="SizeBytes">VHD size in bytes (must be positive).</param>
 /// <param name="Type">Dynamic (default) or fixed allocation.</param>
-internal sealed record WslSessionVolume(string Name, string ContainerPath, bool ReadOnly, ulong SizeBytes, VhdAllocationType Type);
+internal sealed record WslScratchVolume(string Name, string ContainerPath, bool ReadOnly, ulong SizeBytes, VhdAllocationType Type);
 
 /// <summary>Generates collision-free session names and recognizes WSLC-owned resources.</summary>
 internal static class WslNaming
@@ -194,14 +194,14 @@ internal static class WslConfigHasher
             hash.AppendData(readOnlyMarker);
         }
 
-        var sessionVolumes = configuration.SessionVolumes.ToArray();
-        Array.Sort(sessionVolumes, static (a, b) =>
+        var scratchVolumes = configuration.ScratchVolumes.ToArray();
+        Array.Sort(scratchVolumes, static (a, b) =>
         {
             var c = string.CompareOrdinal(a.ContainerPath, b.ContainerPath);
             return c != 0 ? c : string.CompareOrdinal(a.Name, b.Name);
         });
-        WriteInt32(hash, sessionVolumes.Length);
-        foreach (var volume in sessionVolumes)
+        WriteInt32(hash, scratchVolumes.Length);
+        foreach (var volume in scratchVolumes)
         {
             WriteString(hash, volume.Name);
             WriteString(hash, volume.ContainerPath);

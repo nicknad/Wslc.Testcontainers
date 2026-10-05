@@ -781,6 +781,11 @@ bool IsContinuousIntegrationVariable(std::string_view name, std::string_view val
     return false;
 }
 
+bool IsReuseEffective(std::optional<bool> configuredReuse, bool reuseByDefault, bool reuseAllowed)
+{
+    return configuredReuse.value_or(reuseByDefault) && reuseAllowed;
+}
+
 std::string join(const std::vector<std::string>& values, std::string_view separator)
 {
     std::string result;

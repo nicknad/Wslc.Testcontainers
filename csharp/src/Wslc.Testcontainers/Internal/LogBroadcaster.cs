@@ -8,7 +8,7 @@ namespace Wslc.Testcontainers.Internal;
 /// History is capped at 10k lines in a ring buffer and snapshots are cached until the next
 /// publish, so readiness polls that call <c>GetRecentLogs</c> do not allocate a fresh array
 /// on every check. Each subscriber channel is bounded (1k, DropOldest) so an abandoned
-/// <c>LogsAsync</c> enumeration cannot grow memory without bound; still, callers must
+/// <c>SubscribeLogs</c> enumeration cannot grow memory without bound; still, callers must
 /// cancel/dispose log streams promptly (see <c>LogDumper</c>).
 /// </remarks>
 internal sealed class LogBroadcaster

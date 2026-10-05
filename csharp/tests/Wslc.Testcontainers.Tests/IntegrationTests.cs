@@ -100,7 +100,7 @@ public sealed class IntegrationTests
             .WithWaitStrategy(
                 Wait.ForWsl()
                     .WithTimeout(TimeSpan.FromSeconds(60))
-                    .UntilHttpRequestIsSucceeded("/", 8080))
+                    .UntilHttpRequestSucceeds("/", 8080))
             .Build();
 
         await container.StartAsync();
@@ -138,7 +138,7 @@ public sealed class IntegrationTests
     {
         await using var container = new WslContainerBuilder()
             .WithImage(TestImage)
-            .WithNetworkingMode(ContainerNetworkMode.None)
+            .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
 
         await container.StartAsync();
@@ -151,11 +151,11 @@ public sealed class IntegrationTests
     }
 
     [IntegrationFact]
-    public async Task Session_volumes_mount_and_are_recreated_on_restart()
+    public async Task Scratch_volumes_mount_and_are_recreated_on_restart()
     {
         await using var container = new WslContainerBuilder()
             .WithImage(TestImage)
-            .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024)
+            .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
             .Build();
 
         await container.StartAsync();
@@ -186,7 +186,7 @@ public sealed class IntegrationTests
             var first = new WslContainerBuilder()
                 .WithImage(TestImage)
                 .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
-                .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024)
+                .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
                 .WithReuse()
                 .Build();
             var name = first.Name;
@@ -212,7 +212,7 @@ public sealed class IntegrationTests
                 var second = new WslContainerBuilder()
                     .WithImage(TestImage)
                     .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
-                    .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024)
+                    .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
                     .WithReuse()
                     .Build();
                 Assert.Equal(name, second.Name);
@@ -224,7 +224,7 @@ public sealed class IntegrationTests
                         await ReadLogHistoryAsync(second),
                         line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
 
-                    // The session volume is scratch: recreated empty even though the session VHD persists.
+                    // The scratch volume is recreated empty even though the session VHD persists.
                     var exists = await second.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"]);
                     Assert.NotEqual(0, exists.ExitCode);
                 }
@@ -251,7 +251,7 @@ public sealed class IntegrationTests
         using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {
-            await foreach (var line in container.LogsAsync(cancellation.Token))
+            await foreach (var line in container.SubscribeLogs(cancellation.Token))
             {
                 lines.Add(line);
             }
@@ -268,7 +268,7 @@ public sealed class IntegrationTests
     {
         await using var container = new WslContainerBuilder()
             .WithImage(TestImage)
-            .WithSessionVolume("scratch", "/scratch", 64UL * 1024 * 1024, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
+            .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
             .Build();
 
         await container.StartAsync();
@@ -287,7 +287,7 @@ public sealed class IntegrationTests
         await using var container = new WslContainerBuilder()
             .WithImage(TestImage)
             .WithCpuCount(cpuCount)
-            .WithMemoryMB(1024)
+            .WithMemoryMegabytes(1024)
             .Build();
 
         await container.StartAsync();

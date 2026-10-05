@@ -10,7 +10,7 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   `cpp/` and builds on the native `wslcsdk` C API with CMake.
 - C++ port parity: mutable `WslContainerBuilder`/`WslContainer`, exec/start-process with captured
   stdio, file copy in/out, log streaming with bounded history, wait strategies (TCP, HTTP,
-  process, log message, file, custom), dynamic port mappings, bind mounts and session VHD
+  process, log message, file, custom), dynamic port mappings, bind mounts and scratch VHD
   volumes, reuse hashing/locking, orphan reaper, and the PostgreSql/Redis modules.
 - C++ analysis baseline: `.clang-format` (Microsoft style), `.clang-tidy` (warnings as errors),
   AddressSanitizer option, MSVC `/analyze` option, and CI format/tidy/ASan jobs.
@@ -18,7 +18,11 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   tests gated by `WSLC_RUN_INTEGRATION=1`).
 
 - `Wait.ForWsl().Until(name, condition)`: poll a custom readiness delegate with the builder's timeout/retry settings.
-- `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `LogsAsync` stream.
+- `IWslContainer.GetRecentLogs(int maxLines = 50)` (also on `WslContainer` and module containers): bounded newest-lines snapshot for failure triage without enumerating the infinite `SubscribeLogs` stream.
+- `IsReuseEffective` (C# `IWslContainer`/`WslContainer`/module containers, C++ `WslContainer`/`WslModuleContainer`):
+  reports whether reuse will actually be used — configured reuse (or `WSLC_REUSE`) that is not suppressed
+  under CI (`WSLC_REUSE_IN_CI`). Lets callers detect the silent fallback to an ephemeral instance without
+  starting the container (see `docs/reuse.md`).
 - `WslEndpoint` (C++): the Windows host/port pair returned by `GetConnectEndpoint`.
 - Readiness failures and startup timeouts now hint when no init command was configured: WSLC never runs the image's ENTRYPOINT/CMD automatically.
 - XML docs for the module packages (`PostgreSqlBuilder`/`PostgreSqlContainer`/`RedisBuilder`/`RedisContainer`).
@@ -37,13 +41,13 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   | Command arguments | 1000 | `Build()` (`WithCommand`), exec/start-process |
   | File copies | 64 | `Build()` |
   | Volume mounts | 64 | `Build()` |
-  | Session volumes | 64 | `Build()` |
+  | Scratch volumes | 64 | `Build()` |
   | Wait strategies | 16 | `Build()` and `And(...)` composition (composites flatten; a nested composite can hold up to 16 per level) |
   | CPU count | 64 | `WithCpuCount` |
-  | Memory | 1048576 MB (1 TiB) | `WithMemoryMB` |
-  | Session VHD size | 1 TiB | `WithSessionVolume` |
+  | Memory | 1048576 MB (1 TiB) | `WithMemoryMegabytes` |
+  | Session VHD size | 1 TiB | `WithScratchVolume` |
   | Tarball size | 1 TiB | `FromTarball` |
-  | Startup timeout | 24 h | `WithStartupTimeout` (must also cover the wait-timeout sum) |
+  | Startup timeout | 24 h | `WithReadinessTimeout` (must also cover the wait-timeout sum) |
   | Exec timeout | 24 h | `ExecOptions.Timeout` |
 
   Wait-timeout summation saturates instead of overflowing, so an inconsistent startup budget is
@@ -104,11 +108,47 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   (`WslNetworkException` for undeclared/unassigned ports, unchanged).
 - `WslContainerBuilder.WithPort(int port, System.Net.IPAddress address)` joins the string overload;
   both normalize the address and conflict-check identical ports the same way.
+- Pre-first-release naming batch (C# and C++): `WslWaitBuilder.UntilTcpPortIsAvailable` ->
+  `UntilTcpPortIsOpen`, `UntilHttpRequestIsSucceeded` -> `UntilHttpRequestSucceeds`;
+  `IWslContainer.LogsAsync` -> `SubscribeLogs` (C++ `WslContainer::Logs` /
+  `WslModuleContainer::Logs` -> `SubscribeLogs`); `LogDumper.DumpAsync` -> `DumpHeadAsync`
+  (C++ `LogDumper::Dump` -> `DumpHead`) with the docs now saying "head" explicitly;
+  `WithSessionVolume` -> `WithScratchVolume` (type `WslSessionVolume` -> `WslScratchVolume`,
+  collection `SessionVolumes` -> `ScratchVolumes`); `WithMemoryMB` -> `WithMemoryMegabytes`;
+  `WithStartupTimeout` -> `WithReadinessTimeout` (the value still bounds startup; module
+  `WithWaitTimeout` is unchanged); `WslModuleBuilder<TBuilder>.WithContainerConfiguration` ->
+  `ConfigureContainer`; `ContainerNetworkMode.None` -> `ContainerNetworkMode.Isolated` (numeric
+  value stays 1, docs say "fully isolated"). Module constants `ContainerPort` -> `DefaultPort`,
+  and Redis `GetConnectionString()` -> `GetEndpoint()` because it returns `host:port` rather
+  than a connection string (PostgreSql keeps `GetConnectionString()`).
+- `WslModuleContainer.DisposeAsync` is now abstract; derived (sealed) module containers implement it
+  with the protected `DisposeInnerAsync` helper. The base is unsealed and has no finalizer, so it no
+  longer needs a `GC.SuppressFinalize` pattern (CA1816).
+- `ExecResult.ToString()` (C# only) now returns a bounded summary — exit code plus stdout/stderr
+  lengths, never their contents — so logging a result cannot dump megabytes of captured output.
+  Record equality, `EnsureSuccess` and the payload properties are unchanged; the C++ `ExecResult`
+  has no string-formatting or equality surface, so nothing is mirrored there.
+- C++ hygiene (no behavior change): `WslContainerBuilder` is `final`; the static-only
+  `WslEnvironment`, `WslPlatform` and `WslResourceReaper` delete their constructors; and
+  `WslWaitBuilder` is no longer default-constructible publicly (`ForWsl()` is the factory; the C#
+  builder already had an internal constructor).
+- `scripts/Verify-Package.ps1` now enforces the static release invariants: a version-lockstep check
+  (numeric C# `VersionPrefix` vs the C++ CMake project `VERSION`) and a PublicAPI promotion gate
+  that refuses to ship an unfrozen surface (unshipped public-surface lines with an empty
+  `PublicAPI.Shipped.txt`). `-SkipPromotionCheck` keeps local verification usable before the
+  surface is frozen; `-ChecksOnly` runs just the two static checks. `release.yml` runs
+  `-ChecksOnly` before packing.
 
 ### Removed
 
 - `StartProcessAsync` (all six members) — obsolete before first release; use `StartProcess`.
-- `WithVolume(hostPath, containerPath, bool readOnly)` — use the `VolumeAccess` overload or `WithReadOnlyVolume`.
+- `WithVolume(hostPath, containerPath, bool readOnly)` — use the `VolumeAccess` overload (`VolumeAccess.ReadOnly`).
+- `WithReadOnlyVolume(hostPath, containerPath)` — use `WithVolume(hostPath, containerPath, VolumeAccess.ReadOnly)`.
+- `WslModuleContainer.Inner` (C#) and the protected C++ `WslModuleContainer::Inner()` — module
+  containers implement the full container interface, so the inner-container escape hatch is gone;
+  use the container members directly or a core `WslContainer` when the wrapper adds nothing.
+- Module parameterless `GetMappedPort()` — use `GetConnectEndpoint(DefaultPort).Port` (Redis also
+  exposes `GetEndpoint()`).
 - `IWslContainer.Host`, `IWslContainer.GetMappedPort(int)` and `IWslContainer.GetMappedHost(int)`
   (also on `WslContainer`/`WslModuleContainer`), and `IWaitTarget.Host`, `GetMappedPort`,
   `GetProbeHost`; the C++ `Host`/`GetMappedPort`/`GetMappedHost`/`GetProbeHost` equivalents; use
@@ -170,3 +210,6 @@ First public preview of `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.
 - Modules now start their server: `PostgreSqlBuilder` / `RedisBuilder` launch the image entrypoint (`docker-entrypoint.sh postgres` / `redis-server`) as the container init process. Previously the keep-alive shell was always used, so no server ever ran and startup timed out.
 - `WslModuleBuilder.Configure` returns the updated `WslContainerBuilder` and `BuildContainer` uses it. Previously the result was discarded, silently dropping module settings (`POSTGRES_USER/PASSWORD/DB` never reached the container).
 - `scripts/Verify-Package.ps1` now fails on any `dotnet`/`wsl` non-zero exit (was silently reporting success when integration tests failed).
+- `WslReadinessException` treats a null `logs` constructor argument as an empty list, so
+  `Describe()` cannot throw `NullReferenceException` on a readiness failure built by a custom
+  strategy or by consumer code.

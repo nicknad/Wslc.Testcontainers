@@ -272,24 +272,20 @@ public sealed class WslContainerBuilder
         return this;
     }
 
-    /// <summary>Mounts a Windows directory into the container as read-only.</summary>
-    public WslContainerBuilder WithReadOnlyVolume(string hostPath, string containerPath) =>
-        WithVolume(hostPath, containerPath, VolumeAccess.ReadOnly);
-
     /// <summary>
-    /// Mounts a session VHD volume (native Linux filesystem, ext4) into the container.
+    /// Mounts a scratch VHD volume (native Linux filesystem, ext4) into the container.
     /// The volume is created when the container starts and is <b>recreated empty on every
     /// start</b> — it is size-limited scratch space, not persistence, and does not follow
     /// Docker's named-volume semantics. Prefer over bind mounts when the data must not be
     /// exposed as Windows host files; the backing VHD still lives inside the session
     /// storage directory under <c>%LOCALAPPDATA%</c>.
     /// </summary>
-    /// <param name="name">Session volume name (non-empty, no path separators).</param>
+    /// <param name="name">Scratch volume name (non-empty, no path separators).</param>
     /// <param name="containerPath">Absolute Linux destination (e.g. <c>/data</c>).</param>
     /// <param name="sizeBytes">VHD size in bytes (positive, at most 1 TiB).</param>
     /// <param name="access">Read-write (default) or read-only mount.</param>
     /// <param name="type">Dynamic (default) or fixed VHD allocation.</param>
-    public WslContainerBuilder WithSessionVolume(
+    public WslContainerBuilder WithScratchVolume(
         string name,
         string containerPath,
         ulong sizeBytes,
@@ -298,23 +294,23 @@ public sealed class WslContainerBuilder
     {
         RequireVolumeName(name, nameof(name));
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
-        BuilderLimits.RequireSessionVolumeSize(sizeBytes);
+        BuilderLimits.RequireScratchVolumeSize(sizeBytes);
 
-        if (_configuration.SessionVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
+        if (_configuration.ScratchVolumes.Any(volume => string.Equals(volume.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new WslException($"A session volume '{name}' is already configured. Volume names must be unique per container.");
+            throw new WslException($"A scratch volume '{name}' is already configured. Volume names must be unique per container.");
         }
 
         _configuration = _configuration with
         {
-            SessionVolumes = Append(_configuration.SessionVolumes, new WslSessionVolume(name, containerPath, access == VolumeAccess.ReadOnly, sizeBytes, type)),
+            ScratchVolumes = Append(_configuration.ScratchVolumes, new WslScratchVolume(name, containerPath, access == VolumeAccess.ReadOnly, sizeBytes, type)),
         };
         return this;
     }
 
     /// <summary>
     /// Sets the container networking mode. The default is <see cref="ContainerNetworkMode.Bridged"/>.
-    /// <see cref="ContainerNetworkMode.None"/> fully isolates the container (no NIC):
+    /// <see cref="ContainerNetworkMode.Isolated"/> fully isolates the container (no NIC):
     /// no <c>WithPort</c> and no network wait strategies may be combined with it.
     /// Note that detection covers only the built-in TCP/HTTP wait strategies; a custom
     /// <see cref="IWaitStrategy"/> that needs the network bypasses this validation.
@@ -339,7 +335,7 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>Caps the session memory in megabytes. Must be between 1 and 1048576 MB (1 TiB); leaving it unset uses the runtime default.</summary>
-    public WslContainerBuilder WithMemoryMB(uint megabytes)
+    public WslContainerBuilder WithMemoryMegabytes(uint megabytes)
     {
         BuilderLimits.RequireMemoryMB(megabytes);
         _configuration = _configuration with { MemorySizeInMB = megabytes };
@@ -351,7 +347,7 @@ public sealed class WslContainerBuilder
     /// Reuse requires <c>WSLC_REUSE</c> truthy (or explicit <c>true</c> here) <i>and</i> is still
     /// disabled under CI unless <c>WSLC_REUSE_IN_CI</c> is truthy. When disabled, startup logs a
     /// diagnostic and falls back to an ephemeral instance — check logs if reuse seems ignored.
-    /// The session VHD (including the pulled image cache) is kept between runs; session volumes
+    /// The session VHD (including the pulled image cache) is kept between runs; scratch volumes
     /// are still recreated empty on every start. Reusable instances are never auto-deleted; run
     /// the reaper purge to reclaim disk.
     /// </summary>
@@ -362,11 +358,11 @@ public sealed class WslContainerBuilder
     }
 
     /// <summary>
-    /// Overrides the overall startup timeout. Must be &gt;= the sum of configured wait-strategy
-    /// timeouts (waits run sequentially) and at most 24 hours; <see cref="Build"/> throws
-    /// otherwise with guidance.
+    /// Overrides the readiness timeout that bounds the whole startup. Must be &gt;= the sum of
+    /// configured wait-strategy timeouts (waits run sequentially) and at most 24 hours;
+    /// <see cref="Build"/> throws otherwise with guidance.
     /// </summary>
-    public WslContainerBuilder WithStartupTimeout(TimeSpan timeout)
+    public WslContainerBuilder WithReadinessTimeout(TimeSpan timeout)
     {
         BuilderLimits.RequireStartupTimeout(timeout);
         _configuration = _configuration with { StartupTimeout = timeout };
@@ -376,8 +372,8 @@ public sealed class WslContainerBuilder
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
     /// <exception cref="WslException">
     /// The configuration is incomplete or inconsistent: no image source, ports or network waits
-    /// combined with <see cref="ContainerNetworkMode.None"/>, or a startup timeout smaller than
-    /// the sum of wait timeouts.
+    /// combined with <see cref="ContainerNetworkMode.Isolated"/>, or a readiness timeout smaller
+    /// than the sum of wait timeouts.
     /// </exception>
     public WslContainer Build()
     {
@@ -406,7 +402,7 @@ public sealed class WslContainerBuilder
         BuilderLimits.RequireWaitStrategyCount(configuration.WaitStrategies.Count);
         BuilderLimits.RequireCount(configuration.Files.Count, BuilderLimits.MaxFileCopies, "file copies");
         BuilderLimits.RequireCount(configuration.Volumes.Count, BuilderLimits.MaxVolumeMounts, "volume mounts");
-        BuilderLimits.RequireCount(configuration.SessionVolumes.Count, BuilderLimits.MaxSessionVolumes, "session volumes");
+        BuilderLimits.RequireCount(configuration.ScratchVolumes.Count, BuilderLimits.MaxScratchVolumes, "scratch volumes");
 
         if (configuration.Image is null && configuration.TarballPath is null)
         {
@@ -415,19 +411,19 @@ public sealed class WslContainerBuilder
                 $"{WslEnvironment.DefaultImageVariable}.");
         }
 
-        if (configuration.NetworkingMode == ContainerNetworkMode.None)
+        if (configuration.NetworkingMode == ContainerNetworkMode.Isolated)
         {
             if (configuration.PortMappings.Count > 0)
             {
                 throw new WslException(
-                    "NetworkingMode.None provides no network: remove WithPort(...) declarations or use Bridged networking.");
+                    "NetworkingMode.Isolated provides no network: remove WithPort(...) declarations or use Bridged networking.");
             }
 
             var networkWait = FindNetworkWaitStrategy(configuration.WaitStrategies);
             if (networkWait is not null)
             {
                 throw new WslException(
-                    $"NetworkingMode.None provides no network: wait strategy '{networkWait}' can never succeed. Remove it or use Bridged networking.");
+                    $"NetworkingMode.Isolated provides no network: wait strategy '{networkWait}' can never succeed. Remove it or use Bridged networking.");
             }
         }
 
@@ -445,7 +441,7 @@ public sealed class WslContainerBuilder
             {
                 throw new WslException(
                     $"Startup timeout {configuration.StartupTimeout.TotalSeconds:0.###}s is smaller than the sum of wait-strategy timeouts {totalWaits.TotalSeconds:0.###}s. " +
-                    $"Waits run sequentially, so startup would always fire first. Increase WithStartupTimeout(...) or reduce wait WithTimeout(...) values.");
+                    $"Waits run sequentially, so startup would always fire first. Increase WithReadinessTimeout(...) or reduce wait WithTimeout(...) values.");
             }
         }
     }

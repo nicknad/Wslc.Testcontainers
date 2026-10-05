@@ -20,7 +20,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(5))
             .WithRetryInterval(TimeSpan.FromMilliseconds(10))
-            .UntilTcpPortIsAvailable(5432);
+            .UntilTcpPortIsOpen(5432);
 
         await strategy.WaitAsync(target, CancellationToken.None);
 
@@ -39,7 +39,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromMilliseconds(120))
             .WithRetryInterval(TimeSpan.FromMilliseconds(10))
-            .UntilTcpPortIsAvailable(5432);
+            .UntilTcpPortIsOpen(5432);
 
         var exception = await Assert.ThrowsAsync<WslReadinessException>(
             () => strategy.WaitAsync(target, CancellationToken.None));
@@ -60,7 +60,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(30))
             .WithRetryInterval(TimeSpan.FromMilliseconds(10))
-            .UntilTcpPortIsAvailable(5432);
+            .UntilTcpPortIsOpen(5432);
 
         using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
 
@@ -120,7 +120,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(2))
             .WithRetryInterval(TimeSpan.FromMilliseconds(10))
-            .UntilHttpRequestIsSucceeded("/start", 8080);
+            .UntilHttpRequestSucceeds("/start", 8080);
 
         // 302 is below 500, so the probe succeeds without chasing Location to another host.
         await strategy.WaitAsync(target, CancellationToken.None);
@@ -204,7 +204,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(2))
             .WithRetryInterval(TimeSpan.FromMilliseconds(10))
-            .UntilTcpPortIsAvailable(8080)
+            .UntilTcpPortIsOpen(8080)
             .And(Wait.ForWsl().UntilProcessIsRunning("nginx"))
             .And(Wait.ForWsl().UntilMessageIsLogged("ready"));
 
@@ -220,7 +220,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(5))
             .WithRetryInterval(TimeSpan.FromMilliseconds(50))
-            .UntilHttpRequestIsSucceeded("/health", 8080);
+            .UntilHttpRequestSucceeds("/health", 8080);
 
         await strategy.WaitAsync(target, CancellationToken.None);
     }
@@ -238,7 +238,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(5))
             .WithRetryInterval(TimeSpan.FromMilliseconds(50))
-            .UntilHttpRequestIsSucceeded("/health", 8080);
+            .UntilHttpRequestSucceeds("/health", 8080);
 
         await strategy.WaitAsync(target, CancellationToken.None);
     }
@@ -264,7 +264,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(5))
             .WithRetryInterval(TimeSpan.FromMilliseconds(50))
-            .UntilHttpRequestIsSucceeded("/health", 8080);
+            .UntilHttpRequestSucceeds("/health", 8080);
 
         await strategy.WaitAsync(target, CancellationToken.None);
     }
@@ -290,7 +290,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromMilliseconds(300))
             .WithRetryInterval(TimeSpan.FromMilliseconds(25))
-            .UntilHttpRequestIsSucceeded("/health", 8080);
+            .UntilHttpRequestSucceeds("/health", 8080);
 
         await Assert.ThrowsAsync<WslReadinessException>(
             () => strategy.WaitAsync(target, CancellationToken.None));
@@ -317,7 +317,7 @@ public sealed class WaitStrategyTests
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromMilliseconds(150))
             .WithRetryInterval(TimeSpan.FromMilliseconds(25))
-            .UntilTcpPortIsAvailable(8080)
+            .UntilTcpPortIsOpen(8080)
             .And(Wait.ForWsl().WithTimeout(TimeSpan.FromSeconds(30)).UntilProcessIsRunning("nginx"));
 
         Assert.Equal(TimeSpan.FromMilliseconds(150), strategy.Timeout);
@@ -336,17 +336,17 @@ public sealed class WaitStrategyTests
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().WithTimeout(TimeSpan.Zero));
         Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().WithRetryInterval(TimeSpan.Zero));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().UntilTcpPortIsAvailable(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => Wait.ForWsl().UntilTcpPortIsOpen(0));
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists(" "));
 
         // HTTP waits take a path-and-query, never a full URL or a relative path.
-        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080));
-        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("health", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestSucceeds("http://localhost/health", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestSucceeds("health", 8080));
 
         // Raw request lines must not carry spaces or CR/LF that would inject headers.
-        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("/health HTTP/1.1\r\nX-Evil: 1", 8080));
-        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("/he alth", 8080));
-        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestIsSucceeded("/health\tx", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestSucceeds("/health HTTP/1.1\r\nX-Evil: 1", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestSucceeds("/he alth", 8080));
+        Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilHttpRequestSucceeds("/health\tx", 8080));
 
         // Container paths cannot escape via '..' or target kernel pseudo-filesystems.
         Assert.Throws<ArgumentException>(() => Wait.ForWsl().UntilFileExists("/tmp/../etc/passwd"));

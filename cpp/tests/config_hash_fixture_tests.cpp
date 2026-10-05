@@ -21,7 +21,7 @@ using wslc::internal::ToUtf16;
 using wslc::internal::WslConfigHasher;
 using wslc::internal::WslFileCopy;
 using wslc::internal::WslPortMappingRecord;
-using wslc::internal::WslSessionVolume;
+using wslc::internal::WslScratchVolume;
 using wslc::internal::WslVolumeMount;
 using wslc::internal::json::Value;
 
@@ -137,7 +137,7 @@ Configuration ToConfiguration(const Value& element)
     for (const Value& item : RequireProperty(element, "sessionVolumes").Array)
     {
         const std::string type = RequireProperty(item, "type").String;
-        configuration.SessionVolumes.push_back(WslSessionVolume{
+        configuration.ScratchVolumes.push_back(WslScratchVolume{
             RequireProperty(item, "name").String, RequireProperty(item, "container").String,
             RequireProperty(item, "readOnly").Boolean, static_cast<std::uint64_t>(RequireProperty(item, "size").Number),
             type == "fixed" ? VhdAllocationType::Fixed : VhdAllocationType::Dynamic});
@@ -164,7 +164,7 @@ Configuration ToConfiguration(const Value& element)
 
         if (*mode == "none")
         {
-            return ContainerNetworkMode::None;
+            return ContainerNetworkMode::Isolated;
         }
 
         throw std::runtime_error("unknown networkingMode '" + *mode + "'");

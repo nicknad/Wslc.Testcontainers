@@ -34,6 +34,16 @@ TEST(Environment, ContinuousIntegrationUnknownVariablesAreIgnored)
     EXPECT_FALSE(IsContinuousIntegrationVariable("SOME_OTHER", "true"));
 }
 
+TEST(Environment, EffectiveReuseRequiresConfigurationAndEnvironmentAllowance)
+{
+    EXPECT_TRUE(wslc::internal::IsReuseEffective(true, false, true));
+    EXPECT_FALSE(wslc::internal::IsReuseEffective(true, false, false));
+    EXPECT_TRUE(wslc::internal::IsReuseEffective(std::nullopt, true, true));
+    EXPECT_FALSE(wslc::internal::IsReuseEffective(std::nullopt, true, false));
+    EXPECT_FALSE(wslc::internal::IsReuseEffective(std::nullopt, false, true));
+    EXPECT_FALSE(wslc::internal::IsReuseEffective(false, true, true));
+}
+
 TEST(Environment, DataDirectoryMakesRelativeValuesAbsolute)
 {
     const std::filesystem::path resolved = wslc::internal::ResolveDataDirectory(std::string("relative\\dir"));

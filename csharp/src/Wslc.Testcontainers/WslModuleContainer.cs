@@ -14,9 +14,6 @@ public abstract class WslModuleContainer : IWslContainer
     /// <summary>Initializes a wrapper around the given container.</summary>
     protected WslModuleContainer(IWslContainer inner) => _inner = inner;
 
-    /// <summary>Gets the underlying container for advanced scenarios.</summary>
-    public IWslContainer Inner => _inner;
-
     /// <summary>Gets the unique name of the underlying WSLC instance.</summary>
     public string Name => _inner.Name;
 
@@ -25,6 +22,9 @@ public abstract class WslModuleContainer : IWslContainer
 
     /// <summary>Gets a value indicating whether the container has been started.</summary>
     public bool IsStarted => _inner.IsStarted;
+
+    /// <inheritdoc />
+    public bool IsReuseEffective => _inner.IsReuseEffective;
 
     /// <summary>
     /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
@@ -66,20 +66,23 @@ public abstract class WslModuleContainer : IWslContainer
         _inner.CopyFromAsync(containerPath, hostPath, cancellationToken);
 
     /// <summary>
-    /// Streams all logs captured by the environment. Infinite until <paramref name="cancellationToken"/>
-    /// fires or the container is disposed; bound with <see cref="Testing.LogDumper.DumpAsync"/>.
+    /// Subscribes to all logs captured by the environment. Infinite until <paramref name="cancellationToken"/>
+    /// fires or the container is disposed; bound with <see cref="Testing.LogDumper.DumpHeadAsync"/>.
     /// </summary>
-    public IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default) =>
-        _inner.LogsAsync(cancellationToken);
+    public IAsyncEnumerable<LogLine> SubscribeLogs(CancellationToken cancellationToken = default) =>
+        _inner.SubscribeLogs(cancellationToken);
 
     /// <summary>Returns a bounded snapshot of the most recent log lines, oldest first.</summary>
     public IReadOnlyList<LogLine> GetRecentLogs(int maxLines = 50) =>
         _inner.GetRecentLogs(maxLines);
 
-    /// <inheritdoc />
-    public ValueTask DisposeAsync()
-    {
-        GC.SuppressFinalize(this);
-        return _inner.DisposeAsync();
-    }
+    /// <summary>
+    /// Disposes the wrapped container. Derived module containers implement this by calling
+    /// <see cref="DisposeInnerAsync"/>; the abstract shape keeps the unsealed base free of a
+    /// <c>GC.SuppressFinalize</c> pattern it has no finalizer for (CA1816).
+    /// </summary>
+    public abstract ValueTask DisposeAsync();
+
+    /// <summary>Disposes the wrapped container on behalf of a derived <see cref="DisposeAsync"/>.</summary>
+    protected ValueTask DisposeInnerAsync() => _inner.DisposeAsync();
 }

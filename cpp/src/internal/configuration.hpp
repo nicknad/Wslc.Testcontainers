@@ -37,8 +37,8 @@ struct WslVolumeMount
     bool ReadOnly = false;
 };
 
-/// <summary>A session VHD volume mounted into the container (recreated empty on every Start).</summary>
-struct WslSessionVolume
+/// <summary>A scratch VHD volume mounted into the container (recreated empty on every Start).</summary>
+struct WslScratchVolume
 {
     std::string Name;
     std::string ContainerPath;
@@ -61,7 +61,7 @@ struct Configuration
     std::vector<std::shared_ptr<waiting::IWaitStrategy>> WaitStrategies;
     std::vector<WslFileCopy> Files;
     std::vector<WslVolumeMount> Volumes;
-    std::vector<WslSessionVolume> SessionVolumes;
+    std::vector<WslScratchVolume> ScratchVolumes;
     std::optional<ContainerNetworkMode> NetworkingMode;
     std::optional<std::uint32_t> CpuCount;
     std::optional<std::uint32_t> MemoryMb;

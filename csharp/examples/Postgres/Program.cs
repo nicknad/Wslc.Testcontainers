@@ -12,7 +12,7 @@ await using var postgres = new PostgreSqlBuilder()
 await postgres.StartAsync();
 
 var connectionString = postgres.GetConnectionString();
-Console.WriteLine($"postgres at {postgres.GetConnectEndpoint(PostgreSqlContainer.ContainerPort)}");
+Console.WriteLine($"postgres at {postgres.GetConnectEndpoint(PostgreSqlContainer.DefaultPort)}");
 
 await using var connection = new NpgsqlConnection(connectionString);
 await connection.OpenAsync();

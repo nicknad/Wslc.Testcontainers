@@ -240,8 +240,8 @@ std::string WslConfigHasher::Compute(const Configuration& configuration)
         writer.WriteByte(volume.ReadOnly ? 1 : 0);
     }
 
-    std::vector<WslSessionVolume> SessionVolumes = configuration.SessionVolumes;
-    std::sort(SessionVolumes.begin(), SessionVolumes.end(),
+    std::vector<WslScratchVolume> ScratchVolumes = configuration.ScratchVolumes;
+    std::sort(ScratchVolumes.begin(), ScratchVolumes.end(),
               [](const auto& left, const auto& right)
               {
                   if (left.ContainerPath != right.ContainerPath)
@@ -251,8 +251,8 @@ std::string WslConfigHasher::Compute(const Configuration& configuration)
 
                   return OrdinalLess(left.Name, right.Name);
               });
-    writer.WriteInt32(static_cast<std::int32_t>(SessionVolumes.size()));
-    for (const auto& volume : SessionVolumes)
+    writer.WriteInt32(static_cast<std::int32_t>(ScratchVolumes.size()));
+    for (const auto& volume : ScratchVolumes)
     {
         writer.WriteString(volume.Name);
         writer.WriteString(volume.ContainerPath);

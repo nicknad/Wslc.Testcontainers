@@ -21,6 +21,8 @@ namespace wslc
 class WslResourceReaper
 {
 public:
+    WslResourceReaper() = delete;
+
     /// <summary>Deletes storage of abandoned ephemeral instances. Reusable instances are preserved.</summary>
     static std::vector<std::string> Cleanup(std::stop_token token = {});
 

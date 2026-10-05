@@ -24,6 +24,13 @@ public interface IWslContainer : IAsyncDisposable
     bool IsStarted { get; }
 
     /// <summary>
+    /// Gets a value indicating whether reuse will actually be used for this container: reuse
+    /// must be configured (or enabled through <c>WSLC_REUSE</c>) and not suppressed by the
+    /// environment (reuse is forced off under CI unless <c>WSLC_REUSE_IN_CI</c> is truthy).
+    /// </summary>
+    bool IsReuseEffective { get; }
+
+    /// <summary>
     /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
     /// host port and the port's configured bind address. The default/wildcard binding resolves to
     /// loopback: IPv4 <c>127.0.0.1</c> for <c>0.0.0.0</c> and IPv6 <c>::1</c> for <c>::</c>.
@@ -91,13 +98,13 @@ public interface IWslContainer : IAsyncDisposable
     Task CopyFromAsync(string containerPath, string hostPath, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Streams all logs captured by the environment. The stream is infinite until
+    /// Subscribes to all logs captured by the environment. The stream is infinite until
     /// <paramref name="cancellationToken"/> fires or the container is disposed; use a
     /// <see cref="CancellationTokenSource"/> timeout or
-    /// <see cref="Testing.LogDumper.DumpAsync"/> with <c>maxLines</c> to bound the read.
+    /// <see cref="Testing.LogDumper.DumpHeadAsync"/> with <c>maxLines</c> to bound the read.
     /// Abandoning the enumeration without cancellation/disposal pins a bounded subscriber buffer.
     /// </summary>
-    IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default);
+    IAsyncEnumerable<LogLine> SubscribeLogs(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Returns a bounded snapshot of the most recent log lines, oldest first. Never blocks and

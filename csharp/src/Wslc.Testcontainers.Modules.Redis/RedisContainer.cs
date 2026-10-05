@@ -6,21 +6,21 @@ namespace Wslc.Testcontainers.Modules.Redis;
 /// </summary>
 public sealed class RedisContainer : WslModuleContainer
 {
-    /// <summary>The Linux TCP port Redis listens on (6379).</summary>
-    public const int ContainerPort = 6379;
+    /// <summary>The Linux TCP port Redis listens on by default (6379).</summary>
+    public const int DefaultPort = 6379;
 
     internal RedisContainer(IWslContainer inner)
         : base(inner)
     {
     }
 
-    /// <summary>Gets the Windows port mapped to <see cref="ContainerPort"/>.</summary>
-    public int GetMappedPort() => GetConnectEndpoint(ContainerPort).Port;
-
-    /// <summary>Renders the <c>host:port</c> endpoint for StackExchange.Redis.</summary>
-    public string GetConnectionString()
+    /// <summary>Renders the <c>host:port</c> endpoint for StackExchange.Redis (e.g. <c>127.0.0.1:49153</c>).</summary>
+    public string GetEndpoint()
     {
-        var endpoint = GetConnectEndpoint(ContainerPort);
+        var endpoint = GetConnectEndpoint(DefaultPort);
         return $"{endpoint.Address}:{endpoint.Port}";
     }
+
+    /// <inheritdoc />
+    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

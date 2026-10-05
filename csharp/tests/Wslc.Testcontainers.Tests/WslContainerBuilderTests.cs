@@ -121,52 +121,52 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
-    public void WithCpuCount_and_WithMemoryMB_record_limits()
+    public void WithCpuCount_and_WithMemoryMegabytes_record_limits()
     {
         var container = new WslContainerBuilder()
             .WithImage("alpine")
             .WithCpuCount(2)
-            .WithMemoryMB(2048)
+            .WithMemoryMegabytes(2048)
             .Build();
 
         Assert.Equal(2u, container.Configuration.CpuCount);
         Assert.Equal(2048u, container.Configuration.MemorySizeInMB);
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithCpuCount(0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithMemoryMB(0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithMemoryMegabytes(0));
     }
 
     [Fact]
-    public void WithNetworkingMode_None_rejects_ports_and_network_waits()
+    public void WithNetworkingMode_Isolated_rejects_ports_and_network_waits()
     {
-        var ports = new WslContainerBuilder().WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode.None);
+        var ports = new WslContainerBuilder().WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode.Isolated);
         Assert.Throws<WslException>(() => ports.Build());
 
         var waits = new WslContainerBuilder().WithImage("alpine")
-            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(80))
-            .WithNetworkingMode(ContainerNetworkMode.None);
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsOpen(80))
+            .WithNetworkingMode(ContainerNetworkMode.Isolated);
         Assert.Throws<WslException>(() => waits.Build());
 
         var composite = new WslContainerBuilder().WithImage("alpine")
             .WithWaitStrategy(
                 Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilMessageIsLogged("ready")
-                    .And(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080)))
-            .WithNetworkingMode(ContainerNetworkMode.None);
+                    .And(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestSucceeds("/health", 8080)))
+            .WithNetworkingMode(ContainerNetworkMode.Isolated);
         Assert.Throws<WslException>(() => composite.Build());
 
         // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and
         // can still be combined with None (documented bypass).
         var custom = new WslContainerBuilder().WithImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().Until("custom", (_, _) => Task.FromResult(true)))
-            .WithNetworkingMode(ContainerNetworkMode.None)
+            .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
-        Assert.Equal(ContainerNetworkMode.None, custom.Configuration.NetworkingMode);
+        Assert.Equal(ContainerNetworkMode.Isolated, custom.Configuration.NetworkingMode);
 
         // Non-network waits are fine without networking.
         var offline = new WslContainerBuilder().WithImage("alpine")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilFileExists("/tmp/ready"))
-            .WithNetworkingMode(ContainerNetworkMode.None)
+            .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
-        Assert.Equal(ContainerNetworkMode.None, offline.Configuration.NetworkingMode);
+        Assert.Equal(ContainerNetworkMode.Isolated, offline.Configuration.NetworkingMode);
     }
 
     [Fact]
@@ -176,14 +176,14 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
-    public void WithSessionVolume_records_and_validates()
+    public void WithScratchVolume_records_and_validates()
     {
         var container = new WslContainerBuilder()
             .WithImage("alpine")
-            .WithSessionVolume("data", "/data", 10UL * 1024 * 1024 * 1024)
+            .WithScratchVolume("data", "/data", 10UL * 1024 * 1024 * 1024)
             .Build();
 
-        var volume = Assert.Single(container.Configuration.SessionVolumes);
+        var volume = Assert.Single(container.Configuration.ScratchVolumes);
         Assert.Equal("data", volume.Name);
         Assert.Equal("/data", volume.ContainerPath);
         Assert.False(volume.ReadOnly);
@@ -191,19 +191,19 @@ public sealed class WslContainerBuilderTests
         Assert.Equal(VhdAllocationType.Dynamic, volume.Type);
 
         var builder = new WslContainerBuilder().WithImage("alpine");
-        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("", "/data", 100));
-        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("a/b", "/data", 100));
-        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("a b", "/data", 100));
-        Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "relative", 100));
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithSessionVolume("data", "/data", 0));
-        Assert.Throws<WslException>(() => builder.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100));
-        Assert.Throws<WslException>(() => builder.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("", "/data", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("a/b", "/data", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("a b", "/data", 100));
+        Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("data", "relative", 100));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithScratchVolume("data", "/data", 0));
+        Assert.Throws<WslException>(() => builder.WithScratchVolume("data", "/a", 100).WithScratchVolume("data", "/b", 100));
+        Assert.Throws<WslException>(() => builder.WithScratchVolume("Data", "/a", 100).WithScratchVolume("data", "/b", 100));
 
         var readOnlyFixed = new WslContainerBuilder()
             .WithImage("alpine")
-            .WithSessionVolume("data", "/data", 100, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
+            .WithScratchVolume("data", "/data", 100, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
             .Build();
-        var configured = Assert.Single(readOnlyFixed.Configuration.SessionVolumes);
+        var configured = Assert.Single(readOnlyFixed.Configuration.ScratchVolumes);
         Assert.True(configured.ReadOnly);
         Assert.Equal(VhdAllocationType.Fixed, configured.Type);
     }
@@ -369,8 +369,8 @@ public sealed class WslContainerBuilderTests
             var builder = new WslContainerBuilder().WithImage("alpine");
             Assert.Throws<ArgumentException>(() => builder.WithFile(file, "/proc/self/environ"));
             Assert.Throws<ArgumentException>(() => builder.WithVolume(directory.FullName, "/sys/kernel"));
-            Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "/dev/sda", 100));
-            Assert.Throws<ArgumentException>(() => builder.WithSessionVolume("data", "/a/../b", 100));
+            Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("data", "/dev/sda", 100));
+            Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("data", "/a/../b", 100));
             Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithWorkingDirectory("/tmp/../etc"));
             Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithWorkingDirectory("/tmp/bad\u0007name"));
             Assert.Throws<ArgumentException>(() => new WslContainerBuilder().WithWorkingDirectory("/./proc/self"));
@@ -482,7 +482,7 @@ public sealed class WslContainerBuilderTests
     {
         var container = new WslContainerBuilder()
             .WithImage("alpine:latest")
-            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(80))
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsOpen(80))
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilProcessIsRunning("nginx"))
             .Build();
 
@@ -497,8 +497,8 @@ public sealed class WslContainerBuilderTests
         var container = new WslContainerBuilder()
             .WithImage("alpine")
             .WithPort(8080, "192.168.1.10")
-            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsAvailable(8080))
-            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsOpen(8080))
+            .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestSucceeds("/health", 8080))
             .Build();
 
         Assert.Equal(2, container.Configuration.WaitStrategies.Count);
@@ -564,7 +564,7 @@ public sealed class WslContainerBuilderTests
         var container = new WslContainerBuilder()
             .WithImage("alpine")
             .WithCpuCount(BuilderLimits.MaxCpuCount)
-            .WithMemoryMB(BuilderLimits.MaxMemoryMB)
+            .WithMemoryMegabytes(BuilderLimits.MaxMemoryMB)
             .Build();
 
         Assert.Equal(BuilderLimits.MaxCpuCount, container.Configuration.CpuCount);
@@ -572,41 +572,41 @@ public sealed class WslContainerBuilderTests
 
         var builder = new WslContainerBuilder();
         Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithCpuCount(BuilderLimits.MaxCpuCount + 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithMemoryMB(BuilderLimits.MaxMemoryMB + 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithMemoryMegabytes(BuilderLimits.MaxMemoryMB + 1));
     }
 
     [Fact]
-    public void Session_volume_size_cap_is_inclusive()
+    public void Scratch_volume_size_cap_is_inclusive()
     {
         var container = new WslContainerBuilder()
             .WithImage("alpine")
-            .WithSessionVolume("data", "/data", BuilderLimits.MaxSessionVolumeBytes)
+            .WithScratchVolume("data", "/data", BuilderLimits.MaxScratchVolumeBytes)
             .Build();
 
         Assert.Equal(
-            BuilderLimits.MaxSessionVolumeBytes,
-            Assert.Single(container.Configuration.SessionVolumes).SizeBytes);
+            BuilderLimits.MaxScratchVolumeBytes,
+            Assert.Single(container.Configuration.ScratchVolumes).SizeBytes);
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => new WslContainerBuilder().WithSessionVolume("data", "/data", BuilderLimits.MaxSessionVolumeBytes + 1));
+            () => new WslContainerBuilder().WithScratchVolume("data", "/data", BuilderLimits.MaxScratchVolumeBytes + 1));
     }
 
     [Fact]
-    public void Startup_timeout_cap_is_inclusive_and_rejects_longer_timeouts_before_start()
+    public void Readiness_timeout_cap_is_inclusive_and_rejects_longer_timeouts_before_start()
     {
         var container = new WslContainerBuilder()
             .WithImage("alpine")
-            .WithStartupTimeout(BuilderLimits.MaxStartupTimeout)
+            .WithReadinessTimeout(BuilderLimits.MaxStartupTimeout)
             .Build();
 
         Assert.Equal(BuilderLimits.MaxStartupTimeout, container.Configuration.StartupTimeout);
 
         var builder = new WslContainerBuilder().WithImage("alpine");
         Assert.Throws<ArgumentOutOfRangeException>(
-            () => builder.WithStartupTimeout(BuilderLimits.MaxStartupTimeout + TimeSpan.FromSeconds(1)));
+            () => builder.WithReadinessTimeout(BuilderLimits.MaxStartupTimeout + TimeSpan.FromSeconds(1)));
 
         // 3650 days is past the ~49.7-day CancellationTokenSource ceiling; the builder must
         // reject it while configuring, never through the startup token source at Start.
-        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithStartupTimeout(TimeSpan.FromDays(3650)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithReadinessTimeout(TimeSpan.FromDays(3650)));
     }
 
     [Fact]
@@ -614,7 +614,7 @@ public sealed class WslContainerBuilderTests
     {
         var builder = new WslContainerBuilder()
             .WithImage("alpine")
-            .WithStartupTimeout(BuilderLimits.MaxStartupTimeout);
+            .WithReadinessTimeout(BuilderLimits.MaxStartupTimeout);
         for (var i = 0; i < BuilderLimits.MaxWaitStrategies; i++)
         {
             builder.WithWaitStrategy(
@@ -820,17 +820,17 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
-    public void Session_volume_count_cap_is_enforced_at_build()
+    public void Scratch_volume_count_cap_is_enforced_at_build()
     {
         var builder = new WslContainerBuilder().WithImage("alpine");
-        for (var i = 0; i < BuilderLimits.MaxSessionVolumes; i++)
+        for (var i = 0; i < BuilderLimits.MaxScratchVolumes; i++)
         {
-            builder.WithSessionVolume($"data{i}", $"/data{i}", 1024);
+            builder.WithScratchVolume($"data{i}", $"/data{i}", 1024);
         }
 
-        Assert.Equal(BuilderLimits.MaxSessionVolumes, builder.Build().Configuration.SessionVolumes.Count);
+        Assert.Equal(BuilderLimits.MaxScratchVolumes, builder.Build().Configuration.ScratchVolumes.Count);
 
-        builder.WithSessionVolume("one-too-many", "/data-extra", 1024);
+        builder.WithScratchVolume("one-too-many", "/data-extra", 1024);
         Assert.Throws<WslException>(() => builder.Build());
     }
 
@@ -869,6 +869,27 @@ public sealed class WslContainerBuilderTests
         finally
         {
             File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Container_reports_whether_reuse_is_effective(bool configuredReuse)
+    {
+        var container = new WslContainerBuilder().WithImage("alpine:latest").WithReuse(configuredReuse).Build();
+        try
+        {
+            var expected = WslEnvironment.IsReuseEffective(
+                configuredReuse,
+                WslEnvironment.ReuseByDefault,
+                WslEnvironment.ReuseAllowed);
+
+            Assert.Equal(expected, container.IsReuseEffective);
+        }
+        finally
+        {
+            await container.DisposeAsync();
         }
     }
 

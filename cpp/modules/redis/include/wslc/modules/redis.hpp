@@ -34,19 +34,16 @@ protected:
 class RedisContainer : public WslModuleContainer
 {
 public:
-    /// <summary>The Linux TCP port Redis listens on (6379).</summary>
-    static constexpr int ContainerPort = 6379;
+    /// <summary>The Linux TCP port Redis listens on by default (6379).</summary>
+    static constexpr int DefaultPort = 6379;
 
     RedisContainer(const RedisContainer&) = delete;
     RedisContainer& operator=(const RedisContainer&) = delete;
     RedisContainer(RedisContainer&&) noexcept = default;
     RedisContainer& operator=(RedisContainer&&) noexcept = default;
 
-    /// <summary>Gets the Windows port mapped to the Redis port.</summary>
-    int GetMappedPort() const { return WslModuleContainer::GetConnectEndpoint(ContainerPort).Port; }
-
-    /// <summary>Renders the "Host:port" endpoint for StackExchange.Redis.</summary>
-    std::string GetConnectionString() const;
+    /// <summary>Renders the host:port endpoint for StackExchange.Redis (e.g. 127.0.0.1:49153).</summary>
+    std::string GetEndpoint() const;
 
 private:
     friend class RedisBuilder;

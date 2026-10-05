@@ -11,5 +11,5 @@ public enum ContainerNetworkMode
     /// Detection covers only the built-in TCP/HTTP wait strategies; a custom
     /// <see cref="Waiting.IWaitStrategy"/> that needs the network bypasses this validation.
     /// </summary>
-    None = 1,
+    Isolated = 1,
 }

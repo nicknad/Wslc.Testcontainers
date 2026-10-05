@@ -62,7 +62,7 @@ public abstract class WslModuleBuilder<TBuilder>
     /// waits/ports). Applied after module defaults so it can override them. Module-level
     /// <c>WithReuse</c> is applied last and wins over a customizer that sets reuse.
     /// </summary>
-    public TBuilder WithContainerConfiguration(Func<WslContainerBuilder, WslContainerBuilder> customize)
+    public TBuilder ConfigureContainer(Func<WslContainerBuilder, WslContainerBuilder> customize)
     {
         ArgumentNullException.ThrowIfNull(customize);
         _customizer = _customizer is null ? customize : builder => customize(_customizer(builder));
@@ -82,9 +82,9 @@ public abstract class WslModuleBuilder<TBuilder>
         var builder = new WslContainerBuilder()
             .WithImage(_image)
             .WithPort(_port)
-            .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsAvailable(_port))
+            .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsOpen(_port))
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage, ReadyMessageOccurrences))
-            .WithStartupTimeout(startupTimeout);
+            .WithReadinessTimeout(startupTimeout);
         builder = Configure(builder);
         if (_customizer is not null)
         {

@@ -5,8 +5,8 @@
 namespace wslc::testing
 {
 
-void LogDumper::Dump(LogStream& Logs, const std::function<void(const std::string&)>& write_line, int maxLines,
-                     std::stop_token token)
+void LogDumper::DumpHead(LogStream& Logs, const std::function<void(const std::string&)>& write_line, int maxLines,
+                         std::stop_token token)
 {
     if (!write_line)
     {

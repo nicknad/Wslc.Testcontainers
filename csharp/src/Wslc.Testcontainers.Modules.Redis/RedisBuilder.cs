@@ -11,7 +11,7 @@ public sealed class RedisBuilder : WslModuleBuilder<RedisBuilder>
     public RedisBuilder()
         : base(
             "docker.io/library/redis:7-alpine",
-            RedisContainer.ContainerPort,
+            RedisContainer.DefaultPort,
             "Ready to accept connections")
     {
     }

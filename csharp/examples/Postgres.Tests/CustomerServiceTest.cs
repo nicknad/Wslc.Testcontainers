@@ -45,7 +45,7 @@ public sealed class CustomerServiceTest
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
             try
             {
-                await LogDumper.DumpAsync(_fixture.Logs(cts.Token), _output.WriteLine, maxLines: 100, cts.Token);
+                await LogDumper.DumpHeadAsync(_fixture.Logs(cts.Token), _output.WriteLine, maxLines: 100, cts.Token);
             }
             catch (OperationCanceledException)
             {

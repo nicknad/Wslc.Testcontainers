@@ -13,7 +13,7 @@ internal static class BuilderLimits
     /// <summary>Maximum CPU count accepted by <c>WithCpuCount</c>.</summary>
     public const uint MaxCpuCount = 64;
 
-    /// <summary>Maximum memory limit in megabytes accepted by <c>WithMemoryMB</c> (1 TiB).</summary>
+    /// <summary>Maximum memory limit in megabytes accepted by <c>WithMemoryMegabytes</c> (1 TiB).</summary>
     public const uint MaxMemoryMB = 1024 * 1024;
 
     /// <summary>Maximum number of command arguments.</summary>
@@ -31,17 +31,17 @@ internal static class BuilderLimits
     /// <summary>Maximum number of host directory mounts.</summary>
     public const int MaxVolumeMounts = 64;
 
-    /// <summary>Maximum number of session VHD volumes.</summary>
-    public const int MaxSessionVolumes = 64;
+    /// <summary>Maximum number of scratch VHD volumes.</summary>
+    public const int MaxScratchVolumes = 64;
 
     /// <summary>Maximum number of readiness wait strategies, including strategies combined through And.</summary>
     public const int MaxWaitStrategies = 16;
 
-    /// <summary>Maximum session volume size in bytes (1 TiB).</summary>
-    public const ulong MaxSessionVolumeBytes = 1UL << 40;
+    /// <summary>Maximum scratch volume size in bytes (1 TiB).</summary>
+    public const ulong MaxScratchVolumeBytes = 1UL << 40;
 
     /// <summary>Maximum tarball size in bytes: the smaller of 1 TiB and the session VHD cap.</summary>
-    public const ulong MaxTarballBytes = MaxSessionVolumeBytes;
+    public const ulong MaxTarballBytes = MaxScratchVolumeBytes;
 
     /// <summary>Maximum startup timeout.</summary>
     public static readonly TimeSpan MaxStartupTimeout = TimeSpan.FromHours(24);
@@ -79,19 +79,19 @@ internal static class BuilderLimits
         }
     }
 
-    public static void RequireSessionVolumeSize(ulong sizeBytes)
+    public static void RequireScratchVolumeSize(ulong sizeBytes)
     {
         if (sizeBytes == 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Session volume size must be positive.");
+            throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Scratch volume size must be positive.");
         }
 
-        if (sizeBytes > MaxSessionVolumeBytes)
+        if (sizeBytes > MaxScratchVolumeBytes)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(sizeBytes),
                 sizeBytes,
-                $"Session volume size {sizeBytes} bytes exceeds the maximum of {MaxSessionVolumeBytes} bytes (1 TiB).");
+                $"Scratch volume size {sizeBytes} bytes exceeds the maximum of {MaxScratchVolumeBytes} bytes (1 TiB).");
         }
     }
 

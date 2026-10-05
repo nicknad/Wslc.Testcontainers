@@ -24,6 +24,8 @@ struct WslVersion
 class WslPlatform
 {
 public:
+    WslPlatform() = delete;
+
     /// <summary>
     /// Minimum supported WSL runtime version with container support (2.9.3, the release where
     /// WSLC shipped). This is the runtime feature floor, independent of the SDK package version.

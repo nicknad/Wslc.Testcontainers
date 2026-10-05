@@ -6,8 +6,8 @@ namespace Wslc.Testcontainers.Modules.PostgreSql;
 /// </summary>
 public sealed class PostgreSqlContainer : WslModuleContainer
 {
-    /// <summary>The Linux TCP port Postgres listens on (5432).</summary>
-    public const int ContainerPort = 5432;
+    /// <summary>The Linux TCP port Postgres listens on by default (5432).</summary>
+    public const int DefaultPort = 5432;
 
     private readonly string _username;
     private readonly string _password;
@@ -21,13 +21,16 @@ public sealed class PostgreSqlContainer : WslModuleContainer
         _database = database;
     }
 
-    /// <summary>Gets the Windows port mapped to <see cref="ContainerPort"/>.</summary>
-    public int GetMappedPort() => GetConnectEndpoint(ContainerPort).Port;
-
-    /// <summary>Renders an Npgsql connection string for the running container.</summary>
+    /// <summary>
+    /// Renders an Npgsql connection string for the running container, e.g.
+    /// <c>Host=127.0.0.1;Port=49153;Username=...;Password=...;Database=...</c>.
+    /// </summary>
     public string GetConnectionString()
     {
-        var endpoint = GetConnectEndpoint(ContainerPort);
+        var endpoint = GetConnectEndpoint(DefaultPort);
         return $"Host={endpoint.Address};Port={endpoint.Port};Username={_username};Password={_password};Database={_database}";
     }
+
+    /// <inheritdoc />
+    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

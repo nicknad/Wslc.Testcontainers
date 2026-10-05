@@ -34,7 +34,7 @@ TEST(WaitStrategy, TcpPortPollsUntilAvailable)
         return attempts >= 3;
     };
 
-    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(10ms).UntilTcpPortIsAvailable(5432);
+    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(10ms).UntilTcpPortIsOpen(5432);
 
     strategy->Wait(target, std::stop_token{});
 
@@ -46,7 +46,7 @@ TEST(WaitStrategy, SatisfiedCheckReturnsBeforeTheDeadlineTimerFires)
     FakeWaitTarget target;
     target.PortHandler = [](int, std::stop_token) { return true; };
 
-    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(10ms).UntilTcpPortIsAvailable(5432);
+    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(10ms).UntilTcpPortIsOpen(5432);
 
     const auto started = std::chrono::steady_clock::now();
     strategy->Wait(target, std::stop_token{});
@@ -85,7 +85,7 @@ TEST(WaitStrategy, TcpPortTimesOutWithDiagnostics)
     target.PortHandler = [](int, std::stop_token) { return false; };
     target.Logs.push_back(LogLine::Diagnostic("database starting"));
 
-    auto strategy = ForWsl().WithTimeout(120ms).WithRetryInterval(10ms).UntilTcpPortIsAvailable(5432);
+    auto strategy = ForWsl().WithTimeout(120ms).WithRetryInterval(10ms).UntilTcpPortIsOpen(5432);
 
     try
     {
@@ -111,7 +111,7 @@ TEST(WaitStrategy, HonorsCancellation)
     FakeWaitTarget target;
     target.PortHandler = [](int, std::stop_token) { return false; };
 
-    auto strategy = ForWsl().WithTimeout(30s).WithRetryInterval(10ms).UntilTcpPortIsAvailable(5432);
+    auto strategy = ForWsl().WithTimeout(30s).WithRetryInterval(10ms).UntilTcpPortIsOpen(5432);
 
     std::stop_source source;
     std::jthread canceller(
@@ -206,7 +206,7 @@ TEST(WaitStrategy, CompositeRequiresAllConditions)
     auto strategy = ForWsl()
                         .WithTimeout(2s)
                         .WithRetryInterval(10ms)
-                        .UntilTcpPortIsAvailable(8080)
+                        .UntilTcpPortIsOpen(8080)
                         ->And(ForWsl().UntilProcessIsRunning("nginx"))
                         ->And(ForWsl().UntilMessageIsLogged("ready"));
 
@@ -219,7 +219,7 @@ TEST(WaitStrategy, HttpSucceedsForNonServerErrors)
     FakeWaitTarget target;
     target.ConnectEndpoint.Port = server.Port();
 
-    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(50ms).UntilHttpRequestIsSucceeded("/health", 8080);
+    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(50ms).UntilHttpRequestSucceeds("/health", 8080);
 
     strategy->Wait(target, std::stop_token{});
 }
@@ -230,7 +230,7 @@ TEST(WaitStrategy, HttpProbesTheConnectEndpoint)
     FakeWaitTarget target;
     target.ConnectEndpoint = {"127.0.0.1", server.Port()};
 
-    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(50ms).UntilHttpRequestIsSucceeded("/health", 8080);
+    auto strategy = ForWsl().WithTimeout(5s).WithRetryInterval(50ms).UntilHttpRequestSucceeds("/health", 8080);
 
     strategy->Wait(target, std::stop_token{});
 }
@@ -241,7 +241,7 @@ TEST(WaitStrategy, HttpTimesOutForServerErrors)
     FakeWaitTarget target;
     target.ConnectEndpoint.Port = server.Port();
 
-    auto strategy = ForWsl().WithTimeout(300ms).WithRetryInterval(25ms).UntilHttpRequestIsSucceeded("/health", 8080);
+    auto strategy = ForWsl().WithTimeout(300ms).WithRetryInterval(25ms).UntilHttpRequestSucceeds("/health", 8080);
 
     EXPECT_THROW(strategy->Wait(target, std::stop_token{}), WslReadinessException);
 }
@@ -261,7 +261,7 @@ TEST(WaitStrategy, CustomUntilPollsUntilSatisfied)
 
 TEST(WaitStrategy, CompositeKeepsTheLeftOperandTimeoutAndRetryInterval)
 {
-    auto strategy = ForWsl().WithTimeout(150ms).WithRetryInterval(25ms).UntilTcpPortIsAvailable(8080)->And(
+    auto strategy = ForWsl().WithTimeout(150ms).WithRetryInterval(25ms).UntilTcpPortIsOpen(8080)->And(
         ForWsl().WithTimeout(30s).UntilProcessIsRunning("nginx"));
 
     EXPECT_EQ(strategy->Timeout(), 150ms);
@@ -284,7 +284,7 @@ TEST(WaitStrategy, CompositeTimeoutBoundsChildrenWithLongerTimeouts)
         return false;
     };
 
-    auto strategy = (ForWsl().WithTimeout(5s).UntilTcpPortIsAvailable(5432)->And(
+    auto strategy = (ForWsl().WithTimeout(5s).UntilTcpPortIsOpen(5432)->And(
                          ForWsl().WithTimeout(5s).UntilProcessIsRunning("nginx")))
                         ->WithTimeout(200ms);
 
@@ -312,17 +312,17 @@ TEST(WaitStrategy, InvalidConfigurationIsRejected)
 {
     EXPECT_THROW(ForWsl().WithTimeout(0ms), WslException);
     EXPECT_THROW(ForWsl().WithRetryInterval(0ms), WslException);
-    EXPECT_THROW(ForWsl().UntilTcpPortIsAvailable(0), WslException);
+    EXPECT_THROW(ForWsl().UntilTcpPortIsOpen(0), WslException);
     EXPECT_THROW(ForWsl().UntilFileExists(" "), WslException);
 
     // HTTP waits take a path-and-query, never a full URL or a relative path.
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("http://localhost/health", 8080), WslException);
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("health", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestSucceeds("http://localhost/health", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestSucceeds("health", 8080), WslException);
 
     // Raw request lines must not carry spaces or CR/LF that would inject headers.
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health HTTP/1.1\r\nX-Evil: 1", 8080), WslException);
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/he alth", 8080), WslException);
-    EXPECT_THROW(ForWsl().UntilHttpRequestIsSucceeded("/health\tx", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestSucceeds("/health HTTP/1.1\r\nX-Evil: 1", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestSucceeds("/he alth", 8080), WslException);
+    EXPECT_THROW(ForWsl().UntilHttpRequestSucceeds("/health\tx", 8080), WslException);
 
     // Container paths cannot escape via '..' or target kernel pseudo-filesystems.
     EXPECT_THROW(ForWsl().UntilFileExists("/tmp/../etc/passwd"), WslException);

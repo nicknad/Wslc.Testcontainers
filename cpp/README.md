@@ -13,7 +13,7 @@ wslc::WslContainerBuilder builder;
 auto postgres = builder.WithImage("docker.io/library/postgres:15-alpine")
                     .WithPort(5432)
                     .WithWaitStrategy(wslc::waiting::ForWsl()
-                                          .UntilTcpPortIsAvailable(5432)
+                                          .UntilTcpPortIsOpen(5432)
                                           ->And(wslc::waiting::ForWsl()
                                                     .UntilMessageIsLogged("database system is ready to accept connections", 2)))
                     .WithCommand("/usr/local/bin/docker-entrypoint.sh", {"postgres"})
@@ -30,7 +30,7 @@ const auto result = postgres.Exec("/bin/sh", {"-c", "psql -U postgres -c 'SELECT
 > **Security: defaults are for *trusted* test dependencies, not hostile code.** The underlying
 > WSL container runtime provides no security boundary by default (bridged networking with full
 > egress, image default user, host write paths for volumes). See the
-> [shared security notes](../README.md) and `WithNetworkingMode(ContainerNetworkMode::None)`.
+> [shared security notes](../README.md) and `WithNetworkingMode(ContainerNetworkMode::Isolated)`.
 
 ## Requirements
 
@@ -85,15 +85,15 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | `WithEnvironment(name, value)` / `WithEnvironmentVariables(map)` |
 | `WithPort(port)` / `WithPort(port, bindAddress)` | same names |
 | `WithWaitStrategy(strategy)` | `WithWaitStrategy(std::shared_ptr<IWaitStrategy>)` |
-| `WithFile` / `WithVolume` / `WithReadOnlyVolume` / `WithSessionVolume` | same names |
-| `WithNetworkingMode` / `WithCpuCount` / `WithMemoryMB` | same names |
-| `WithReuse` / `WithStartupTimeout` | same names |
+| `WithFile` / `WithVolume` / `WithScratchVolume` | same names |
+| `WithNetworkingMode` / `WithCpuCount` / `WithMemoryMegabytes` | same names |
+| `WithReuse` / `WithReadinessTimeout` | same names |
 | `Build()` → `WslContainer` | `Build()` → `wslc::WslContainer` (move-only) |
 | `StartAsync` / `StopAsync` / `DisposeAsync` | `Start(token)` / `Stop(token)` / `Dispose()` |
 | `ExecAsync(command, args, options, token)` | `Exec(command, args, options, token)` |
 | `StartProcess(...)` → `IWslProcess` | `StartProcess(...)` → `std::unique_ptr<IWslProcess>` |
 | `CopyToAsync` / `CopyFromAsync` | `CopyTo` / `CopyFrom` |
-| `LogsAsync(token)` → `IAsyncEnumerable<LogLine>` | `Logs()` → `LogStream` (blocking `Next(token)`) |
+| `SubscribeLogs(token)` → `IAsyncEnumerable<LogLine>` | `SubscribeLogs()` → `LogStream` (blocking `Next(token)`) |
 | `GetRecentLogs(maxLines)` | `GetRecentLogs(maxLines)` |
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
@@ -127,7 +127,7 @@ const std::string npgsql = postgres.GetConnectionString();
 wslc::modules::RedisBuilder redisBuilder;
 auto redis = redisBuilder.Build();
 redis.Start();
-const std::string endpoint = redis.GetConnectionString();
+const std::string endpoint = redis.GetEndpoint();
 ```
 
 ## Configuration

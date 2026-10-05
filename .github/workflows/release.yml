@@ -115,6 +115,9 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
+      - name: Static release checks (version lockstep, PublicAPI promotion)
+        shell: pwsh
+        run: ./scripts/Verify-Package.ps1 -ChecksOnly
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
       - name: Pack with tag version
         shell: pwsh

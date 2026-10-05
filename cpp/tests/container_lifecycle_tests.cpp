@@ -12,7 +12,7 @@ TEST(ContainerLifecycle, DisposeCompletesLogsAndIsIdempotent)
     container.Dispose();
     container.Dispose();
 
-    auto stream = container.Logs();
+    auto stream = container.SubscribeLogs();
     EXPECT_FALSE(stream.Next().has_value());
 }
 

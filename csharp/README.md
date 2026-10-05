@@ -28,8 +28,8 @@ var connectionString = postgres.GetConnectionString();
 > controls, and every `WithVolume` is a write path onto the Windows host. Do **not**
 > run untrusted or agent-generated code with default settings. If you need containment
 > (e.g. an agent that may only talk to the API that invoked it), see
-> [Agent containment](docs/usage.md#agent-containment-note). `WithNetworkingMode(None)`
-> is the boundary that works, while `WithSessionVolume` avoids exposing a Windows
+> [Agent containment](docs/usage.md#agent-containment-note). `WithNetworkingMode(Isolated)`
+> is the boundary that works, while `WithScratchVolume` avoids exposing a Windows
 > directory rather than avoiding Windows storage entirely.
 >
 > **Egress allowlisting is intentionally not provided.** On the current WSLC runtime
@@ -37,7 +37,7 @@ var connectionString = postgres.GetConnectionString();
 > Docker-like default capability set), so an in-container `iptables` policy can never be
 > installed, and the container settings exposed by the SDK contain no outbound policy
 > API either. The only enforcement the runtime currently honors is removing the NIC
-> entirely (`WithNetworkingMode(None)`). A library cannot fix this from inside the
+> entirely (`WithNetworkingMode(Isolated)`). A library cannot fix this from inside the
 > container; it needs runtime-side egress policy support.
 
 ## Requirements
@@ -93,14 +93,14 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Exposes a Linux TCP port on a dynamic Windows port; the optional per-port Windows bind address defaults to loopback (pass `0.0.0.0` or `IPAddress.Any` to expose on the LAN). UDP is not supported — the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
-| `WithNetworkingMode(mode)`                                      | `Bridged` (default) or `None` (no NIC — no ports or waits allowed; the only containment mode).                     |
-| `WithCpuCount(n)` / `WithMemoryMB(n)`                           | Caps for the session VM.                                                                    |
-| `WithSessionVolume(name, containerPath, sizeBytes, ...)`          | Session VHD volume (ext4, recreated empty every start) instead of a bind mount.             |
+| `WithNetworkingMode(mode)`                                      | `Bridged` (default) or `Isolated` (no NIC — no ports or waits allowed; the only containment mode).                     |
+| `WithCpuCount(n)` / `WithMemoryMegabytes(n)`                    | Caps for the session VM.                                                                    |
+| `WithScratchVolume(name, containerPath, sizeBytes, ...)`          | Scratch VHD volume (ext4, recreated empty every start) instead of a bind mount.             |
 | `WithWaitStrategy(strategy)`                                      | Adds a readiness condition. All must pass.                         |
 | `WithFile(hostPath, containerPath)`                               | Copies a Windows file (≤1 GiB) into the container. Absolute Linux dest. |
-| `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` / `WithReadOnlyVolume(...)` | Mounts a Windows directory. Order is host, container. |
+| `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` | Mounts a Windows directory. Order is host, container. |
 | `WithReuse(true)`                                                 | Keeps session storage (and cached images) between runs (see Reuse). |
-| `WithStartupTimeout(timeout)`                                     | Overall startup budget (must be ≥ sum of wait timeouts). Default 120 s. |
+| `WithReadinessTimeout(timeout)`                                   | Readiness budget that bounds the whole startup (must be ≥ sum of wait timeouts). Default 120 s. |
 
 ## Working with the container
 
@@ -126,7 +126,7 @@ await process.KillAsync();
 await process.DisposeAsync();
 
 // Output from the init process, ExecAsync and StartProcess all flows
-// through container.LogsAsync() (infinite until cancelled — bound with CTS or LogDumper;
+// through container.SubscribeLogs() (infinite until cancelled — bound with CTS or LogDumper;
 // container.GetRecentLogs() returns a bounded tail snapshot without blocking).
 
 // Files (≤1 GiB each way; container paths must be absolute Linux paths)
@@ -138,7 +138,7 @@ var recent = container.GetRecentLogs(50);
 
 // Logs (infinite stream — always cancel; see docs/troubleshooting.md)
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-await foreach (var line in container.LogsAsync(cts.Token))
+await foreach (var line in container.SubscribeLogs(cts.Token))
 {
     Console.WriteLine(line);
 }
@@ -152,8 +152,8 @@ On failure, call `ex.Describe()` and inspect `GetRecentLogs()` (bounded tail sna
 ```csharp
 using Wslc.Testcontainers.Waiting;
 
-.WithWaitStrategy(Wait.ForWsl().UntilTcpPortIsAvailable(5432))
-.WithWaitStrategy(Wait.ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
+.WithWaitStrategy(Wait.ForWsl().UntilTcpPortIsOpen(5432))
+.WithWaitStrategy(Wait.ForWsl().UntilHttpRequestSucceeds("/health", 8080))
 .WithWaitStrategy(Wait.ForWsl().UntilProcessIsRunning("postgres"))
 .WithWaitStrategy(Wait.ForWsl().UntilProcessExits("migration"))
 .WithWaitStrategy(Wait.ForWsl().UntilMessageIsLogged("database system is ready"))
@@ -166,7 +166,7 @@ composite keeps the left operand's timeout; nested composites are flattened):
 ```csharp
 var strategy = Wait.ForWsl()
     .WithTimeout(TimeSpan.FromSeconds(60))
-    .UntilTcpPortIsAvailable(5432)
+    .UntilTcpPortIsOpen(5432)
     .And(Wait.ForWsl().UntilMessageIsLogged("ready to accept connections"));
 ```
 
@@ -205,7 +205,7 @@ await container.StartAsync();
 
 `WithReuse(true)` makes the instance name a hash of the builder configuration and keeps the session
 storage between runs: the session VHD (and its pulled image cache) is reused, so the second run
-skips the pull. Session volumes are still recreated empty on every start. Reuse is disabled under
+skips the pull. Scratch volumes are still recreated empty on every start. Reuse is disabled under
 CI unless `WSLC_REUSE_IN_CI=1`. See [reuse](docs/reuse.md) for when reuse is safe and how modules
 encapsulate presets.
 
@@ -223,7 +223,7 @@ var npgsql = postgres.GetConnectionString();
 
 await using var redis = new RedisBuilder().Build();
 await redis.StartAsync();
-var endpoint = redis.GetConnectionString(); // host:port for StackExchange.Redis
+var endpoint = redis.GetEndpoint(); // host:port for StackExchange.Redis
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

@@ -16,7 +16,7 @@ public sealed class PostgreSqlBuilder : WslModuleBuilder<PostgreSqlBuilder>
     public PostgreSqlBuilder()
         : base(
             "docker.io/library/postgres:15-alpine",
-            PostgreSqlContainer.ContainerPort,
+            PostgreSqlContainer.DefaultPort,
             "database system is ready to accept connections")
     {
     }

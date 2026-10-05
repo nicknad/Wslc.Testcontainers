@@ -161,6 +161,14 @@ public static class WslEnvironment
     internal static bool ReuseAllowed =>
         !IsContinuousIntegration || (ParseBool(GetNonEmpty(ReuseInCiVariable)) ?? false);
 
+    /// <summary>
+    /// Resolves whether reuse is effective for a container: configured (or default) reuse only
+    /// counts when the environment allows it. Pure so callers can test both the configured and
+    /// the CI-suppressed case without mutating process environment variables.
+    /// </summary>
+    internal static bool IsReuseEffective(bool? configuredReuse, bool reuseByDefault, bool reuseAllowed) =>
+        (configuredReuse ?? reuseByDefault) && reuseAllowed;
+
     private static readonly string[] ContinuousIntegrationVariables =
         { "CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL", "TEAMCITY_VERSION" };
 

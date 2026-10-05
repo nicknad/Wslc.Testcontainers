@@ -25,10 +25,10 @@ inline constexpr std::size_t c_maxEnvironmentVariables = 1000;
 inline constexpr std::size_t c_maxEnvironmentValueBytes = 128u * 1024u;
 inline constexpr std::size_t c_maxFileCopies = 64;
 inline constexpr std::size_t c_maxVolumeMounts = 64;
-inline constexpr std::size_t c_maxSessionVolumes = 64;
+inline constexpr std::size_t c_maxScratchVolumes = 64;
 inline constexpr std::size_t c_maxWaitStrategies = 16;
-inline constexpr std::uint64_t c_maxSessionVolumeBytes = 1ull << 40;
-inline constexpr std::uint64_t c_maxTarballBytes = c_maxSessionVolumeBytes;
+inline constexpr std::uint64_t c_maxScratchVolumeBytes = 1ull << 40;
+inline constexpr std::uint64_t c_maxTarballBytes = c_maxScratchVolumeBytes;
 inline constexpr std::chrono::milliseconds c_maxStartupTimeout = std::chrono::hours(24);
 inline constexpr std::chrono::milliseconds c_maxExecTimeout = std::chrono::hours(24);
 
@@ -60,17 +60,17 @@ inline void RequireMemoryMb(std::uint32_t megabytes)
     }
 }
 
-inline void RequireSessionVolumeSize(std::uint64_t sizeBytes)
+inline void RequireScratchVolumeSize(std::uint64_t sizeBytes)
 {
     if (sizeBytes == 0)
     {
-        throw WslException("Session volume size must be positive.");
+        throw WslException("Scratch volume size must be positive.");
     }
 
-    if (sizeBytes > c_maxSessionVolumeBytes)
+    if (sizeBytes > c_maxScratchVolumeBytes)
     {
-        throw WslException("Session volume size " + std::to_string(sizeBytes) + " bytes exceeds the maximum of " +
-                           std::to_string(c_maxSessionVolumeBytes) + " bytes (1 TiB).");
+        throw WslException("Scratch volume size " + std::to_string(sizeBytes) + " bytes exceeds the maximum of " +
+                           std::to_string(c_maxScratchVolumeBytes) + " bytes (1 TiB).");
     }
 }
 

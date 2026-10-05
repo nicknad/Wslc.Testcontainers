@@ -69,10 +69,10 @@ public sealed class WslConfigHasherTests
         var first = new WslContainerConfiguration { Image = "alpine" };
         var cpu = first with { CpuCount = 2u };
         var memory = first with { MemorySizeInMB = 2048u };
-        var netmode = first with { NetworkingMode = ContainerNetworkMode.None };
+        var netmode = first with { NetworkingMode = ContainerNetworkMode.Isolated };
         var named = first with
         {
-            SessionVolumes = new[] { new WslSessionVolume("data", "/data", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic) },
+            ScratchVolumes = new[] { new WslScratchVolume("data", "/data", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic) },
         };
 
         Assert.NotEqual(WslConfigHasher.Compute(first), WslConfigHasher.Compute(cpu));
@@ -82,15 +82,15 @@ public sealed class WslConfigHasherTests
     }
 
     [Fact]
-    public void Session_volume_order_does_not_change_the_hash()
+    public void Scratch_volume_order_does_not_change_the_hash()
     {
         var volumes = new[]
         {
-            new WslSessionVolume("a", "/a", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic),
-            new WslSessionVolume("b", "/b", ReadOnly: false, SizeBytes: 200, Type: VhdAllocationType.Dynamic),
+            new WslScratchVolume("a", "/a", ReadOnly: false, SizeBytes: 100, Type: VhdAllocationType.Dynamic),
+            new WslScratchVolume("b", "/b", ReadOnly: false, SizeBytes: 200, Type: VhdAllocationType.Dynamic),
         };
-        var first = new WslContainerConfiguration { Image = "alpine", SessionVolumes = volumes };
-        var reordered = first with { SessionVolumes = new[] { volumes[1], volumes[0] } };
+        var first = new WslContainerConfiguration { Image = "alpine", ScratchVolumes = volumes };
+        var reordered = first with { ScratchVolumes = new[] { volumes[1], volumes[0] } };
 
         Assert.Equal(WslConfigHasher.Compute(first), WslConfigHasher.Compute(reordered));
     }
@@ -287,9 +287,9 @@ public sealed class WslConfigHasherTests
                     value.GetProperty("container").GetString()!,
                     value.GetProperty("readOnly").GetBoolean()))
                 .ToArray(),
-            SessionVolumes = element.GetProperty("sessionVolumes")
+            ScratchVolumes = element.GetProperty("sessionVolumes")
                 .EnumerateArray()
-                .Select(value => new WslSessionVolume(
+                .Select(value => new WslScratchVolume(
                     value.GetProperty("name").GetString()!,
                     value.GetProperty("container").GetString()!,
                     value.GetProperty("readOnly").GetBoolean(),
@@ -331,7 +331,7 @@ public sealed class WslConfigHasherTests
         {
             null => null,
             "bridged" => ContainerNetworkMode.Bridged,
-            "none" => ContainerNetworkMode.None,
+            "none" => ContainerNetworkMode.Isolated,
             var value => throw new InvalidOperationException($"Unknown networkingMode '{value}'."),
         };
 }

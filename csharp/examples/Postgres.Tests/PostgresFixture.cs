@@ -18,7 +18,7 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public IAsyncEnumerable<Wslc.Testcontainers.LogLine> Logs(
         CancellationToken cancellationToken = default) =>
-        _postgres.LogsAsync(cancellationToken);
+        _postgres.SubscribeLogs(cancellationToken);
 
     // Real-runtime tests are opt-in; skip starting (and pulling postgres) unless enabled.
     public ValueTask InitializeAsync() =>

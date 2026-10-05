@@ -50,7 +50,7 @@ public sealed class WslContainerLifecycleTests
     private static async Task<List<LogLine>> DrainAsync(WslContainer container)
     {
         var lines = new List<LogLine>();
-        await foreach (var line in container.LogsAsync(TestContext.Current.CancellationToken))
+        await foreach (var line in container.SubscribeLogs(TestContext.Current.CancellationToken))
         {
             lines.Add(line);
         }

@@ -28,6 +28,13 @@ public sealed record ExecResult(int ExitCode, string Stdout, string Stderr)
         return this;
     }
 
+    /// <summary>
+    /// Returns a bounded summary with the exit code and the stdout/stderr lengths but none of
+    /// their contents, so logging a result cannot dump megabytes of captured output.
+    /// </summary>
+    public override string ToString() =>
+        $"ExecResult {{ ExitCode = {ExitCode}, Stdout.Length = {Stdout?.Length ?? 0}, Stderr.Length = {Stderr?.Length ?? 0} }}";
+
     private static string Truncate(string value, int maxChars = 4096)
     {
         if (value.Length <= maxChars)

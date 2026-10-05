@@ -24,6 +24,22 @@ public sealed class WslEnvironmentTests
         Assert.Equal(expected, WslEnvironment.IsContinuousIntegrationVariable(name, value));
     }
 
+    [Theory]
+    [InlineData(true, false, true, true)]
+    [InlineData(true, false, false, false)]
+    [InlineData(null, true, true, true)]
+    [InlineData(null, true, false, false)]
+    [InlineData(null, false, true, false)]
+    [InlineData(false, true, true, false)]
+    public void Effective_reuse_requires_configuration_and_environment_allowance(
+        bool? configuredReuse,
+        bool reuseByDefault,
+        bool reuseAllowed,
+        bool expected)
+    {
+        Assert.Equal(expected, WslEnvironment.IsReuseEffective(configuredReuse, reuseByDefault, reuseAllowed));
+    }
+
     [Fact]
     public void Relative_data_directory_becomes_absolute()
     {

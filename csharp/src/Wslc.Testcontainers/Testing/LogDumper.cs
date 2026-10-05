@@ -8,12 +8,12 @@ namespace Wslc.Testcontainers.Testing;
 public static class LogDumper
 {
     /// <summary>
-    /// Dumps up to <paramref name="maxLines"/> lines from a live stream, then stops. The stream
-    /// replays retained history oldest-first, so this returns the <b>oldest</b> lines, not the
-    /// latest; use <see cref="IWslContainer.GetRecentLogs"/> for a bounded tail snapshot.
-    /// The cap is what bounds the read: log streams are otherwise infinite.
+    /// Dumps the head of a live stream — up to <paramref name="maxLines"/> lines, oldest first —
+    /// then stops. The stream replays retained history oldest-first, so this returns the
+    /// <b>oldest</b> lines, not the latest; use <see cref="IWslContainer.GetRecentLogs"/> for a
+    /// bounded tail snapshot. The cap is what bounds the read: log streams are otherwise infinite.
     /// </summary>
-    public static async Task DumpAsync(
+    public static async Task DumpHeadAsync(
         IAsyncEnumerable<LogLine> logs,
         Action<string> writeLine,
         int maxLines = 100,

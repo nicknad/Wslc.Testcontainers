@@ -36,19 +36,19 @@ public sealed class WslWaitBuilder
     }
 
     /// <summary>Waits until a Linux TCP port accepts connections.</summary>
-    public IWaitStrategy UntilTcpPortIsAvailable(int port) =>
+    public IWaitStrategy UntilTcpPortIsOpen(int port) =>
         Configure(new TcpPortWaitStrategy(ValidatePort(port)));
 
     /// <summary>Waits until an HTTP GET against the given Linux port succeeds (2xx-4xx; 5xx retries).</summary>
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health?ready=1</c>). Not a full URL.</param>
     /// <param name="port">Linux container port to probe via its mapped host port.</param>
-    public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery, int port) =>
+    public IWaitStrategy UntilHttpRequestSucceeds(string pathAndQuery, int port) =>
         Configure(new HttpWaitStrategy(Validation.RequireHttpPath(pathAndQuery, nameof(pathAndQuery)), ValidatePort(port)));
 
     /// <summary>Waits until an HTTP GET against Linux port 80 succeeds.</summary>
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health</c>). Not a full URL.</param>
-    public IWaitStrategy UntilHttpRequestIsSucceeded(string pathAndQuery) =>
-        UntilHttpRequestIsSucceeded(pathAndQuery, 80);
+    public IWaitStrategy UntilHttpRequestSucceeds(string pathAndQuery) =>
+        UntilHttpRequestSucceeds(pathAndQuery, 80);
 
     /// <summary>Waits until a process with the given name is running.</summary>
     public IWaitStrategy UntilProcessIsRunning(string processName) =>

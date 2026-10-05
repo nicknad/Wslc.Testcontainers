@@ -25,7 +25,7 @@ enum class ContainerNetworkMode
     /// Detection covers only the built-in TCP/HTTP Wait Strategies; a custom IWaitStrategy that
     /// needs the network bypasses this validation.
     /// </summary>
-    None = 1,
+    Isolated = 1,
 };
 
 /// <summary>Access mode for a Windows directory mounted into the container.</summary>
@@ -38,7 +38,7 @@ enum class VolumeAccess
     ReadOnly = 1,
 };
 
-/// <summary>VHD allocation strategy for a session volume.</summary>
+/// <summary>VHD allocation strategy for a scratch volume.</summary>
 enum class VhdAllocationType
 {
     /// <summary>Grows on demand (default).</summary>
@@ -54,7 +54,7 @@ enum class VhdAllocationType
 /// <c>Build()</c> snapshots the current configuration, so later builder changes do not affect
 /// containers already built. Builders are not thread-safe.
 /// </summary>
-class WslContainerBuilder
+class WslContainerBuilder final
 {
 public:
     WslContainerBuilder();
@@ -122,20 +122,17 @@ public:
     /// <summary>Mounts a Windows directory into the container with an explicit access mode.</summary>
     WslContainerBuilder& WithVolume(std::filesystem::path HostPath, std::string ContainerPath, VolumeAccess access);
 
-    /// <summary>Mounts a Windows directory into the container as read-only.</summary>
-    WslContainerBuilder& WithReadOnlyVolume(std::filesystem::path HostPath, std::string ContainerPath);
-
     /// <summary>
-    /// Mounts a session VHD volume (native Linux ext4) into the container. The volume is
+    /// Mounts a scratch VHD volume (native Linux ext4) into the container. The volume is
     /// recreated empty on every Start: it is size-limited scratch space, not persistence.
     /// <paramref Name="SizeBytes"/> must be positive and at most 1 TiB.
     /// </summary>
-    WslContainerBuilder& WithSessionVolume(std::string Name, std::string ContainerPath, std::uint64_t SizeBytes,
+    WslContainerBuilder& WithScratchVolume(std::string Name, std::string ContainerPath, std::uint64_t SizeBytes,
                                            VolumeAccess access = VolumeAccess::ReadWrite,
                                            VhdAllocationType type = VhdAllocationType::Dynamic);
 
     /// <summary>
-    /// Sets the container networking mode. None fully isolates the container (no NIC): no
+    /// Sets the container networking mode. Isolated fully isolates the container (no NIC): no
     /// <c>WithPort</c> and no network Wait Strategies may be combined with it. Note that
     /// detection covers only the built-in TCP/HTTP Wait Strategies; a custom IWaitStrategy that
     /// needs the network bypasses this validation.
@@ -146,22 +143,22 @@ public:
     WslContainerBuilder& WithCpuCount(std::uint32_t CpuCount);
 
     /// <summary>Caps the session memory in megabytes. Must be between 1 and 1048576 MB (1 TiB).</summary>
-    WslContainerBuilder& WithMemoryMB(std::uint32_t megabytes);
+    WslContainerBuilder& WithMemoryMegabytes(std::uint32_t megabytes);
 
     /// <summary>
     /// Enables Reuse across test runs. The instance Name is derived from the configuration hash.
     /// Reuse is still disabled under CI unless WSLC_REUSE_IN_CI is truthy. The session VHD
-    /// (including the pulled Image cache) is kept between runs; session Volumes are still
+    /// (including the pulled Image cache) is kept between runs; scratch Volumes are still
     /// recreated empty on every Start. Reusable instances are never auto-deleted.
     /// </summary>
     WslContainerBuilder& WithReuse(bool Reuse = true);
 
     /// <summary>
-    /// Overrides the overall startup Timeout. Must be greater than or equal to the sum of
-    /// configured Wait-strategy timeouts (waits Run sequentially) and at most 24 hours;
-    /// Build() fails otherwise.
+    /// Overrides the readiness Timeout that bounds the whole startup. Must be greater than or
+    /// equal to the sum of configured Wait-strategy timeouts (waits Run sequentially) and at
+    /// most 24 hours; Build() fails otherwise.
     /// </summary>
-    WslContainerBuilder& WithStartupTimeout(std::chrono::milliseconds timeout);
+    WslContainerBuilder& WithReadinessTimeout(std::chrono::milliseconds timeout);
 
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
     WslContainer Build();

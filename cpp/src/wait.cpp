@@ -373,7 +373,7 @@ WslWaitBuilder& WslWaitBuilder::WithRetryInterval(std::chrono::milliseconds retr
     return *this;
 }
 
-std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilTcpPortIsAvailable(int port) const
+std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilTcpPortIsOpen(int port) const
 {
     const int validated = ValidatePort(port);
     return Configure(std::make_shared<PollingStrategy>(
@@ -382,7 +382,7 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilTcpPortIsAvailable(int port)
         true));
 }
 
-std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestIsSucceeded(std::string pathAndQuery, int port) const
+std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestSucceeds(std::string pathAndQuery, int port) const
 {
     internal::ValidateHttpPath(pathAndQuery);
     const std::string path = std::move(pathAndQuery);
@@ -397,9 +397,9 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestIsSucceeded(std::
         true));
 }
 
-std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestIsSucceeded(std::string pathAndQuery) const
+std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestSucceeds(std::string pathAndQuery) const
 {
-    return UntilHttpRequestIsSucceeded(std::move(pathAndQuery), 80);
+    return UntilHttpRequestSucceeds(std::move(pathAndQuery), 80);
 }
 
 std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilProcessIsRunning(std::string processName) const

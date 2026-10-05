@@ -41,7 +41,7 @@ constexpr unsigned long long Megabyte = 1024ull * 1024ull;
 std::vector<LogLine> ReadLogHistory(WslContainer& container)
 {
     std::vector<LogLine> lines;
-    LogStream stream = container.Logs();
+    LogStream stream = container.SubscribeLogs();
     std::stop_source source;
     std::jthread stopper(
         [&source]
@@ -185,7 +185,7 @@ TEST(Integration, MapsPortsAndServesHttp)
             .WithCommand("/bin/sh", {"-c", "while true; do printf 'HTTP/1.1 200 OK\\r\\nContent-Length: "
                                            "2\\r\\nConnection: close\\r\\n\\r\\nok' | nc -l -p 8080; done"})
             .WithPort(8080)
-            .WithWaitStrategy(wslc::waiting::ForWsl().WithTimeout(60s).UntilHttpRequestIsSucceeded("/", 8080))
+            .WithWaitStrategy(wslc::waiting::ForWsl().WithTimeout(60s).UntilHttpRequestSucceeds("/", 8080))
             .Build();
     try
     {
@@ -228,7 +228,7 @@ TEST(Integration, IsolatedNetworkingRunsCommandsWithoutPorts)
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithNetworkingMode(ContainerNetworkMode::None).Build();
+    auto container = builder.WithImage(TestImage).WithNetworkingMode(ContainerNetworkMode::Isolated).Build();
     try
     {
         container.Start();
@@ -248,12 +248,12 @@ TEST(Integration, IsolatedNetworkingRunsCommandsWithoutPorts)
     container.Dispose();
 }
 
-TEST(Integration, SessionVolumesMountAndAreRecreatedOnRestart)
+TEST(Integration, ScratchVolumesMountAndAreRecreatedOnRestart)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithSessionVolume("scratch", "/scratch", 64 * Megabyte).Build();
+    auto container = builder.WithImage(TestImage).WithScratchVolume("scratch", "/scratch", 64 * Megabyte).Build();
     try
     {
         container.Start();
@@ -294,7 +294,7 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
         WslContainerBuilder firstBuilder;
         firstBuilder.WithImage(TestImage)
             .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
-            .WithSessionVolume("scratch", "/scratch", 64 * Megabyte)
+            .WithScratchVolume("scratch", "/scratch", 64 * Megabyte)
             .WithReuse();
         auto first = firstBuilder.Build();
         const std::string name = first.Name();
@@ -316,7 +316,7 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
             WslContainerBuilder secondBuilder;
             secondBuilder.WithImage(TestImage)
                 .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
-                .WithSessionVolume("scratch", "/scratch", 64 * Megabyte)
+                .WithScratchVolume("scratch", "/scratch", 64 * Megabyte)
                 .WithReuse();
             auto second = secondBuilder.Build();
             EXPECT_EQ(second.Name(), name);
@@ -326,7 +326,7 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
                 EXPECT_TRUE(second.IsStarted());
                 EXPECT_FALSE(ContainsInsensitive(ReadLogHistory(second), "pulling image"));
 
-                // The session volume is scratch: recreated empty even though the session VHD persists.
+                // The scratch volume is recreated empty even though the session VHD persists.
                 const auto exists = second.Exec("/bin/sh", {"-c", "test -e /scratch/data.txt"});
                 EXPECT_NE(exists.ExitCode, 0);
             }
@@ -355,14 +355,14 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
     WslResourceReaper::PurgeReuse();
 }
 
-TEST(Integration, ReadOnlySessionVolumesRejectWrites)
+TEST(Integration, ReadOnlyScratchVolumesRejectWrites)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
     auto container =
         builder.WithImage(TestImage)
-            .WithSessionVolume("scratch", "/scratch", 64 * Megabyte, VolumeAccess::ReadOnly, VhdAllocationType::Fixed)
+            .WithScratchVolume("scratch", "/scratch", 64 * Megabyte, VolumeAccess::ReadOnly, VhdAllocationType::Fixed)
             .Build();
     try
     {
@@ -389,7 +389,7 @@ TEST(Integration, ResourceCapsAreAppliedToTheSession)
 
     const unsigned int cpuCount = std::min(2u, std::thread::hardware_concurrency());
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithCpuCount(cpuCount).WithMemoryMB(1024).Build();
+    auto container = builder.WithImage(TestImage).WithCpuCount(cpuCount).WithMemoryMegabytes(1024).Build();
     try
     {
         container.Start();

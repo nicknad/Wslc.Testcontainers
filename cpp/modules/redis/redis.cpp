@@ -6,7 +6,7 @@ namespace wslc::modules
 {
 
 RedisBuilder::RedisBuilder()
-    : WslModuleBuilder<RedisBuilder>("docker.io/library/redis:7-alpine", RedisContainer::ContainerPort,
+    : WslModuleBuilder<RedisBuilder>("docker.io/library/redis:7-alpine", RedisContainer::DefaultPort,
                                      "Ready to accept connections")
 {
 }
@@ -24,9 +24,9 @@ WslContainerBuilder& RedisBuilder::Configure(WslContainerBuilder& builder)
 
 RedisContainer::RedisContainer(WslContainer inner) : WslModuleContainer(std::move(inner)) {}
 
-std::string RedisContainer::GetConnectionString() const
+std::string RedisContainer::GetEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(ContainerPort);
+    const WslEndpoint endpoint = GetConnectEndpoint(DefaultPort);
     return endpoint.Host + ":" + std::to_string(endpoint.Port);
 }
 

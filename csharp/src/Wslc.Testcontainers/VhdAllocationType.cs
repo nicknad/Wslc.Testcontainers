@@ -1,6 +1,6 @@
 namespace Wslc.Testcontainers;
 
-/// <summary>VHD allocation strategy for a session volume.</summary>
+/// <summary>VHD allocation strategy for a scratch volume.</summary>
 public enum VhdAllocationType
 {
     /// <summary>Grows on demand (default).</summary>

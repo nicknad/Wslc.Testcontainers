@@ -23,13 +23,13 @@ public:
     WslWaitBuilder& WithRetryInterval(std::chrono::milliseconds retryInterval);
 
     /// <summary>Waits until a Linux TCP port accepts connections.</summary>
-    std::shared_ptr<IWaitStrategy> UntilTcpPortIsAvailable(int port) const;
+    std::shared_ptr<IWaitStrategy> UntilTcpPortIsOpen(int port) const;
 
     /// <summary>Waits until an HTTP GET against the given Linux port succeeds (2xx-4xx; 5xx retries).</summary>
-    std::shared_ptr<IWaitStrategy> UntilHttpRequestIsSucceeded(std::string pathAndQuery, int port) const;
+    std::shared_ptr<IWaitStrategy> UntilHttpRequestSucceeds(std::string pathAndQuery, int port) const;
 
     /// <summary>Waits until an HTTP GET against Linux port 80 succeeds.</summary>
-    std::shared_ptr<IWaitStrategy> UntilHttpRequestIsSucceeded(std::string pathAndQuery) const;
+    std::shared_ptr<IWaitStrategy> UntilHttpRequestSucceeds(std::string pathAndQuery) const;
 
     /// <summary>Waits until a process with the given Name is running.</summary>
     std::shared_ptr<IWaitStrategy> UntilProcessIsRunning(std::string processName) const;
@@ -53,6 +53,9 @@ public:
                                          std::function<bool(IWaitTarget&, std::stop_token)> condition) const;
 
 private:
+    WslWaitBuilder() = default;
+    friend WslWaitBuilder ForWsl();
+
     std::shared_ptr<IWaitStrategy> Configure(std::shared_ptr<IWaitStrategy> strategy) const;
 
     std::optional<std::chrono::milliseconds> m_timeout;

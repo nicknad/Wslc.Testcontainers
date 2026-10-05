@@ -12,7 +12,7 @@ using wslc::internal::Configuration;
 using wslc::internal::WslConfigHasher;
 using wslc::internal::WslFileCopy;
 using wslc::internal::WslPortMappingRecord;
-using wslc::internal::WslSessionVolume;
+using wslc::internal::WslScratchVolume;
 using wslc::internal::WslVolumeMount;
 
 TEST(ConfigHasher, IdenticalConfigurationsProduceIdenticalHashes)
@@ -76,9 +76,9 @@ TEST(ConfigHasher, ResourceNetworkingAndVolumeSettingsChangeTheHash)
     Configuration memory = first;
     memory.MemoryMb = 2048;
     Configuration netmode = first;
-    netmode.NetworkingMode = ContainerNetworkMode::None;
+    netmode.NetworkingMode = ContainerNetworkMode::Isolated;
     Configuration named = first;
-    named.SessionVolumes = {WslSessionVolume{"data", "/data", false, 100, VhdAllocationType::Dynamic}};
+    named.ScratchVolumes = {WslScratchVolume{"data", "/data", false, 100, VhdAllocationType::Dynamic}};
 
     EXPECT_NE(WslConfigHasher::Compute(first), WslConfigHasher::Compute(cpu));
     EXPECT_NE(WslConfigHasher::Compute(first), WslConfigHasher::Compute(memory));
@@ -86,14 +86,14 @@ TEST(ConfigHasher, ResourceNetworkingAndVolumeSettingsChangeTheHash)
     EXPECT_NE(WslConfigHasher::Compute(first), WslConfigHasher::Compute(named));
 }
 
-TEST(ConfigHasher, SessionVolumeOrderDoesNotChangeTheHash)
+TEST(ConfigHasher, ScratchVolumeOrderDoesNotChangeTheHash)
 {
     Configuration first;
     first.Image = "alpine";
-    first.SessionVolumes = {WslSessionVolume{"a", "/a", false, 100, VhdAllocationType::Dynamic},
-                            WslSessionVolume{"b", "/b", false, 200, VhdAllocationType::Dynamic}};
+    first.ScratchVolumes = {WslScratchVolume{"a", "/a", false, 100, VhdAllocationType::Dynamic},
+                            WslScratchVolume{"b", "/b", false, 200, VhdAllocationType::Dynamic}};
     Configuration reordered = first;
-    reordered.SessionVolumes = {first.SessionVolumes[1], first.SessionVolumes[0]};
+    reordered.ScratchVolumes = {first.ScratchVolumes[1], first.ScratchVolumes[0]};
 
     EXPECT_EQ(WslConfigHasher::Compute(first), WslConfigHasher::Compute(reordered));
 }

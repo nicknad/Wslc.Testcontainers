@@ -89,6 +89,18 @@ public sealed class ExceptionsTests
     }
 
     [Fact]
+    public void Describe_treats_null_logs_as_empty()
+    {
+        var exception = new WslReadinessException("timed out", "TCP port 5432", TimeSpan.FromSeconds(5), null!);
+
+        var described = exception.Describe();
+
+        Assert.Empty(exception.Logs);
+        Assert.Contains("WSLC readiness failed", described);
+        Assert.DoesNotContain("Recent logs:", described);
+    }
+
+    [Fact]
     public void Describe_keeps_the_no_command_hint()
     {
         var exception = new WslReadinessException("timed out", "TCP port 5432", TimeSpan.FromSeconds(5), Array.Empty<LogLine>());

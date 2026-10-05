@@ -24,7 +24,7 @@ static Wslc.Testcontainers.LogLine.operator ==(Wslc.Testcontainers.LogLine? left
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.CleanupAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.CleanupIncludingReuseAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
 static Wslc.Testcontainers.Provisioning.WslResourceReaper.PurgeReuseAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<System.Collections.Generic.IReadOnlyList<string!>!>!
-static Wslc.Testcontainers.Testing.LogDumper.DumpAsync(System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>! logs, System.Action<string!>! writeLine, int maxLines = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
+static Wslc.Testcontainers.Testing.LogDumper.DumpHeadAsync(System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>! logs, System.Action<string!>! writeLine, int maxLines = 100, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 static Wslc.Testcontainers.Waiting.Wait.ForWsl() -> Wslc.Testcontainers.Waiting.WslWaitBuilder!
 static Wslc.Testcontainers.WslEnvironment.CleanupEnabled.get -> bool
 static Wslc.Testcontainers.WslEnvironment.DataDirectory.get -> string!
@@ -57,8 +57,9 @@ Wslc.Testcontainers.IWslContainer.CopyFromAsync(string! containerPath, string! h
 Wslc.Testcontainers.IWslContainer.CopyToAsync(string! hostPath, string! containerPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.IWslContainer.Image.get -> string?
 Wslc.Testcontainers.IWslContainer.IsStarted.get -> bool
+Wslc.Testcontainers.IWslContainer.IsReuseEffective.get -> bool
 Wslc.Testcontainers.IWslContainer.GetRecentLogs(int maxLines = 50) -> System.Collections.Generic.IReadOnlyList<Wslc.Testcontainers.LogLine!>!
-Wslc.Testcontainers.IWslContainer.LogsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>!
+Wslc.Testcontainers.IWslContainer.SubscribeLogs(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>!
 Wslc.Testcontainers.IWslContainer.Name.get -> string!
 Wslc.Testcontainers.IWslContainer.StartAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.IWslContainer.StopAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -106,13 +107,13 @@ Wslc.Testcontainers.Waiting.Wait
 Wslc.Testcontainers.Waiting.WslWaitBuilder
 Wslc.Testcontainers.Waiting.WslWaitBuilder.Until(string! name, System.Func<Wslc.Testcontainers.Waiting.IWaitTarget!, System.Threading.CancellationToken, System.Threading.Tasks.Task<bool>!>! condition) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilFileExists(string! path) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
-Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestIsSucceeded(string! pathAndQuery) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
-Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestIsSucceeded(string! pathAndQuery, int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
+Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestSucceeds(string! pathAndQuery) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
+Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilHttpRequestSucceeds(string! pathAndQuery, int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilMessageIsLogged(string! message) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilMessageIsLogged(string! message, int occurrences) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilProcessExits(string! processName) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilProcessIsRunning(string! processName) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
-Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilTcpPortIsAvailable(int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
+Wslc.Testcontainers.Waiting.WslWaitBuilder.UntilTcpPortIsOpen(int port) -> Wslc.Testcontainers.Waiting.IWaitStrategy!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.WithRetryInterval(System.TimeSpan retryInterval) -> Wslc.Testcontainers.Waiting.WslWaitBuilder!
 Wslc.Testcontainers.Waiting.WslWaitBuilder.WithTimeout(System.TimeSpan timeout) -> Wslc.Testcontainers.Waiting.WslWaitBuilder!
 Wslc.Testcontainers.WslEnvironment
@@ -126,8 +127,9 @@ Wslc.Testcontainers.WslContainer.CopyToAsync(string! hostPath, string! container
 Wslc.Testcontainers.WslContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.WslContainer.Image.get -> string?
 Wslc.Testcontainers.WslContainer.IsStarted.get -> bool
+Wslc.Testcontainers.WslContainer.IsReuseEffective.get -> bool
 Wslc.Testcontainers.WslContainer.GetRecentLogs(int maxLines = 50) -> System.Collections.Generic.IReadOnlyList<Wslc.Testcontainers.LogLine!>!
-Wslc.Testcontainers.WslContainer.LogsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>!
+Wslc.Testcontainers.WslContainer.SubscribeLogs(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>!
 Wslc.Testcontainers.WslContainer.Name.get -> string!
 Wslc.Testcontainers.WslContainer.StartAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslContainer.StopAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -140,9 +142,8 @@ Wslc.Testcontainers.WslContainerBuilder.WithEnvironment(string! name, string! va
 Wslc.Testcontainers.WslContainerBuilder.WithEnvironmentVariables(System.Collections.Generic.IReadOnlyDictionary<string!, string!>! variables) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithFile(string! hostPath, string! containerPath) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithReadOnlyVolume(string! hostPath, string! containerPath) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithReuse(bool reuse = true) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithStartupTimeout(System.TimeSpan timeout) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithReadinessTimeout(System.TimeSpan timeout) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithVolume(string! hostPath, string! containerPath) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithVolume(string! hostPath, string! containerPath, Wslc.Testcontainers.VolumeAccess access) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithWaitStrategy(Wslc.Testcontainers.Waiting.IWaitStrategy! strategy) -> Wslc.Testcontainers.WslContainerBuilder!
@@ -151,7 +152,7 @@ Wslc.Testcontainers.WslContainerBuilder.WslContainerBuilder() -> void
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.BuildContainer() -> Wslc.Testcontainers.IWslContainer!
 virtual Wslc.Testcontainers.WslModuleBuilder<TBuilder>.ReadyMessageOccurrences.get -> int
-Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithContainerConfiguration(System.Func<Wslc.Testcontainers.WslContainerBuilder!, Wslc.Testcontainers.WslContainerBuilder!>! customize) -> TBuilder!
+Wslc.Testcontainers.WslModuleBuilder<TBuilder>.ConfigureContainer(System.Func<Wslc.Testcontainers.WslContainerBuilder!, Wslc.Testcontainers.WslContainerBuilder!>! customize) -> TBuilder!
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithImage(string! image) -> TBuilder!
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithReuse(bool reuse = true) -> TBuilder!
 Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WithWaitTimeout(System.TimeSpan timeout) -> TBuilder!
@@ -159,12 +160,13 @@ Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WslModuleBuilder(string! defaultI
 Wslc.Testcontainers.WslModuleContainer
 Wslc.Testcontainers.WslModuleContainer.CopyFromAsync(string! containerPath, string! hostPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.CopyToAsync(string! hostPath, string! containerPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-Wslc.Testcontainers.WslModuleContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+abstract Wslc.Testcontainers.WslModuleContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.WslModuleContainer.DisposeInnerAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.WslModuleContainer.Image.get -> string?
-Wslc.Testcontainers.WslModuleContainer.Inner.get -> Wslc.Testcontainers.IWslContainer!
 Wslc.Testcontainers.WslModuleContainer.IsStarted.get -> bool
+Wslc.Testcontainers.WslModuleContainer.IsReuseEffective.get -> bool
 Wslc.Testcontainers.WslModuleContainer.GetRecentLogs(int maxLines = 50) -> System.Collections.Generic.IReadOnlyList<Wslc.Testcontainers.LogLine!>!
-Wslc.Testcontainers.WslModuleContainer.LogsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>!
+Wslc.Testcontainers.WslModuleContainer.SubscribeLogs(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Collections.Generic.IAsyncEnumerable<Wslc.Testcontainers.LogLine!>!
 Wslc.Testcontainers.WslModuleContainer.Name.get -> string!
 Wslc.Testcontainers.WslModuleContainer.StartAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.StopAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -196,13 +198,13 @@ Wslc.Testcontainers.WslRuntimeException.WslRuntimeException(string! message, Sys
 Wslc.Testcontainers.WslTimeoutException
 Wslc.Testcontainers.WslTimeoutException.WslTimeoutException(string! message, System.Exception? innerException = null) -> void
 Wslc.Testcontainers.WslContainerBuilder.WithCpuCount(uint cpuCount) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithMemoryMB(uint megabytes) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithSessionVolume(string! name, string! containerPath, ulong sizeBytes, Wslc.Testcontainers.VolumeAccess access = Wslc.Testcontainers.VolumeAccess.ReadWrite, Wslc.Testcontainers.VhdAllocationType type = Wslc.Testcontainers.VhdAllocationType.Dynamic) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithMemoryMegabytes(uint megabytes) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithScratchVolume(string! name, string! containerPath, ulong sizeBytes, Wslc.Testcontainers.VolumeAccess access = Wslc.Testcontainers.VolumeAccess.ReadWrite, Wslc.Testcontainers.VhdAllocationType type = Wslc.Testcontainers.VhdAllocationType.Dynamic) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithNetworkingMode(Wslc.Testcontainers.ContainerNetworkMode mode) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.ContainerNetworkMode
 Wslc.Testcontainers.ContainerNetworkMode.Bridged = 0 -> Wslc.Testcontainers.ContainerNetworkMode
-Wslc.Testcontainers.ContainerNetworkMode.None = 1 -> Wslc.Testcontainers.ContainerNetworkMode
+Wslc.Testcontainers.ContainerNetworkMode.Isolated = 1 -> Wslc.Testcontainers.ContainerNetworkMode
 Wslc.Testcontainers.VhdAllocationType
 Wslc.Testcontainers.VhdAllocationType.Dynamic = 0 -> Wslc.Testcontainers.VhdAllocationType
 Wslc.Testcontainers.VhdAllocationType.Fixed = 1 -> Wslc.Testcontainers.VhdAllocationType

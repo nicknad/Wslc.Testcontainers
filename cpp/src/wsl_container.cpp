@@ -189,7 +189,8 @@ struct WslContainer::Impl
 
     explicit Impl(internal::Configuration config)
         : configuration(std::move(config)), store(internal::InstanceStore::DefaultStore()),
-          Reuse((configuration.Reuse.value_or(WslEnvironment::ReuseByDefault())) && WslEnvironment::ReuseAllowed()),
+          Reuse(internal::IsReuseEffective(configuration.Reuse, WslEnvironment::ReuseByDefault(),
+                                           WslEnvironment::ReuseAllowed())),
           Name(Reuse ? internal::WslNaming::CreateReuseName(internal::WslConfigHasher::Compute(configuration))
                      : internal::WslNaming::CreateInstanceName(store.SessionId())),
           owner_pid(std::to_string(internal::CurrentProcessId()))
@@ -274,7 +275,7 @@ private:
     std::string CreateSessionAndContainer(std::stop_token token);
     std::filesystem::path EnsureStorageAndMetadata();
     void StartSession(const std::filesystem::path& storagePath);
-    void CreateSessionVolumes();
+    void CreateScratchVolumes();
     void DeleteVolumeIfPresent(const std::string& volume_name);
     void CreateAndStartContainer(const std::string& Image);
     void StartContainerAttached(WslcContainer handle, const std::string& image);
@@ -366,7 +367,7 @@ std::string WslContainer::Impl::CreateSessionAndContainer(std::stop_token token)
     AcquireReuseLock(token);
     const std::filesystem::path storagePath = EnsureStorageAndMetadata();
     StartSession(storagePath);
-    CreateSessionVolumes();
+    CreateScratchVolumes();
 
     internal::ImageResolver resolver(get_session()->get(), configuration,
                                      [this](LogLine line) { Logs->Publish(line); });
@@ -438,22 +439,22 @@ void WslContainer::Impl::StartSession(const std::filesystem::path& storagePath)
     session = std::make_shared<internal::SessionHandle>(Handle);
 }
 
-void WslContainer::Impl::CreateSessionVolumes()
+void WslContainer::Impl::CreateScratchVolumes()
 {
-    if (configuration.SessionVolumes.empty())
+    if (configuration.ScratchVolumes.empty())
     {
         return;
     }
 
     auto sessionHandle = get_session();
-    for (const auto& volume : configuration.SessionVolumes)
+    for (const auto& volume : configuration.ScratchVolumes)
     {
         try
         {
             if (Reuse)
             {
-                // The previous Run's storage VHD survives for Reuse, so its named volume VHDs
-                // do too. CreateVhdVolume rejects an existing Name, and session Volumes are
+                // The previous Run's storage VHD survives for Reuse, so its scratch volume VHDs
+                // do too. CreateVhdVolume rejects an existing Name, and scratch Volumes are
                 // documented as recreated empty on every Start.
                 DeleteVolumeIfPresent(volume.Name);
             }
@@ -467,13 +468,13 @@ void WslContainer::Impl::CreateSessionVolumes()
             requirements.gid = 0;
             PWSTR error = nullptr;
             internal::check(WslcCreateSessionVhdVolume(sessionHandle->get(), &requirements, &error),
-                            internal::ErrorKind::Provisioning, "Failed to create session volume '" + volume.Name + "'",
+                            internal::ErrorKind::Provisioning, "Failed to create scratch volume '" + volume.Name + "'",
                             &error);
-            publish_diagnostic(std::format("created session volume '{}' ({} bytes)", volume.Name, volume.SizeBytes));
+            publish_diagnostic(std::format("created scratch volume '{}' ({} bytes)", volume.Name, volume.SizeBytes));
         }
         catch (const WslException& exception)
         {
-            throw WslProvisioningException("Failed to create session volume '" + volume.Name +
+            throw WslProvisioningException("Failed to create scratch volume '" + volume.Name +
                                            "': " + exception.what());
         }
     }
@@ -491,7 +492,7 @@ void WslContainer::Impl::DeleteVolumeIfPresent(const std::string& volume_name)
 
     if (SUCCEEDED(result))
     {
-        publish_diagnostic(std::format("recreated session volume '{}': deleted the previous VHD", volume_name));
+        publish_diagnostic(std::format("recreated scratch volume '{}': deleted the previous VHD", volume_name));
     }
 }
 
@@ -508,7 +509,7 @@ void WslContainer::Impl::CreateAndStartContainer(const std::string& Image)
     internal::check(WslcSetContainerSettingsName(&settings, Name.c_str()), internal::ErrorKind::Provisioning,
                     "Failed to set the container Name", nullptr);
 
-    const WslcContainerNetworkingMode NetworkingMode = configuration.NetworkingMode == ContainerNetworkMode::None
+    const WslcContainerNetworkingMode NetworkingMode = configuration.NetworkingMode == ContainerNetworkMode::Isolated
                                                            ? WSLC_CONTAINER_NETWORKING_MODE_NONE
                                                            : WSLC_CONTAINER_NETWORKING_MODE_BRIDGED;
     internal::check(WslcSetContainerSettingsNetworkingMode(&settings, NetworkingMode),
@@ -610,8 +611,8 @@ void WslContainer::Impl::CreateAndStartContainer(const std::string& Image)
     }
 
     std::vector<WslcContainerNamedVolume> namedVolumes;
-    namedVolumes.reserve(configuration.SessionVolumes.size());
-    for (const auto& volume : configuration.SessionVolumes)
+    namedVolumes.reserve(configuration.ScratchVolumes.size());
+    for (const auto& volume : configuration.ScratchVolumes)
     {
         WslcContainerNamedVolume native{};
         native.name = volume.Name.c_str();
@@ -1435,6 +1436,11 @@ bool WslContainer::IsStarted() const
     return m_impl->started;
 }
 
+bool WslContainer::IsReuseEffective() const
+{
+    return m_impl->Reuse;
+}
+
 WslEndpoint WslContainer::GetConnectEndpoint(int containerPort) const
 {
     return m_impl->connect_endpoint(containerPort);
@@ -1477,7 +1483,7 @@ void WslContainer::CopyFrom(std::string ContainerPath, const std::filesystem::pa
     m_impl->CopyFrom(std::move(ContainerPath), HostPath, token);
 }
 
-LogStream WslContainer::Logs()
+LogStream WslContainer::SubscribeLogs()
 {
     return LogStream::FromBroadcaster(m_impl->Logs);
 }

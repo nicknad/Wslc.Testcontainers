@@ -8,7 +8,7 @@ namespace wslc::modules
 {
 
 PostgreSqlBuilder::PostgreSqlBuilder()
-    : WslModuleBuilder<PostgreSqlBuilder>("docker.io/library/postgres:15-alpine", PostgreSqlContainer::ContainerPort,
+    : WslModuleBuilder<PostgreSqlBuilder>("docker.io/library/postgres:15-alpine", PostgreSqlContainer::DefaultPort,
                                           "database system is ready to accept connections")
 {
 }
@@ -66,7 +66,7 @@ PostgreSqlContainer::PostgreSqlContainer(WslContainer inner, std::string usernam
 
 std::string PostgreSqlContainer::GetConnectionString() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(ContainerPort);
+    const WslEndpoint endpoint = GetConnectEndpoint(DefaultPort);
     return "Host=" + endpoint.Host + ";Port=" + std::to_string(endpoint.Port) + ";Username=" + m_username +
            ";Password=" + m_password + ";Database=" + m_database;
 }

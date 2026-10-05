@@ -8,7 +8,7 @@ await using var container = new WslContainerBuilder()
     .WithImage("docker.io/library/alpine:latest")
     .WithCommand("/bin/sh", "-c", "while true; do sleep 3600; done")
     .WithEnvironment("HELLO", "wslc")
-    .WithStartupTimeout(TimeSpan.FromMinutes(2))
+    .WithReadinessTimeout(TimeSpan.FromMinutes(2))
     .Build();
 
 await container.StartAsync();
@@ -20,7 +20,7 @@ Console.WriteLine($"exit={whoami.ExitCode} stdout={whoami.Stdout.Trim()}");
 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
 try
 {
-    await foreach (var line in container.LogsAsync(cts.Token))
+    await foreach (var line in container.SubscribeLogs(cts.Token))
     {
         Console.WriteLine(line);
     }

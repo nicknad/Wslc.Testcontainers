@@ -56,7 +56,7 @@ public sealed class WslReadinessException : WslTimeoutException
     {
         ExpectedCondition = expectedCondition;
         Timeout = timeout;
-        Logs = logs;
+        Logs = logs ?? Array.Empty<LogLine>();
         Image = image;
         Command = command;
         ExitCode = exitCode;

@@ -66,7 +66,7 @@ public:
     /// waits/ports). Applied after module defaults so it can override them. Module-level
     /// <c>WithReuse</c> is applied last and wins over a customizer that sets Reuse.
     /// </summary>
-    TDerived& WithContainerConfiguration(std::function<void(WslContainerBuilder&)> customize)
+    TDerived& ConfigureContainer(std::function<void(WslContainerBuilder&)> customize)
     {
         if (!customize)
         {
@@ -105,10 +105,10 @@ protected:
         WslContainerBuilder builder;
         builder.WithImage(m_image)
             .WithPort(m_port)
-            .WithWaitStrategy(ForWsl().WithTimeout(m_timeout).UntilTcpPortIsAvailable(m_port))
+            .WithWaitStrategy(ForWsl().WithTimeout(m_timeout).UntilTcpPortIsOpen(m_port))
             .WithWaitStrategy(
                 ForWsl().WithTimeout(m_timeout).UntilMessageIsLogged(m_readyMessage, ReadyMessageOccurrences()))
-            .WithStartupTimeout(ComputeStartupTimeout(m_timeout));
+            .WithReadinessTimeout(ComputeStartupTimeout(m_timeout));
         Configure(builder);
         for (auto& customizer : m_customizers)
         {

@@ -54,6 +54,13 @@ public:
     bool IsStarted() const;
 
     /// <summary>
+    /// Gets a value indicating whether Reuse will actually be used for this container: Reuse
+    /// must be configured (or enabled through WSLC_REUSE) and not suppressed by the Environment
+    /// (Reuse is forced off under CI unless WSLC_REUSE_IN_CI is truthy).
+    /// </summary>
+    bool IsReuseEffective() const;
+
+    /// <summary>
     /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
     /// Host port and the port's configured bind address. The default/wildcard binding resolves to
     /// loopback: IPv4 127.0.0.1 for 0.0.0.0 and IPv6 ::1 for ::.
@@ -100,8 +107,8 @@ public:
     /// <summary>Copies a Linux file out of the Environment to a Windows path. Creates parent directories.</summary>
     void CopyFrom(std::string ContainerPath, const std::filesystem::path& HostPath, std::stop_token token = {});
 
-    /// <summary>Streams all Logs captured by the Environment, replaying retained history first.</summary>
-    LogStream Logs();
+    /// <summary>Subscribes to all Logs captured by the Environment, replaying retained history first.</summary>
+    LogStream SubscribeLogs();
 
     /// <summary>Returns a bounded Snapshot of the most recent log lines, oldest first.</summary>
     std::vector<LogLine> GetRecentLogs() const override;

@@ -33,6 +33,13 @@ public:
     bool IsStarted() const { return m_inner.IsStarted(); }
 
     /// <summary>
+    /// Gets a value indicating whether Reuse will actually be used for the wrapped container:
+    /// Reuse must be configured and not suppressed by the Environment (forced off under CI
+    /// unless WSLC_REUSE_IN_CI is truthy).
+    /// </summary>
+    bool IsReuseEffective() const { return m_inner.IsReuseEffective(); }
+
+    /// <summary>
     /// Gets the Windows endpoint to connect to for a mapped Linux TCP port: the runtime-assigned
     /// Host port and the port's configured bind address. The default/wildcard binding resolves to
     /// loopback: IPv4 127.0.0.1 for 0.0.0.0 and IPv6 ::1 for ::.
@@ -73,8 +80,8 @@ public:
         m_inner.CopyFrom(std::move(ContainerPath), HostPath, token);
     }
 
-    /// <summary>Streams all Logs captured by the Environment.</summary>
-    LogStream Logs() { return m_inner.Logs(); }
+    /// <summary>Subscribes to all Logs captured by the Environment.</summary>
+    LogStream SubscribeLogs() { return m_inner.SubscribeLogs(); }
 
     /// <summary>Returns a bounded Snapshot of the most recent log lines, oldest first.</summary>
     std::vector<LogLine> GetRecentLogs(int maxLines = 50) const { return m_inner.GetRecentLogs(maxLines); }
@@ -85,10 +92,6 @@ public:
 protected:
     /// <summary>Initializes a wrapper around the given container.</summary>
     explicit WslModuleContainer(WslContainer inner) : m_inner(std::move(inner)) {}
-
-    /// <summary>Gets the underlying container for advanced scenarios.</summary>
-    WslContainer& Inner() noexcept { return m_inner; }
-    const WslContainer& Inner() const noexcept { return m_inner; }
 
 private:
     WslContainer m_inner;

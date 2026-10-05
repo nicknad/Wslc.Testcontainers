@@ -39,8 +39,8 @@ const std::string connectionString = postgres.GetConnectionString();
 > boundary**: containers run bridged with full egress, processes run as the image default user
 > (usually root) with no seccomp/capability/user-namespace controls, and every host-directory
 > volume is a write path onto the Windows machine. Do **not** run untrusted or agent-generated
-> code with default settings. `WithNetworkingMode(None)` (C#) /
-> `WithNetworkingMode(ContainerNetworkMode::None)` (C++) is the containment mode that works.
+> code with default settings. `WithNetworkingMode(ContainerNetworkMode.Isolated)` (C#) /
+> `WithNetworkingMode(ContainerNetworkMode::Isolated)` (C++) is the containment mode that works.
 >
 > **Egress allowlisting is intentionally not provided.** On the current WSLC runtime containers
 > are not granted `CAP_NET_ADMIN`, so an in-container `iptables` policy can never be installed,

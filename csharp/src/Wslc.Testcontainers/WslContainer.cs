@@ -55,7 +55,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     {
         _configuration = configuration;
         _store = store;
-        _reuse = (configuration.Reuse ?? WslEnvironment.ReuseByDefault) && WslEnvironment.ReuseAllowed;
+        _reuse = WslEnvironment.IsReuseEffective(configuration.Reuse, WslEnvironment.ReuseByDefault, WslEnvironment.ReuseAllowed);
 
         _name = _reuse
             ? WslNaming.CreateReuseName(WslConfigHasher.Compute(configuration))
@@ -71,6 +71,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     /// <summary>Gets a value indicating whether the container is started.</summary>
     public bool IsStarted => _started;
+
+    /// <inheritdoc />
+    public bool IsReuseEffective => _reuse;
 
     internal WslContainerConfiguration Configuration => _configuration;
 
@@ -183,7 +186,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     /// <inheritdoc />
-    public IAsyncEnumerable<LogLine> LogsAsync(CancellationToken cancellationToken = default) =>
+    public IAsyncEnumerable<LogLine> SubscribeLogs(CancellationToken cancellationToken = default) =>
         _logs.StreamAsync(cancellationToken);
 
     /// <inheritdoc />
@@ -212,7 +215,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         if (Interlocked.Exchange(ref _disposeRequested, 1) != 0)
         {
             // Cleanup already ran (or is running) from another path, e.g. the process-exit
-            // hook. Completing is idempotent and still terminates LogsAsync consumers.
+            // hook. Completing is idempotent and still terminates SubscribeLogs consumers.
             _logs.Complete();
             return;
         }
@@ -387,7 +390,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         await AcquireReuseLockAsync(cancellationToken).ConfigureAwait(false);
         var storagePath = EnsureStorageAndMetadata();
         StartSession(storagePath);
-        CreateSessionVolumes();
+        CreateScratchVolumes();
 
         var resolver = new WslImageResolver(_session!, _configuration, _logs.Publish);
         var image = await resolver.ResolveAsync($"{Name}:local", cancellationToken).ConfigureAwait(false);
@@ -514,31 +517,31 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
     }
 
-    private void CreateSessionVolumes()
+    private void CreateScratchVolumes()
     {
-        if (_configuration.SessionVolumes.Count == 0)
+        if (_configuration.ScratchVolumes.Count == 0)
         {
             return;
         }
 
-        foreach (var volume in _configuration.SessionVolumes)
+        foreach (var volume in _configuration.ScratchVolumes)
         {
             try
             {
                 if (_reuse)
                 {
-                    // The previous run's storage VHD survives for reuse, so its named volume
-                    // VHDs do too. CreateVhdVolume rejects an existing name, and session
+                    // The previous run's storage VHD survives for reuse, so its scratch volume
+                    // VHDs do too. CreateVhdVolume rejects an existing name, and scratch
                     // volumes are documented as recreated empty on every start.
                     DeleteVolumeIfPresent(volume.Name);
                 }
 
                 _session!.CreateVhdVolume(new VhdOptions(volume.Name, volume.SizeBytes, ToSdkVhdType(volume.Type)));
-                _logs.Publish(LogLine.Diagnostic($"created session volume '{volume.Name}' ({volume.SizeBytes} bytes)"));
+                _logs.Publish(LogLine.Diagnostic($"created scratch volume '{volume.Name}' ({volume.SizeBytes} bytes)"));
             }
             catch (Exception exception)
             {
-                throw new WslProvisioningException($"Failed to create session volume '{volume.Name}': {exception.Message}", exception);
+                throw new WslProvisioningException($"Failed to create scratch volume '{volume.Name}': {exception.Message}", exception);
             }
         }
     }
@@ -548,7 +551,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         try
         {
             _session!.DeleteVhdVolume(name);
-            _logs.Publish(LogLine.Diagnostic($"recreated session volume '{name}': deleted the previous VHD"));
+            _logs.Publish(LogLine.Diagnostic($"recreated scratch volume '{name}': deleted the previous VHD"));
         }
         catch
         {
@@ -617,7 +620,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             settings.Volumes.Add(new ContainerVolume(volume.HostPath, volume.ContainerPath, volume.ReadOnly));
         }
 
-        foreach (var volume in _configuration.SessionVolumes)
+        foreach (var volume in _configuration.ScratchVolumes)
         {
             settings.NamedVolumes.Add(new ContainerNamedVolume(volume.Name, volume.ContainerPath, volume.ReadOnly));
         }
@@ -626,7 +629,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
     }
 
     private static ContainerNetworkingMode ToSdkNetworkingMode(ContainerNetworkMode? mode) =>
-        mode == ContainerNetworkMode.None ? ContainerNetworkingMode.None : ContainerNetworkingMode.Bridged;
+        mode == ContainerNetworkMode.Isolated ? ContainerNetworkingMode.None : ContainerNetworkingMode.Bridged;
 
     private async Task ResolveMappedPortsIfNeededAsync(CancellationToken cancellationToken)
     {

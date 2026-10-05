@@ -292,36 +292,31 @@ WslContainerBuilder& WslContainerBuilder::WithVolume(std::filesystem::path HostP
     return *this;
 }
 
-WslContainerBuilder& WslContainerBuilder::WithReadOnlyVolume(std::filesystem::path HostPath, std::string ContainerPath)
-{
-    return WithVolume(std::move(HostPath), std::move(ContainerPath), VolumeAccess::ReadOnly);
-}
-
-WslContainerBuilder& WslContainerBuilder::WithSessionVolume(std::string Name, std::string ContainerPath,
+WslContainerBuilder& WslContainerBuilder::WithScratchVolume(std::string Name, std::string ContainerPath,
                                                             std::uint64_t SizeBytes, VolumeAccess access,
                                                             VhdAllocationType type)
 {
     RequireVolumeName(Name);
     internal::ValidateContainerPath(ContainerPath);
-    internal::RequireSessionVolumeSize(SizeBytes);
+    internal::RequireScratchVolumeSize(SizeBytes);
 
-    for (const auto& existing : m_state->configuration.SessionVolumes)
+    for (const auto& existing : m_state->configuration.ScratchVolumes)
     {
         if (internal::EqualsIgnoreCase(existing.Name, Name))
         {
-            throw WslException("A session volume '" + Name +
+            throw WslException("A scratch volume '" + Name +
                                "' is already configured. Volume names must be unique per container.");
         }
     }
 
-    m_state->configuration.SessionVolumes.push_back(internal::WslSessionVolume{
+    m_state->configuration.ScratchVolumes.push_back(internal::WslScratchVolume{
         std::move(Name), std::move(ContainerPath), access == VolumeAccess::ReadOnly, SizeBytes, type});
     return *this;
 }
 
 WslContainerBuilder& WslContainerBuilder::WithNetworkingMode(ContainerNetworkMode mode)
 {
-    if (mode != ContainerNetworkMode::Bridged && mode != ContainerNetworkMode::None)
+    if (mode != ContainerNetworkMode::Bridged && mode != ContainerNetworkMode::Isolated)
     {
         throw WslException("Unknown networking mode.");
     }
@@ -337,7 +332,7 @@ WslContainerBuilder& WslContainerBuilder::WithCpuCount(std::uint32_t CpuCount)
     return *this;
 }
 
-WslContainerBuilder& WslContainerBuilder::WithMemoryMB(std::uint32_t megabytes)
+WslContainerBuilder& WslContainerBuilder::WithMemoryMegabytes(std::uint32_t megabytes)
 {
     internal::RequireMemoryMb(megabytes);
     m_state->configuration.MemoryMb = megabytes;
@@ -350,7 +345,7 @@ WslContainerBuilder& WslContainerBuilder::WithReuse(bool Reuse)
     return *this;
 }
 
-WslContainerBuilder& WslContainerBuilder::WithStartupTimeout(std::chrono::milliseconds Timeout)
+WslContainerBuilder& WslContainerBuilder::WithReadinessTimeout(std::chrono::milliseconds Timeout)
 {
     internal::RequireStartupTimeout(Timeout);
     m_state->configuration.StartupTimeout = Timeout;
@@ -382,19 +377,19 @@ WslContainer WslContainerBuilder::Build()
     internal::RequireWaitStrategyCount(configuration.WaitStrategies.size());
     internal::RequireCount(configuration.Files.size(), internal::c_maxFileCopies, "file copies");
     internal::RequireCount(configuration.Volumes.size(), internal::c_maxVolumeMounts, "volume mounts");
-    internal::RequireCount(configuration.SessionVolumes.size(), internal::c_maxSessionVolumes, "session volumes");
+    internal::RequireCount(configuration.ScratchVolumes.size(), internal::c_maxScratchVolumes, "scratch volumes");
 
-    if (configuration.NetworkingMode == ContainerNetworkMode::None)
+    if (configuration.NetworkingMode == ContainerNetworkMode::Isolated)
     {
         if (!configuration.PortMappings.empty())
         {
-            throw WslException("NetworkingMode.None provides no network: remove WithPort(...) declarations or use "
+            throw WslException("NetworkingMode.Isolated provides no network: remove WithPort(...) declarations or use "
                                "Bridged networking.");
         }
 
         if (const auto network_wait = waiting::detail::FindNetworkWait(configuration.WaitStrategies))
         {
-            throw WslException("NetworkingMode.None provides no network: Wait strategy '" + *network_wait +
+            throw WslException("NetworkingMode.Isolated provides no network: Wait strategy '" + *network_wait +
                                "' can never succeed. Remove it or use Bridged networking.");
         }
     }
@@ -419,7 +414,7 @@ WslContainer WslContainerBuilder::Build()
                                "s is smaller than the sum of Wait-strategy timeouts " +
                                internal::FormatMilliseconds(total) +
                                "s. Waits Run sequentially, so startup would always fire first. Increase "
-                               "WithStartupTimeout(...) or reduce Wait WithTimeout(...) values.");
+                               "WithReadinessTimeout(...) or reduce Wait WithTimeout(...) values.");
         }
     }
 

@@ -54,18 +54,18 @@ private:
 class PostgreSqlContainer : public WslModuleContainer
 {
 public:
-    /// <summary>The Linux TCP port Postgres listens on (5432).</summary>
-    static constexpr int ContainerPort = 5432;
+    /// <summary>The Linux TCP port Postgres listens on by default (5432).</summary>
+    static constexpr int DefaultPort = 5432;
 
     PostgreSqlContainer(const PostgreSqlContainer&) = delete;
     PostgreSqlContainer& operator=(const PostgreSqlContainer&) = delete;
     PostgreSqlContainer(PostgreSqlContainer&&) noexcept = default;
     PostgreSqlContainer& operator=(PostgreSqlContainer&&) noexcept = default;
 
-    /// <summary>Gets the Windows port mapped to the Postgres port.</summary>
-    int GetMappedPort() const { return WslModuleContainer::GetConnectEndpoint(ContainerPort).Port; }
-
-    /// <summary>Renders an Npgsql-style connection string for the running container.</summary>
+    /// <summary>
+    /// Renders an Npgsql-style connection string for the running container, e.g.
+    /// Host=127.0.0.1;Port=49153;Username=...;Password=...;Database=...
+    /// </summary>
     std::string GetConnectionString() const;
 
 private:

@@ -141,6 +141,13 @@ std::optional<bool> ParseBoolValue(std::string_view value);
 /// </summary>
 bool IsContinuousIntegrationVariable(std::string_view name, std::string_view value);
 
+/// <summary>
+/// Resolves whether Reuse is effective for a container: configured (or default) Reuse only
+/// counts when the Environment allows it. Pure so callers can test both the configured and the
+/// CI-suppressed case without mutating process Environment variables.
+/// </summary>
+bool IsReuseEffective(std::optional<bool> configuredReuse, bool reuseByDefault, bool reuseAllowed);
+
 /// <summary>Joins strings with a separator.</summary>
 std::string join(const std::vector<std::string>& values, std::string_view separator);
 

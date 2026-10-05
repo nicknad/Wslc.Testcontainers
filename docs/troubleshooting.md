@@ -61,15 +61,15 @@ foreach (var line in container.GetRecentLogs(100))
 }
 ```
 
-`LogsAsync()` is an infinite stream that replays retained history
-oldest-first, so `LogDumper.DumpAsync(..., maxLines: 100)` dumps the
+`SubscribeLogs()` is an infinite stream that replays retained history
+oldest-first, so `LogDumper.DumpHeadAsync(..., maxLines: 100)` dumps the
 **oldest** 100 lines — useful for startup diagnostics, wrong for the failure
 tail:
 
 ```csharp
 using Wslc.Testcontainers.Testing;
 
-await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 100, ct);
+await LogDumper.DumpHeadAsync(container.SubscribeLogs(ct), output.WriteLine, maxLines: 100, ct);
 ```
 
 3. Check the usual causes:
@@ -78,11 +78,11 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
      Always `WithPort()` every port you probe or map.
    - Wait too strict: `UntilMessageIsLogged` is ordinal substring, case-sensitive and ignores
      `LogSource.System` diagnostics (no regex). Copy the exact container log line.
-   - HTTP path: `UntilHttpRequestIsSucceeded(pathAndQuery, port)` requires an absolute
+   - HTTP path: `UntilHttpRequestSucceeds(pathAndQuery, port)` requires an absolute
      path like `/health`, not a full URL.
    - File path: `UntilFileExists`/`WithFile`/`WithVolume`/`Copy*` require absolute Linux
      paths starting with `/`; swapped host/container order fails fast.
-   - Two timeouts: `WithStartupTimeout` bounds the whole `StartAsync` and must be ≥ sum of
+   - Two timeouts: `WithReadinessTimeout` bounds the whole `StartAsync` and must be ≥ sum of
      wait timeouts (validated at `Build()`); each strategy has its own `WithTimeout`/`WithRetryInterval`.
      A 5s strategy inside a 120s startup still fails at 5s. Module builders use `WithWaitTimeout(t)`
      for per-wait timeouts and derive startup as `2*t+30s`.
@@ -106,7 +106,7 @@ await LogDumper.DumpAsync(container.LogsAsync(ct), output.WriteLine, maxLines: 1
 - Ephemeral storage lives under `%LOCALAPPDATA%\Wslc` (override with
   `WSLC_DATA_DIRECTORY`). `DisposeAsync()` deletes it; `StopAsync()` keeps it. Restart reuses
   the session VHD for `WithReuse(true)` instances (images stay cached) and starts ephemeral
-  instances with clean storage; session volumes are recreated empty either way.
+  instances with clean storage; scratch volumes are recreated empty either way.
 - Crashed test hosts leave storage behind. Next `StartAsync()` runs
   `WslResourceReaper.CleanupAsync()` for dead owners automatically (7-day grace for corrupt metadata).
 - Reusable instances (`WithReuse(true)`) are never reaped automatically, even

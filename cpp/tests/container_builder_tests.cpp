@@ -3,6 +3,8 @@
 #include <windows.h>
 
 #include "internal/limits.hpp"
+#include "internal/util.hpp"
+#include "wslc/environment.hpp"
 #include "wslc/exec.hpp"
 #include "wslc/exceptions.hpp"
 #include "wslc/modules/postgresql.hpp"
@@ -122,6 +124,20 @@ TEST(ContainerBuilder, BuildersMutateInPlaceAndBuildSnapshotsConfiguration)
     EXPECT_NE(second.Name(), third.Name());
 }
 
+TEST(ContainerBuilder, IsReuseEffectiveReportsConfiguredReuse)
+{
+    WslContainerBuilder configured;
+    configured.WithImage("alpine:latest").WithReuse(true);
+    const auto configuredContainer = configured.Build();
+    EXPECT_EQ(configuredContainer.IsReuseEffective(),
+              wslc::internal::IsReuseEffective(true, wslc::WslEnvironment::ReuseByDefault(),
+                                               wslc::WslEnvironment::ReuseAllowed()));
+
+    WslContainerBuilder ephemeral;
+    ephemeral.WithImage("alpine:latest").WithReuse(false);
+    EXPECT_FALSE(ephemeral.Build().IsReuseEffective());
+}
+
 TEST(ContainerBuilder, WithPortValidatesAndDeduplicates)
 {
     WslContainerBuilder builder;
@@ -157,31 +173,31 @@ TEST(ContainerBuilder, WithPortNormalizesTheBindAddress)
     EXPECT_NO_THROW(builder.WithPort(8080, "::1").Build());
 }
 
-TEST(ContainerBuilder, WithCpuCountAndMemoryMBRecordLimits)
+TEST(ContainerBuilder, WithCpuCountAndMemoryMegabytesRecordLimits)
 {
     WslContainerBuilder builder;
-    EXPECT_NO_THROW(builder.WithImage("alpine").WithCpuCount(2).WithMemoryMB(2048).Build());
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithCpuCount(2).WithMemoryMegabytes(2048).Build());
     EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(0), WslException);
-    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(0), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMegabytes(0), WslException);
 }
 
-TEST(ContainerBuilder, WithNetworkingModeNoneRejectsPortsAndNetworkWaits)
+TEST(ContainerBuilder, WithNetworkingModeIsolatedRejectsPortsAndNetworkWaits)
 {
     WslContainerBuilder ports;
-    ports.WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode::None);
+    ports.WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode::Isolated);
     EXPECT_THROW(ports.Build(), WslException);
 
     WslContainerBuilder waits;
     waits.WithImage("alpine")
-        .WithWaitStrategy(ForWsl().UntilTcpPortIsAvailable(80))
-        .WithNetworkingMode(ContainerNetworkMode::None);
+        .WithWaitStrategy(ForWsl().UntilTcpPortIsOpen(80))
+        .WithNetworkingMode(ContainerNetworkMode::Isolated);
     EXPECT_THROW(waits.Build(), WslException);
 
     WslContainerBuilder composite;
     composite.WithImage("alpine")
         .WithWaitStrategy(
-            ForWsl().UntilMessageIsLogged("ready")->And(ForWsl().UntilHttpRequestIsSucceeded("/health", 8080)))
-        .WithNetworkingMode(ContainerNetworkMode::None);
+            ForWsl().UntilMessageIsLogged("ready")->And(ForWsl().UntilHttpRequestSucceeds("/health", 8080)))
+        .WithNetworkingMode(ContainerNetworkMode::Isolated);
     EXPECT_THROW(composite.Build(), WslException);
 
     // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and can
@@ -189,14 +205,14 @@ TEST(ContainerBuilder, WithNetworkingModeNoneRejectsPortsAndNetworkWaits)
     WslContainerBuilder custom;
     custom.WithImage("alpine")
         .WithWaitStrategy(ForWsl().Until("custom", [](wslc::waiting::IWaitTarget&, std::stop_token) { return true; }))
-        .WithNetworkingMode(ContainerNetworkMode::None);
+        .WithNetworkingMode(ContainerNetworkMode::Isolated);
     EXPECT_NO_THROW(custom.Build());
 
     // Non-network waits are fine without networking.
     WslContainerBuilder offline;
     offline.WithImage("alpine")
         .WithWaitStrategy(ForWsl().UntilFileExists("/tmp/ready"))
-        .WithNetworkingMode(ContainerNetworkMode::None);
+        .WithNetworkingMode(ContainerNetworkMode::Isolated);
     EXPECT_NO_THROW(offline.Build());
 }
 
@@ -207,24 +223,24 @@ TEST(ContainerBuilder, WithNetworkingModeRejectsUnknownValues)
     EXPECT_THROW(builder.WithNetworkingMode(static_cast<ContainerNetworkMode>(99)), WslException);
 }
 
-TEST(ContainerBuilder, WithSessionVolumeRecordsAndValidates)
+TEST(ContainerBuilder, WithScratchVolumeRecordsAndValidates)
 {
     WslContainerBuilder builder;
-    EXPECT_NO_THROW(builder.WithImage("alpine").WithSessionVolume("data", "/data", 10ull * 1024 * 1024 * 1024).Build());
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithScratchVolume("data", "/data", 10ull * 1024 * 1024 * 1024).Build());
 
     WslContainerBuilder invalid;
     invalid.WithImage("alpine");
-    EXPECT_THROW(invalid.WithSessionVolume("", "/data", 100), WslException);
-    EXPECT_THROW(invalid.WithSessionVolume("a/b", "/data", 100), WslException);
-    EXPECT_THROW(invalid.WithSessionVolume("a b", "/data", 100), WslException);
-    EXPECT_THROW(invalid.WithSessionVolume("data", "relative", 100), WslException);
-    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", 0), WslException);
-    EXPECT_THROW(invalid.WithSessionVolume("data", "/a", 100).WithSessionVolume("data", "/b", 100), WslException);
-    EXPECT_THROW(invalid.WithSessionVolume("Data", "/a", 100).WithSessionVolume("data", "/b", 100), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("", "/data", 100), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("a/b", "/data", 100), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("a b", "/data", 100), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("data", "relative", 100), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("data", "/data", 0), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("data", "/a", 100).WithScratchVolume("data", "/b", 100), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("Data", "/a", 100).WithScratchVolume("data", "/b", 100), WslException);
 
     WslContainerBuilder readOnlyFixed;
     EXPECT_NO_THROW(readOnlyFixed.WithImage("alpine")
-                        .WithSessionVolume("data", "/data", 100, VolumeAccess::ReadOnly, VhdAllocationType::Fixed)
+                        .WithScratchVolume("data", "/data", 100, VolumeAccess::ReadOnly, VhdAllocationType::Fixed)
                         .Build());
 }
 
@@ -405,13 +421,13 @@ TEST(ContainerBuilder, WaitStrategiesAccumulate)
     tooSmall.WithImage("alpine:latest")
         .WithWaitStrategy(ForWsl().WithTimeout(100s).UntilFileExists("/tmp/ready"))
         .WithWaitStrategy(ForWsl().WithTimeout(100s).UntilProcessIsRunning("nginx"))
-        .WithStartupTimeout(150s);
+        .WithReadinessTimeout(150s);
     EXPECT_THROW(tooSmall.Build(), WslException);
 
     WslContainerBuilder enough;
     enough.WithImage("alpine:latest")
         .WithWaitStrategy(ForWsl().WithTimeout(100s).UntilFileExists("/tmp/ready"))
-        .WithStartupTimeout(150s);
+        .WithReadinessTimeout(150s);
     EXPECT_NO_THROW(enough.Build());
 }
 
@@ -422,8 +438,8 @@ TEST(ContainerBuilder, NetworkWaitsAcceptNonLoopbackBindAddresses)
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine")
                         .WithPort(8080, "192.168.1.10")
-                        .WithWaitStrategy(ForWsl().UntilTcpPortIsAvailable(8080))
-                        .WithWaitStrategy(ForWsl().UntilHttpRequestIsSucceeded("/health", 8080))
+                        .WithWaitStrategy(ForWsl().UntilTcpPortIsOpen(8080))
+                        .WithWaitStrategy(ForWsl().UntilHttpRequestSucceeds("/health", 8080))
                         .Build());
 }
 
@@ -434,7 +450,7 @@ TEST(ContainerBuilder, ContainerPathsRejectInjectionAcrossMethods)
     for (const std::string& path : invalid)
     {
         EXPECT_THROW(WslContainerBuilder{}.WithWorkingDirectory(path), WslException) << path;
-        EXPECT_THROW(WslContainerBuilder{}.WithSessionVolume("data", path, 100), WslException) << path;
+        EXPECT_THROW(WslContainerBuilder{}.WithScratchVolume("data", path, 100), WslException) << path;
         EXPECT_THROW(WslContainerBuilder{}.WithFile("missing.txt", path), WslException) << path;
         EXPECT_THROW(WslContainerBuilder{}.WithVolume("missing", path), WslException) << path;
     }
@@ -452,39 +468,39 @@ TEST(ContainerBuilder, CpuAndMemoryCapsAreInclusive)
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine")
                         .WithCpuCount(wslc::internal::c_maxCpuCount)
-                        .WithMemoryMB(wslc::internal::c_maxMemoryMb)
+                        .WithMemoryMegabytes(wslc::internal::c_maxMemoryMb)
                         .Build());
     EXPECT_THROW(WslContainerBuilder{}.WithCpuCount(wslc::internal::c_maxCpuCount + 1), WslException);
-    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMB(wslc::internal::c_maxMemoryMb + 1), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithMemoryMegabytes(wslc::internal::c_maxMemoryMb + 1), WslException);
 }
 
-TEST(ContainerBuilder, SessionVolumeSizeCapIsInclusive)
+TEST(ContainerBuilder, ScratchVolumeSizeCapIsInclusive)
 {
     WslContainerBuilder builder;
     EXPECT_NO_THROW(builder.WithImage("alpine")
-                        .WithSessionVolume("data", "/data", wslc::internal::c_maxSessionVolumeBytes)
+                        .WithScratchVolume("data", "/data", wslc::internal::c_maxScratchVolumeBytes)
                         .Build());
 
     WslContainerBuilder invalid;
     invalid.WithImage("alpine");
-    EXPECT_THROW(invalid.WithSessionVolume("data", "/data", wslc::internal::c_maxSessionVolumeBytes + 1), WslException);
+    EXPECT_THROW(invalid.WithScratchVolume("data", "/data", wslc::internal::c_maxScratchVolumeBytes + 1), WslException);
 }
 
-TEST(ContainerBuilder, StartupTimeoutCapIsInclusiveAndRejectsLongerTimeoutsBeforeStart)
+TEST(ContainerBuilder, ReadinessTimeoutCapIsInclusiveAndRejectsLongerTimeoutsBeforeStart)
 {
     WslContainerBuilder builder;
-    EXPECT_NO_THROW(builder.WithImage("alpine").WithStartupTimeout(wslc::internal::c_maxStartupTimeout).Build());
-    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(wslc::internal::c_maxStartupTimeout + 1s), WslException);
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithReadinessTimeout(wslc::internal::c_maxStartupTimeout).Build());
+    EXPECT_THROW(WslContainerBuilder{}.WithReadinessTimeout(wslc::internal::c_maxStartupTimeout + 1s), WslException);
 
     // 3650 days is past the startup budget ceiling; the builder must reject it before any
     // startup timer observes it.
-    EXPECT_THROW(WslContainerBuilder{}.WithStartupTimeout(std::chrono::hours(24 * 3650)), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithReadinessTimeout(std::chrono::hours(24 * 3650)), WslException);
 }
 
 TEST(ContainerBuilder, BuildLimitsWaitStrategies)
 {
     WslContainerBuilder builder;
-    builder.WithImage("alpine").WithStartupTimeout(wslc::internal::c_maxStartupTimeout);
+    builder.WithImage("alpine").WithReadinessTimeout(wslc::internal::c_maxStartupTimeout);
     for (std::size_t i = 0; i < wslc::internal::c_maxWaitStrategies; ++i)
     {
         builder.WithWaitStrategy(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/ready-" + std::to_string(i)));
@@ -673,17 +689,17 @@ TEST(ContainerBuilder, CompositeWaitCountCapIsEnforcedAtComposition)
     EXPECT_THROW(strategy->And(ForWsl().WithTimeout(1s).UntilFileExists("/tmp/one-too-many")), WslException);
 }
 
-TEST(ContainerBuilder, BuildLimitsSessionVolumeCount)
+TEST(ContainerBuilder, BuildLimitsScratchVolumeCount)
 {
     WslContainerBuilder builder;
     builder.WithImage("alpine");
-    for (std::size_t i = 0; i < wslc::internal::c_maxSessionVolumes; ++i)
+    for (std::size_t i = 0; i < wslc::internal::c_maxScratchVolumes; ++i)
     {
-        builder.WithSessionVolume("data" + std::to_string(i), "/data" + std::to_string(i), 1024);
+        builder.WithScratchVolume("data" + std::to_string(i), "/data" + std::to_string(i), 1024);
     }
 
     EXPECT_NO_THROW(builder.Build());
-    builder.WithSessionVolume("one-too-many", "/data-extra", 1024);
+    builder.WithScratchVolume("one-too-many", "/data-extra", 1024);
     EXPECT_THROW(builder.Build(), WslException);
 }
 

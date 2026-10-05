@@ -19,6 +19,8 @@ namespace wslc
 class WslEnvironment
 {
 public:
+    WslEnvironment() = delete;
+
     /// <summary>Default readiness Timeout, in seconds or as a clock string.</summary>
     static constexpr const char* TimeoutVariable = "WSLC_TIMEOUT";
 

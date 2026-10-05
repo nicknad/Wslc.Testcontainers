@@ -75,9 +75,8 @@ TEST(WaitStrategy, PollingTimeoutAbortsBlockingChecks)
     {
         EXPECT_NE(exception.ExpectedCondition().find("blocking check"), std::string::npos);
         EXPECT_EQ(exception.Timeout(), 200ms);
+        EXPECT_LT(std::chrono::steady_clock::now() - started, 2s);
     }
-
-    EXPECT_LT(std::chrono::steady_clock::now() - started, 2s);
 }
 
 TEST(WaitStrategy, TcpPortTimesOutWithDiagnostics)
@@ -300,9 +299,8 @@ TEST(WaitStrategy, CompositeTimeoutBoundsChildrenWithLongerTimeouts)
     catch (const WslReadinessException& exception)
     {
         EXPECT_EQ(exception.Timeout(), 200ms);
+        EXPECT_LT(std::chrono::steady_clock::now() - started, 1s);
     }
-
-    EXPECT_LT(std::chrono::steady_clock::now() - started, 1s);
 }
 
 TEST(WaitStrategy, CustomUntilValidatesArguments)

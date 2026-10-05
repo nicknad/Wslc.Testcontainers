@@ -12,6 +12,7 @@
 #include <cctype>
 #include <cstring>
 #include <mutex>
+#include <utility>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -57,11 +58,11 @@ public:
     }
 
     SOCKET get() const noexcept { return m_handle; }
-    explicit operator bool() const noexcept { return m_handle != INVALID_SOCKET; }
+    explicit operator bool() const noexcept { return std::cmp_not_equal(m_handle, INVALID_SOCKET); }
 
     void reset() noexcept
     {
-        if (m_handle != INVALID_SOCKET)
+        if (std::cmp_not_equal(m_handle, INVALID_SOCKET))
         {
             closesocket(m_handle);
             m_handle = INVALID_SOCKET;

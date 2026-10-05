@@ -8,6 +8,7 @@
 #include <cstring>
 #include <mutex>
 #include <string>
+#include <utility>
 
 #pragma comment(lib, "ws2_32.lib")
 
@@ -35,7 +36,7 @@ TinyHttpServer::TinyHttpServer(int statusCode) : m_statusCode(statusCode)
     EnsureWinsock();
 
     const SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener == INVALID_SOCKET)
+    if (std::cmp_equal(listener, INVALID_SOCKET))
     {
         return;
     }
@@ -61,7 +62,7 @@ TinyHttpServer::~TinyHttpServer()
 {
     m_thread.request_stop();
     const SOCKET listener = static_cast<SOCKET>(m_listener);
-    if (listener != INVALID_SOCKET)
+    if (std::cmp_not_equal(listener, INVALID_SOCKET))
     {
         closesocket(listener);
     }
@@ -73,7 +74,7 @@ void TinyHttpServer::AcceptLoop(std::stop_token token)
     while (!token.stop_requested())
     {
         const SOCKET client = accept(listener, nullptr, nullptr);
-        if (client == INVALID_SOCKET)
+        if (std::cmp_equal(client, INVALID_SOCKET))
         {
             return;
         }

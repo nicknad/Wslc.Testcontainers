@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <fstream>
+#include <utility>
 
 namespace wslc::internal
 {
@@ -257,7 +258,7 @@ void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path&
                                       "': " + FormatWindowsError(GetLastError()));
         }
 
-        if (size.QuadPart > static_cast<LONGLONG>(c_maxCopyBytes))
+        if (std::cmp_greater(size.QuadPart, c_maxCopyBytes))
         {
             throw WslProcessException("Copying '" + ToUtf8(Source.wstring()) + "' to '" + Destination +
                                       "' exceeds 1 GiB limit (" + std::to_string(size.QuadPart) + " bytes).");

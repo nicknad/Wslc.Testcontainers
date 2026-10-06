@@ -2,7 +2,7 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
-## Unreleased
+## 0.2.0
 
 ### Added
 

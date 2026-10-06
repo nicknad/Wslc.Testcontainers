@@ -10,8 +10,8 @@ layout:
 
 | Implementation | Folder | Guide | Artifacts |
 | --- | --- | --- | --- |
-| C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`, `Modules.Valkey`, `Modules.MariaDb`) |
-| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis`, `wslc_valkey`, `wslc_mariadb` |
+| C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`, `Modules.Valkey`, `Modules.MariaDb`, `Modules.RabbitMq`) |
+| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis`, `wslc_valkey`, `wslc_mariadb`, `wslc_rabbitmq` |
 
 ```csharp
 using Wslc.Testcontainers.Modules.PostgreSql;

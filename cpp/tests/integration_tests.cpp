@@ -7,6 +7,7 @@
 #include "wslc/exceptions.hpp"
 #include "wslc/modules/mariadb.hpp"
 #include "wslc/modules/postgresql.hpp"
+#include "wslc/modules/rabbitmq.hpp"
 #include "wslc/modules/valkey.hpp"
 #include "wslc/wslc.hpp"
 
@@ -517,4 +518,27 @@ TEST(IntegrationModules, MariaDbModuleStartsAndServesQueries)
     }
 
     mariadb.Dispose();
+}
+
+TEST(IntegrationModules, RabbitMqModuleStartsAndAnswersPing)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::RabbitMqBuilder builder;
+    auto rabbitmq = builder.Build();
+    try
+    {
+        rabbitmq.Start();
+
+        EXPECT_NE(rabbitmq.GetConnectionString().find("amqp://rabbit:secret@127.0.0.1:"), std::string::npos);
+        const auto result = rabbitmq.Exec("rabbitmq-diagnostics", {"-q", "ping"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        rabbitmq.Dispose();
+        throw;
+    }
+
+    rabbitmq.Dispose();
 }

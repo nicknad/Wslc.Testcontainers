@@ -142,6 +142,7 @@ jobs:
           dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           Get-ChildItem artifacts/packages
       - name: Install smoke test (local feed, outside repo)
         shell: pwsh

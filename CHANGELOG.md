@@ -2,6 +2,23 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## Unreleased
+
+Planned 0.2.0 scope: three more service modules alongside `Modules.PostgreSql` and
+`Modules.Redis`, mirrored in C++.
+
+### Planned
+
+- `Modules.Valkey` (C#) / `wslc_valkey` (C++): drop-in Redis successor (`docker.io/valkey/valkey:8-alpine`, port 6379).
+- `Modules.MariaDb` (C#) / `wslc_mariadb` (C++): MariaDB 11.4 LTS (port 3306, `MARIADB_*` credentials, MySqlConnector-style connection string).
+- `Modules.RabbitMq` (C#) / `wslc_rabbitmq` (C++): RabbitMQ 4 (AMQP port 5672, readiness via `Server startup complete`).
+
+### Changed
+
+- Development now happens on the `development` branch. `main` only accepts pull requests
+  from `development` (enforced by the `main-source-guard` workflow plus the
+  `main-protection` repository ruleset; see `docs/branching.md`).
+
 ## 0.1.0-preview.1
 
 First public preview of `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`).

@@ -82,6 +82,9 @@ ctest --test-dir cpp/build -C Release --output-on-failure
 Real-runtime tests (pull public images) run with `WSLC_RUN_INTEGRATION=1` in both languages.
 See the per-language READMEs for details.
 
+Development happens on `development`; `main` only accepts pull requests from `development`.
+See [`docs/branching.md`](docs/branching.md) for the branch protection and release flow.
+
 ## License
 
 [MIT](LICENSE)

@@ -2,6 +2,11 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## Unreleased
+
+Planned 0.3.0 scope: MongoDB, MinIO, NATS, and MailPit modules alongside the existing
+PostgreSql/Redis/Valkey/MariaDb/RabbitMq presets, mirrored in C++.
+
 ## 0.2.0
 
 ### Added

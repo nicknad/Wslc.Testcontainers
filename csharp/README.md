@@ -59,6 +59,7 @@ dotnet add package Wslc.Testcontainers.Modules.MongoDb
 dotnet add package Wslc.Testcontainers.Modules.Nats
 dotnet add package Wslc.Testcontainers.Modules.MailPit
 dotnet add package Wslc.Testcontainers.Modules.RustFs
+dotnet add package Wslc.Testcontainers.Modules.Vault
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -230,6 +231,7 @@ using Wslc.Testcontainers.Modules.MongoDb;
 using Wslc.Testcontainers.Modules.Nats;
 using Wslc.Testcontainers.Modules.MailPit;
 using Wslc.Testcontainers.Modules.RustFs;
+using Wslc.Testcontainers.Modules.Vault;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -267,6 +269,10 @@ var mailUi = mailpit.GetHttpEndpoint(); // http://host:port
 await using var rustfs = new RustFsBuilder().Build();
 await rustfs.StartAsync();
 var s3 = rustfs.GetEndpoint(); // http://host:port + AccessKey/SecretKey
+
+await using var vault = new VaultBuilder().Build();
+await vault.StartAsync();
+var vaultAddress = vault.GetAddress(); // http://host:port; RootToken defaults to "root"
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

@@ -13,6 +13,7 @@
 #include "wslc/modules/rabbitmq.hpp"
 #include "wslc/modules/rustfs.hpp"
 #include "wslc/modules/valkey.hpp"
+#include "wslc/modules/vault.hpp"
 #include "wslc/wslc.hpp"
 
 #include <algorithm>
@@ -642,4 +643,29 @@ TEST(IntegrationModules, RustFsModuleStartsAndAnswersHealth)
     }
 
     rustfs.Dispose();
+}
+
+TEST(IntegrationModules, VaultModuleStartsAndWritesASecret)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::VaultBuilder builder;
+    auto vault = builder.Build();
+    try
+    {
+        vault.Start();
+
+        EXPECT_NE(vault.GetAddress().find("http://127.0.0.1:"), std::string::npos);
+        EXPECT_EQ(vault.RootToken(), "root");
+        const auto result = vault.Exec(
+            "/bin/sh", {"-c", "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root vault kv put secret/wslc value=1"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        vault.Dispose();
+        throw;
+    }
+
+    vault.Dispose();
 }

@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `VaultBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `VaultBuilder` |
 
 Behavioral notes:
 
@@ -155,6 +155,7 @@ Typed module builders live in `cpp/modules/`:
 #include <wslc/modules/redis.hpp>
 #include <wslc/modules/rustfs.hpp>
 #include <wslc/modules/valkey.hpp>
+#include <wslc/modules/vault.hpp>
 
 wslc::modules::PostgreSqlBuilder postgresBuilder;
 auto postgres = postgresBuilder.WithPassword("secret").Build();
@@ -202,6 +203,12 @@ wslc::modules::RustFsBuilder rustFsBuilder;
 auto rustfs = rustFsBuilder.Build();
 rustfs.Start();
 const std::string s3 = rustfs.GetEndpoint();
+
+wslc::modules::VaultBuilder vaultBuilder;
+auto vault = vaultBuilder.Build();
+vault.Start();
+const std::string vaultAddress = vault.GetAddress();
+const std::string vaultRootToken = vault.RootToken();
 ```
 
 ## Configuration

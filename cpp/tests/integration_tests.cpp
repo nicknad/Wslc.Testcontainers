@@ -10,6 +10,7 @@
 #include "wslc/modules/mongodb.hpp"
 #include "wslc/modules/nats.hpp"
 #include "wslc/modules/postgresql.hpp"
+#include "wslc/modules/qdrant.hpp"
 #include "wslc/modules/rabbitmq.hpp"
 #include "wslc/modules/rustfs.hpp"
 #include "wslc/modules/valkey.hpp"
@@ -642,4 +643,31 @@ TEST(IntegrationModules, RustFsModuleStartsAndAnswersHealth)
     }
 
     rustfs.Dispose();
+}
+
+TEST(IntegrationModules, QdrantModuleStartsAndAnswersReady)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::QdrantBuilder builder;
+    auto qdrant = builder.Build();
+    try
+    {
+        qdrant.Start();
+
+        EXPECT_NE(qdrant.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        // The image ships no HTTP client; bash's /dev/tcp is the verified in-container check.
+        const auto result =
+            qdrant.Exec("/bin/bash", {"-c", "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /readyz HTTP/1.0\\r\\nHost: "
+                                            "127.0.0.1\\r\\n\\r\\n' >&3; head -n 1 <&3"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("200 OK"), std::string::npos);
+    }
+    catch (...)
+    {
+        qdrant.Dispose();
+        throw;
+    }
+
+    qdrant.Dispose();
 }

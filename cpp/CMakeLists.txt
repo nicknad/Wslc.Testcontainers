@@ -201,6 +201,12 @@ target_include_directories(wslc_rustfs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_rustfs PUBLIC wslc)
 wslc_apply_strict_options(wslc_rustfs)
 
+add_library(wslc_qdrant STATIC modules/qdrant/qdrant.cpp)
+add_library(wslc::qdrant ALIAS wslc_qdrant)
+target_include_directories(wslc_qdrant PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/qdrant/include")
+target_link_libraries(wslc_qdrant PUBLIC wslc)
+wslc_apply_strict_options(wslc_qdrant)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

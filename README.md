@@ -10,8 +10,8 @@ layout:
 
 | Implementation | Folder | Guide | Artifacts |
 | --- | --- | --- | --- |
-| C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`, `Modules.Valkey`, `Modules.MariaDb`, `Modules.RabbitMq`, `Modules.MongoDb`, `Modules.Nats`, `Modules.MailPit`, `Modules.RustFs`) |
-| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis`, `wslc_valkey`, `wslc_mariadb`, `wslc_rabbitmq`, `wslc_mongodb`, `wslc_nats`, `wslc_mailpit`, `wslc_rustfs` |
+| C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`, `Modules.Valkey`, `Modules.MariaDb`, `Modules.RabbitMq`, `Modules.MongoDb`, `Modules.Nats`, `Modules.MailPit`, `Modules.RustFs`, `Modules.Qdrant`) |
+| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis`, `wslc_valkey`, `wslc_mariadb`, `wslc_rabbitmq`, `wslc_mongodb`, `wslc_nats`, `wslc_mailpit`, `wslc_rustfs`, `wslc_qdrant` |
 
 ```csharp
 using Wslc.Testcontainers.Modules.PostgreSql;

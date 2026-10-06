@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `QdrantBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `QdrantBuilder` |
 
 Behavioral notes:
 
@@ -151,6 +151,7 @@ Typed module builders live in `cpp/modules/`:
 #include <wslc/modules/mongodb.hpp>
 #include <wslc/modules/nats.hpp>
 #include <wslc/modules/postgresql.hpp>
+#include <wslc/modules/qdrant.hpp>
 #include <wslc/modules/rabbitmq.hpp>
 #include <wslc/modules/redis.hpp>
 #include <wslc/modules/rustfs.hpp>
@@ -202,6 +203,11 @@ wslc::modules::RustFsBuilder rustFsBuilder;
 auto rustfs = rustFsBuilder.Build();
 rustfs.Start();
 const std::string s3 = rustfs.GetEndpoint();
+
+wslc::modules::QdrantBuilder qdrantBuilder;
+auto qdrant = qdrantBuilder.Build();
+qdrant.Start();
+const std::string qdrantHttp = qdrant.GetEndpoint(); // gRPC via GetConnectEndpoint(QdrantContainer::GrpcPort)
 ```
 
 ## Configuration

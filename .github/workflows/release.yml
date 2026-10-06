@@ -163,9 +163,18 @@ jobs:
           user: ${{ secrets.NUGET_USER }}
       - name: Push to nuget.org (trusted publishing, OIDC)
         shell: pwsh
+        env:
+          PUBLISH_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
-          dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          dotnet nuget push "artifacts/packages/*.snupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          # dotnet nuget push does not expand wildcards (.NET 10), so enumerate explicitly.
+          foreach ($package in Get-ChildItem artifacts/packages -Filter *.nupkg) {
+            dotnet nuget push $package.FullName --api-key $env:PUBLISH_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "Failed to push $($package.Name) (exit $LASTEXITCODE)." }
+          }
+          foreach ($symbol in Get-ChildItem artifacts/packages -Filter *.snupkg) {
+            dotnet nuget push $symbol.FullName --api-key $env:PUBLISH_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+            if ($LASTEXITCODE -ne 0) { throw "Failed to push $($symbol.Name) (exit $LASTEXITCODE)." }
+          }
       - name: GitHub Release
         shell: pwsh
         env:

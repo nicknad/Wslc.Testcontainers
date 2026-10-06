@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the Postgres/Redis modules, and the xUnit patterns
+It covers the core container, the Postgres/Redis/Valkey modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -62,6 +62,7 @@ Install the packages you need:
 dotnet add package Wslc.Testcontainers
 dotnet add package Wslc.Testcontainers.Modules.PostgreSql
 dotnet add package Wslc.Testcontainers.Modules.Redis
+dotnet add package Wslc.Testcontainers.Modules.Valkey
 ```
 
 ## Quickstart
@@ -106,6 +107,16 @@ await redis.StartAsync();
 var endpoint = redis.GetEndpoint(); // host:port for StackExchange.Redis
 ```
 
+Valkey (Redis-compatible protocol):
+
+```csharp
+using Wslc.Testcontainers.Modules.Valkey;
+
+await using var valkey = new ValkeyBuilder().Build();
+await valkey.StartAsync();
+var endpoint = valkey.GetEndpoint(); // host:port, same protocol as Redis
+```
+
 ## Core concepts
 
 | Concept | Description |
@@ -114,7 +125,7 @@ var endpoint = redis.GetEndpoint(); // host:port for StackExchange.Redis
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

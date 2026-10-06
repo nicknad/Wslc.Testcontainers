@@ -48,6 +48,8 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   for Npgsql.
 - `Wslc.Testcontainers.Modules.Redis`: TCP 6379 + log
   `Ready to accept connections`, `GetEndpoint()` as `host:port`.
+- `Wslc.Testcontainers.Modules.Valkey`: TCP 6379 + log
+  `Ready to accept connections`, `GetEndpoint()` as `host:port` (Redis-compatible).
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

@@ -159,6 +159,12 @@ target_include_directories(wslc_redis PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/module
 target_link_libraries(wslc_redis PUBLIC wslc)
 wslc_apply_strict_options(wslc_redis)
 
+add_library(wslc_valkey STATIC modules/valkey/valkey.cpp)
+add_library(wslc::valkey ALIAS wslc_valkey)
+target_include_directories(wslc_valkey PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/valkey/include")
+target_link_libraries(wslc_valkey PUBLIC wslc)
+wslc_apply_strict_options(wslc_valkey)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

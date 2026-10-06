@@ -153,11 +153,19 @@ jobs:
             | Set-Content $csproj.FullName
           dotnet add $csproj.FullName package Wslc.Testcontainers --version "$env:VERSION" --source "$feed"
           dotnet build $csproj.FullName -c Release --nologo -v minimal
-      # Requires a NuGet.org trusted publisher for this repo + workflow.
+      # Requires a NuGet.org trusted publisher for this repo + workflow
+      # (owner nicknad, repo Wslc.Testcontainers, workflow release.yml).
       # See https://learn.microsoft.com/nuget/nuget-org/trusted-publishing
+      - name: NuGet login (OIDC -> temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: ${{ secrets.NUGET_USER }}
       - name: Push to nuget.org (trusted publishing, OIDC)
         shell: pwsh
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push "artifacts/packages/*.snupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
       - name: GitHub Release
         shell: pwsh
         env:

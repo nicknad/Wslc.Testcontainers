@@ -1,1 +1,8 @@
 #nullable enable
+const Wslc.Testcontainers.Modules.Redis.RedisContainer.DefaultPort = 6379 -> int
+Wslc.Testcontainers.Modules.Redis.RedisBuilder
+Wslc.Testcontainers.Modules.Redis.RedisBuilder.Build() -> Wslc.Testcontainers.Modules.Redis.RedisContainer!
+Wslc.Testcontainers.Modules.Redis.RedisBuilder.RedisBuilder() -> void
+Wslc.Testcontainers.Modules.Redis.RedisContainer
+override Wslc.Testcontainers.Modules.Redis.RedisContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.Redis.RedisContainer.GetEndpoint() -> string!

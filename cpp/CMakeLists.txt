@@ -171,6 +171,12 @@ target_include_directories(wslc_mariadb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modu
 target_link_libraries(wslc_mariadb PUBLIC wslc)
 wslc_apply_strict_options(wslc_mariadb)
 
+add_library(wslc_rabbitmq STATIC modules/rabbitmq/rabbitmq.cpp)
+add_library(wslc::rabbitmq ALIAS wslc_rabbitmq)
+target_include_directories(wslc_rabbitmq PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/rabbitmq/include")
+target_link_libraries(wslc_rabbitmq PUBLIC wslc)
+wslc_apply_strict_options(wslc_rabbitmq)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

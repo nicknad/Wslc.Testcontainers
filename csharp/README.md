@@ -54,6 +54,7 @@ dotnet add package Wslc.Testcontainers.Modules.PostgreSql
 dotnet add package Wslc.Testcontainers.Modules.Redis
 dotnet add package Wslc.Testcontainers.Modules.Valkey
 dotnet add package Wslc.Testcontainers.Modules.MariaDb
+dotnet add package Wslc.Testcontainers.Modules.RabbitMq
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -220,6 +221,7 @@ using Wslc.Testcontainers.Modules.PostgreSql;
 using Wslc.Testcontainers.Modules.Redis;
 using Wslc.Testcontainers.Modules.Valkey;
 using Wslc.Testcontainers.Modules.MariaDb;
+using Wslc.Testcontainers.Modules.RabbitMq;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -236,6 +238,10 @@ var valkeyEndpoint = valkey.GetEndpoint(); // host:port, same protocol as Redis
 await using var mariadb = new MariaDbBuilder().WithPassword("secret").Build();
 await mariadb.StartAsync();
 var mySql = mariadb.GetConnectionString(); // MySqlConnector format
+
+await using var rabbitmq = new RabbitMqBuilder().Build();
+await rabbitmq.StartAsync();
+var amqp = rabbitmq.GetConnectionString(); // amqp://user:pass@host:port/
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

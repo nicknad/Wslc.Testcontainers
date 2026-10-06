@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `ClickHouseBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `ClickHouseBuilder` |
 
 Behavioral notes:
 
@@ -146,6 +146,7 @@ Behavioral notes:
 Typed module builders live in `cpp/modules/`:
 
 ```cpp
+#include <wslc/modules/clickhouse.hpp>
 #include <wslc/modules/mailpit.hpp>
 #include <wslc/modules/mariadb.hpp>
 #include <wslc/modules/mongodb.hpp>
@@ -202,6 +203,11 @@ wslc::modules::RustFsBuilder rustFsBuilder;
 auto rustfs = rustFsBuilder.Build();
 rustfs.Start();
 const std::string s3 = rustfs.GetEndpoint();
+
+wslc::modules::ClickHouseBuilder clickHouseBuilder;
+auto clickhouse = clickHouseBuilder.Build();
+clickhouse.Start();
+const std::string clickHouseClient = clickhouse.GetConnectionString();
 ```
 
 ## Configuration

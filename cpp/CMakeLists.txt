@@ -201,6 +201,12 @@ target_include_directories(wslc_rustfs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_rustfs PUBLIC wslc)
 wslc_apply_strict_options(wslc_rustfs)
 
+add_library(wslc_clickhouse STATIC modules/clickhouse/clickhouse.cpp)
+add_library(wslc::clickhouse ALIAS wslc_clickhouse)
+target_include_directories(wslc_clickhouse PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/clickhouse/include")
+target_link_libraries(wslc_clickhouse PUBLIC wslc)
+wslc_apply_strict_options(wslc_clickhouse)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

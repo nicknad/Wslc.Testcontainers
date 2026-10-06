@@ -5,9 +5,13 @@
 #include "internal/util.hpp"
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/mailpit.hpp"
 #include "wslc/modules/mariadb.hpp"
+#include "wslc/modules/mongodb.hpp"
+#include "wslc/modules/nats.hpp"
 #include "wslc/modules/postgresql.hpp"
 #include "wslc/modules/rabbitmq.hpp"
+#include "wslc/modules/rustfs.hpp"
 #include "wslc/modules/valkey.hpp"
 #include "wslc/wslc.hpp"
 
@@ -541,4 +545,101 @@ TEST(IntegrationModules, RabbitMqModuleStartsAndAnswersPing)
     }
 
     rabbitmq.Dispose();
+}
+
+TEST(IntegrationModules, MongoDbModuleStartsAndServesPing)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::MongoDbBuilder builder;
+    auto mongodb = builder.Build();
+    try
+    {
+        mongodb.Start();
+
+        EXPECT_NE(mongodb.GetConnectionString().find("mongodb://127.0.0.1:"), std::string::npos);
+        const auto result = mongodb.Exec("mongosh", {"--quiet", "--eval", "db.adminCommand({ping:1}).ok"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        mongodb.Dispose();
+        throw;
+    }
+
+    mongodb.Dispose();
+}
+
+TEST(IntegrationModules, NatsModuleStartsWithJetStream)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::NatsBuilder builder;
+    builder.WithJetStream();
+    auto nats = builder.Build();
+    try
+    {
+        nats.Start();
+
+        EXPECT_NE(nats.GetConnectionString().find("nats://127.0.0.1:"), std::string::npos);
+        const auto result = nats.Exec("/bin/sh", {"-c", "printf 'PING\\r\\n' | nc -w 1 127.0.0.1 4222"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("PONG"), std::string::npos);
+    }
+    catch (...)
+    {
+        nats.Dispose();
+        throw;
+    }
+
+    nats.Dispose();
+}
+
+TEST(IntegrationModules, MailPitModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::MailPitBuilder builder;
+    auto mailpit = builder.Build();
+    try
+    {
+        mailpit.Start();
+
+        EXPECT_NE(mailpit.GetSmtpEndpoint().find("127.0.0.1:"), std::string::npos);
+        EXPECT_NE(mailpit.GetHttpEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        const auto result = mailpit.Exec("/bin/sh", {"-c", "wget -q -O - http://127.0.0.1:8025/livez"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        mailpit.Dispose();
+        throw;
+    }
+
+    mailpit.Dispose();
+}
+
+TEST(IntegrationModules, RustFsModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::RustFsBuilder builder;
+    auto rustfs = builder.Build();
+    try
+    {
+        rustfs.Start();
+
+        EXPECT_NE(rustfs.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        EXPECT_EQ(rustfs.AccessKey(), "rustfsadmin");
+        const auto result = rustfs.Exec("/bin/sh", {"-c", "wget -q -O - http://127.0.0.1:9000/health"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        rustfs.Dispose();
+        throw;
+    }
+
+    rustfs.Dispose();
 }

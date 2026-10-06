@@ -1,0 +1,10 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.MailPit.MailPitContainer.HttpPort = 8025 -> int
+const Wslc.Testcontainers.Modules.MailPit.MailPitContainer.SmtpPort = 1025 -> int
+Wslc.Testcontainers.Modules.MailPit.MailPitBuilder
+Wslc.Testcontainers.Modules.MailPit.MailPitBuilder.Build() -> Wslc.Testcontainers.Modules.MailPit.MailPitContainer!
+Wslc.Testcontainers.Modules.MailPit.MailPitBuilder.MailPitBuilder() -> void
+Wslc.Testcontainers.Modules.MailPit.MailPitContainer
+override Wslc.Testcontainers.Modules.MailPit.MailPitContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.MailPit.MailPitContainer.GetHttpEndpoint() -> string!
+Wslc.Testcontainers.Modules.MailPit.MailPitContainer.GetSmtpEndpoint() -> string!

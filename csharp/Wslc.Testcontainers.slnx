@@ -6,6 +6,10 @@
     <Project Path="src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.MongoDb/Wslc.Testcontainers.Modules.MongoDb.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj" />

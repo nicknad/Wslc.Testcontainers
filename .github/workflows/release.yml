@@ -143,6 +143,10 @@ jobs:
           dotnet pack src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.MongoDb/Wslc.Testcontainers.Modules.MongoDb.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           Get-ChildItem artifacts/packages
       - name: Install smoke test (local feed, outside repo)
         shell: pwsh

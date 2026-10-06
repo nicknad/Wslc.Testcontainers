@@ -1,0 +1,10 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.MongoDb.MongoDbContainer.DefaultPort = 27017 -> int
+Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder
+Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder.Build() -> Wslc.Testcontainers.Modules.MongoDb.MongoDbContainer!
+Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder.MongoDbBuilder() -> void
+Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder!
+Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.MongoDb.MongoDbBuilder!
+Wslc.Testcontainers.Modules.MongoDb.MongoDbContainer
+override Wslc.Testcontainers.Modules.MongoDb.MongoDbContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.MongoDb.MongoDbContainer.GetConnectionString() -> string!

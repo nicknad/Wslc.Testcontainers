@@ -201,6 +201,12 @@ target_include_directories(wslc_rustfs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_rustfs PUBLIC wslc)
 wslc_apply_strict_options(wslc_rustfs)
 
+add_library(wslc_elasticsearch STATIC modules/elasticsearch/elasticsearch.cpp)
+add_library(wslc::elasticsearch ALIAS wslc_elasticsearch)
+target_include_directories(wslc_elasticsearch PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/elasticsearch/include")
+target_link_libraries(wslc_elasticsearch PUBLIC wslc)
+wslc_apply_strict_options(wslc_elasticsearch)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

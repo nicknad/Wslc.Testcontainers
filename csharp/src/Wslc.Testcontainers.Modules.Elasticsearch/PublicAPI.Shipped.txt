@@ -1,0 +1,8 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchContainer.DefaultPort = 9200 -> int
+Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchBuilder
+Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchBuilder.Build() -> Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchContainer!
+Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchBuilder.ElasticsearchBuilder() -> void
+Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchContainer
+override Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.Elasticsearch.ElasticsearchContainer.GetEndpoint() -> string!

@@ -62,6 +62,9 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `GetSmtpEndpoint()` / `GetHttpEndpoint()`.
 - `Wslc.Testcontainers.Modules.RustFs`: S3 API 9000 + console 9001, readiness via `/health`,
   `GetEndpoint()` plus `AccessKey`/`SecretKey`.
+- `Wslc.Testcontainers.Modules.Elasticsearch`: HTTP 9200, readiness via
+  `/_cluster/health?wait_for_status=yellow`, `GetEndpoint()`; single-node, security off,
+  512 MB heap, niofs storage.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

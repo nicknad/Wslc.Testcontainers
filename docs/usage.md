@@ -69,6 +69,7 @@ dotnet add package Wslc.Testcontainers.Modules.MongoDb
 dotnet add package Wslc.Testcontainers.Modules.Nats
 dotnet add package Wslc.Testcontainers.Modules.MailPit
 dotnet add package Wslc.Testcontainers.Modules.RustFs
+dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
 ```
 
 ## Quickstart
@@ -184,6 +185,16 @@ await rustfs.StartAsync();
 var s3 = rustfs.GetEndpoint(); // http://host:port; credentials via AccessKey/SecretKey
 ```
 
+Elasticsearch (single-node HTTP API):
+
+```csharp
+using Wslc.Testcontainers.Modules.Elasticsearch;
+
+await using var elasticsearch = new ElasticsearchBuilder().Build();
+await elasticsearch.StartAsync();
+var rest = elasticsearch.GetEndpoint(); // http://host:port
+```
+
 ## Core concepts
 
 | Concept | Description |
@@ -192,7 +203,7 @@ var s3 = rustfs.GetEndpoint(); // http://host:port; credentials via AccessKey/Se
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `ElasticsearchBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

@@ -167,11 +167,14 @@ jobs:
           PUBLISH_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           # dotnet nuget push does not expand wildcards (.NET 10), so enumerate explicitly.
-          foreach ($package in Get-ChildItem artifacts/packages -Filter *.nupkg) {
+          # Match extensions exactly: Win32 -Filter *.nupkg also matches *.snupkg.
+          $packages = Get-ChildItem artifacts/packages -File | Where-Object { $_.Extension -eq '.nupkg' }
+          $symbols = Get-ChildItem artifacts/packages -File | Where-Object { $_.Extension -eq '.snupkg' }
+          foreach ($package in $packages) {
             dotnet nuget push $package.FullName --api-key $env:PUBLISH_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
             if ($LASTEXITCODE -ne 0) { throw "Failed to push $($package.Name) (exit $LASTEXITCODE)." }
           }
-          foreach ($symbol in Get-ChildItem artifacts/packages -Filter *.snupkg) {
+          foreach ($symbol in $symbols) {
             dotnet nuget push $symbol.FullName --api-key $env:PUBLISH_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
             if ($LASTEXITCODE -ne 0) { throw "Failed to push $($symbol.Name) (exit $LASTEXITCODE)." }
           }

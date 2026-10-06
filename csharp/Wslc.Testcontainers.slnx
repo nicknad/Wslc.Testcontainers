@@ -4,6 +4,7 @@
     <Project Path="src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj" />

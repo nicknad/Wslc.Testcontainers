@@ -38,15 +38,28 @@ jobs:
         run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal
         env:
           WSLC_RUN_INTEGRATION: "1"
+      - name: Cache WSL Containers SDK
+        uses: actions/cache@v6
+        with:
+          path: cpp/.packages
+          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
       - name: Fetch WSL Containers SDK
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Cache GoogleTest source
+        uses: actions/cache@v6
+        with:
+          path: cpp/build/_deps/googletest-src
+          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
+      - uses: ilammy/msvc-dev-cmd@v1
       - name: Configure C++ tests
         shell: pwsh
-        run: cmake -S cpp -B cpp/build -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+        env:
+          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build/_deps/googletest-src
+        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
       - name: Build C++ tests
-        run: cmake --build cpp/build --config Release --parallel
+        run: cmake --build cpp/build --parallel
       - name: Run C++ integration tests
-        run: ctest --test-dir cpp/build/tests -C Release -R "Integration" --output-on-failure
+        run: ctest --test-dir cpp/build/tests -R "Integration" --output-on-failure
         env:
           WSLC_RUN_INTEGRATION: "1"

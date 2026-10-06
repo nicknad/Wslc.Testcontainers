@@ -3,7 +3,14 @@ include(FetchContent)
 # Prefer an installed GoogleTest; fall back to fetching the release tarball.
 find_package(GTest QUIET)
 if(NOT GTest_FOUND)
-  message(STATUS "GoogleTest not found; fetching googletest v1.18.0")
+  # CI restores the fetched source from actions/cache and points here via
+  # WSLC_GTEST_SOURCE_DIR; a cache miss leaves it unset and FetchContent downloads.
+  if(EXISTS "$ENV{WSLC_GTEST_SOURCE_DIR}/CMakeLists.txt")
+    set(FETCHCONTENT_SOURCE_DIR_GOOGLETEST "$ENV{WSLC_GTEST_SOURCE_DIR}")
+    message(STATUS "GoogleTest not found; using cached source at $ENV{WSLC_GTEST_SOURCE_DIR}")
+  else()
+    message(STATUS "GoogleTest not found; fetching googletest v1.18.0")
+  endif()
   set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
   set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
   set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)

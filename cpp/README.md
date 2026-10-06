@@ -72,6 +72,36 @@ ctest --test-dir cpp/build -C Release -R "Integration" --output-on-failure
 The build is strict by default: `/W4 /WX /permissive- /utf-8 /EHsc`, plus
 `/external:anglebrackets /external:W0` so SDK/STL headers do not break the build.
 
+### Analysis
+
+The inner loop is the compiler and sanitizer: build with the strict flags, and run debug
+tests with `-DWSLC_ENABLE_SANITIZERS=ON`. clang-tidy is opt-in and runs against a Ninja
+compile database; `cpp/.clangd` points editors at `cpp/build/compile_commands.json` for
+on-open/on-save diagnostics.
+
+```powershell
+# One-time Ninja configure; exports compile_commands.json for editors and clang-tidy
+cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+# Only translation units touched since a revision (fast, pre-commit friendly)
+./cpp/scripts/Run-ClangTidy.ps1 -Changed                 # vs HEAD
+./cpp/scripts/Run-ClangTidy.ps1 -Changed -Base origin/main
+
+# Whole project against the fast baseline in .clang-tidy
+./cpp/scripts/Run-ClangTidy.ps1 -All
+
+# Diff-only pre-commit hook (skipped when cpp/build is not configured)
+./cpp/scripts/Install-GitHooks.ps1
+```
+
+`Run-ClangTidy.ps1` uses LLVM's `run-clang-tidy` (needs Python) for parallel analysis and
+falls back to serial `clang-tidy` without it. Changed headers pull in the sources that
+include them, so header diagnostics are still reported.
+
+CI runs `Run-ClangTidy.ps1 -Changed` on pull requests (zero warnings, `WarningsAsErrors: "*"`),
+and the scheduled `analyze` workflow runs the whole project with `cpp/.clang-tidy-analyzer`,
+which adds the path-sensitive `clang-analyzer-*` family that is too slow for the PR loop.
+
 ## Core API
 
 The C++ port mirrors the C# surface with Microsoft C++ naming (PascalCase methods and types,

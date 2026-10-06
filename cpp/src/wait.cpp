@@ -33,26 +33,6 @@ std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxL
     return std::vector<LogLine>(Logs.end() - static_cast<std::ptrdiff_t>(maxLines), Logs.end());
 }
 
-std::string JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines)
-{
-    std::vector<std::string> selected;
-    for (const auto& line : Logs)
-    {
-        if (line.Source != Source)
-        {
-            continue;
-        }
-
-        selected.push_back(line.Text);
-        if (selected.size() > maxLines)
-        {
-            selected.erase(selected.begin());
-        }
-    }
-
-    return internal::join(selected, "\n");
-}
-
 /// <summary>Requests Stop on a derived Stop source when the Timeout elapses; cancels on destruction.</summary>
 class StopTimer
 {

@@ -11,6 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 
+# Emit compile_commands.json for clangd and cpp/scripts/Run-ClangTidy.ps1 (Ninja only).
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 option(WSLC_BUILD_TESTS "Build the C++ test suite" ON)
 option(WSLC_BUILD_EXAMPLES "Build the C++ examples" ON)
 option(WSLC_ENABLE_CODE_ANALYSIS "Run MSVC static analysis (/analyze) while compiling" OFF)

@@ -31,7 +31,10 @@ bool WindowsVersionAtLeast(ULONG Major, ULONG Minor, ULONG Build)
         return false;
     }
 
-    const auto rtl_get_version = reinterpret_cast<RtlGetVersionFn>(GetProcAddress(ntdll, "RtlGetVersion"));
+    // GetProcAddress returns FARPROC (INT_PTR (*)()) while RtlGetVersion returns LONG, so route
+    // the conversion through void* to keep clang's cast-function-type-mismatch diagnostic quiet.
+    const auto proc = reinterpret_cast<void*>(GetProcAddress(ntdll, "RtlGetVersion"));
+    const auto rtl_get_version = reinterpret_cast<RtlGetVersionFn>(proc);
     if (rtl_get_version == nullptr)
     {
         return false;

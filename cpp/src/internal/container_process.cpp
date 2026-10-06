@@ -9,7 +9,6 @@ namespace wslc::internal
 namespace
 {
 
-constexpr std::chrono::milliseconds c_abortGracePeriod{2000};
 constexpr std::chrono::milliseconds c_defaultGracePeriod{5000};
 constexpr std::chrono::milliseconds c_waitSlice{100};
 

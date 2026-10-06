@@ -1,1 +1,4 @@
 * text=auto
+
+# Git for Windows runs hooks through sh; CRLF would break the shebang line.
+.githooks/* text eol=lf

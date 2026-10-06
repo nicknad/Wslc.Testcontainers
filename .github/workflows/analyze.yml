@@ -1,0 +1,55 @@
+name: analyze
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpp-analyzer:
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v7
+      - name: Ensure clang-format/clang-tidy (LLVM 20.1.8)
+        shell: pwsh
+        run: |
+          $llvmVersion = '20.1.8'
+          $current = ''
+          if (Get-Command clang-tidy -ErrorAction SilentlyContinue) {
+            $current = (clang-tidy --version) -replace '^.*version\s+', ''
+          }
+          if (-not $current.StartsWith($llvmVersion)) {
+            choco install llvm --version=$llvmVersion -y --no-progress --allow-downgrade
+            $env:PATH = "C:\Program Files\LLVM\bin;$env:PATH"
+            "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          clang-tidy --version
+      - name: Cache WSL Containers SDK
+        uses: actions/cache@v6
+        with:
+          path: cpp/.packages
+          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
+      - name: Fetch WSL Containers SDK
+        shell: pwsh
+        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Cache GoogleTest source
+        uses: actions/cache@v6
+        with:
+          path: cpp/build-analyze/_deps/googletest-src
+          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Configure (compile_commands.json)
+        shell: pwsh
+        env:
+          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-analyze/_deps/googletest-src
+        run: |
+          cmake -S cpp -B cpp/build-analyze -G Ninja -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWSLC_BUILD_EXAMPLES=OFF `
+            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+      - name: clang-analyzer (full project; warnings are errors)
+        shell: pwsh
+        run: ./cpp/scripts/Run-ClangTidy.ps1 -All -BuildDir cpp/build-analyze -ConfigFile cpp/.clang-tidy-analyzer

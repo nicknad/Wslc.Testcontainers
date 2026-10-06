@@ -1,0 +1,4 @@
+# clangd reads the Ninja build's compile_commands.json so editors get on-open/on-save
+# analysis without a full-project run. Configure cpp/build once before opening sources.
+CompileFlags:
+  CompilationDatabase: build

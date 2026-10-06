@@ -1,0 +1,17 @@
+#!/bin/sh
+# Diff-only clang-tidy for C++ changes. Enable with: ./cpp/scripts/Install-GitHooks.ps1
+# Skips when the build database or PowerShell is unavailable so commits are never blocked
+# on tooling that was not set up.
+root=$(git rev-parse --show-toplevel) || exit 0
+if [ ! -f "$root/cpp/build/compile_commands.json" ]; then
+  echo "pre-commit: cpp/build/compile_commands.json not found; skipping clang-tidy (see cpp/README.md)." >&2
+  exit 0
+fi
+if command -v pwsh >/dev/null 2>&1; then
+  exec pwsh -NoProfile -File "$root/cpp/scripts/Run-ClangTidy.ps1" -Changed
+fi
+if command -v powershell >/dev/null 2>&1; then
+  exec powershell -NoProfile -ExecutionPolicy Bypass -File "$root/cpp/scripts/Run-ClangTidy.ps1" -Changed
+fi
+echo "pre-commit: PowerShell not found; skipping clang-tidy." >&2
+exit 0

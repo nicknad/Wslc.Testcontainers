@@ -66,21 +66,36 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Cache WSL Containers SDK
+        uses: actions/cache@v6
+        with:
+          path: cpp/.packages
+          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
       - name: Fetch WSL Containers SDK
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Cache GoogleTest source
+        uses: actions/cache@v6
+        with:
+          path: cpp/build/_deps/googletest-src
+          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
+      - uses: ilammy/msvc-dev-cmd@v1
       - name: Configure
         shell: pwsh
-        run: cmake -S cpp -B cpp/build -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+        env:
+          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build/_deps/googletest-src
+        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
       - name: Build
-        run: cmake --build cpp/build --config Release --parallel
+        run: cmake --build cpp/build --parallel
       - name: Unit tests
-        run: ctest --test-dir cpp/build -C Release --output-on-failure
+        run: ctest --test-dir cpp/build -j 4 --output-on-failure
 
   cpp-lint:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Ensure clang-format/clang-tidy (LLVM 20.1.8)
         shell: pwsh
         run: |
@@ -110,35 +125,84 @@ jobs:
             $failed | ForEach-Object { Write-Host "needs formatting: $_" }
             throw 'clang-format check failed'
           }
+      - name: Cache WSL Containers SDK
+        uses: actions/cache@v6
+        with:
+          path: cpp/.packages
+          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
       - name: Fetch WSL Containers SDK
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Cache GoogleTest source
+        uses: actions/cache@v6
+        with:
+          path: cpp/build-tidy/_deps/googletest-src
+          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
       - uses: ilammy/msvc-dev-cmd@v1
-      - name: clang-tidy (warnings are errors)
+      - name: Configure (compile_commands.json)
         shell: pwsh
+        env:
+          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-tidy/_deps/googletest-src
         run: |
           cmake -S cpp -B cpp/build-tidy -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_CLANG_TIDY=ON `
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWSLC_BUILD_EXAMPLES=OFF `
             -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
-          cmake --build cpp/build-tidy --target wslc wslc_postgresql wslc_redis wslc_tests
+      - name: Resolve clang-tidy base revision
+        id: base
+        shell: pwsh
+        run: |
+          $base = ''
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            git fetch --no-tags origin ${{ github.base_ref }}
+            $base = (git merge-base "origin/${{ github.base_ref }}" HEAD).Trim()
+          } elseif ('${{ github.event_name }}' -eq 'push') {
+            $base = '${{ github.event.before }}'
+            if ($base) {
+              git cat-file -e "$base^{commit}" 2>$null
+              if ($LASTEXITCODE -ne 0) { $base = '' }
+            }
+          }
+          "base=$base" >> $env:GITHUB_OUTPUT
+          Write-Host "clang-tidy base: $base"
+      - name: clang-tidy (changed files; warnings are errors)
+        shell: pwsh
+        run: |
+          $base = '${{ steps.base.outputs.base }}'
+          if ($base) {
+            ./cpp/scripts/Run-ClangTidy.ps1 -Changed -Base $base -BuildDir cpp/build-tidy
+          } else {
+            ./cpp/scripts/Run-ClangTidy.ps1 -All -BuildDir cpp/build-tidy
+          }
 
   cpp-asan:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Cache WSL Containers SDK
+        uses: actions/cache@v6
+        with:
+          path: cpp/.packages
+          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
       - name: Fetch WSL Containers SDK
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
+      - name: Cache GoogleTest source
+        uses: actions/cache@v6
+        with:
+          path: cpp/build-asan/_deps/googletest-src
+          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Configure (AddressSanitizer)
         shell: pwsh
+        env:
+          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-asan/_deps/googletest-src
         run: |
-          cmake -S cpp -B cpp/build-asan -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_SANITIZERS=ON `
+          cmake -S cpp -B cpp/build-asan -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_SANITIZERS=ON `
             -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
       - name: Build
-        run: cmake --build cpp/build-asan --config Release --target wslc_tests --parallel
+        run: cmake --build cpp/build-asan --target wslc_tests --parallel
       - name: Unit tests under ASan
-        run: ctest --test-dir cpp/build-asan/tests -C Release --output-on-failure
+        run: ctest --test-dir cpp/build-asan/tests -j 4 --output-on-failure
 
   packages:
     needs: [unit-windows, guard-linux, cpp-windows, cpp-lint, cpp-asan]

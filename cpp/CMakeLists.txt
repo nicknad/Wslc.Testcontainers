@@ -201,6 +201,12 @@ target_include_directories(wslc_rustfs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_rustfs PUBLIC wslc)
 wslc_apply_strict_options(wslc_rustfs)
 
+add_library(wslc_wiremock STATIC modules/wiremock/wiremock.cpp)
+add_library(wslc::wiremock ALIAS wslc_wiremock)
+target_include_directories(wslc_wiremock PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/wiremock/include")
+target_link_libraries(wslc_wiremock PUBLIC wslc)
+wslc_apply_strict_options(wslc_wiremock)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@
     <Project Path="src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.WireMock/Wslc.Testcontainers.Modules.WireMock.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj" />

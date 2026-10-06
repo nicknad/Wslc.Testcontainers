@@ -6,6 +6,7 @@
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
 #include "wslc/modules/postgresql.hpp"
+#include "wslc/modules/valkey.hpp"
 #include "wslc/wslc.hpp"
 
 #include <algorithm>
@@ -466,4 +467,28 @@ TEST(IntegrationModules, PostgreSqlModuleStartsAndServesQueries)
     }
 
     postgres.Dispose();
+}
+
+TEST(IntegrationModules, ValkeyModuleStartsAndAnswersPing)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::ValkeyBuilder builder;
+    auto valkey = builder.Build();
+    try
+    {
+        valkey.Start();
+
+        EXPECT_NE(valkey.GetEndpoint().find("127.0.0.1:"), std::string::npos);
+        const auto result = valkey.Exec("/bin/sh", {"-c", "valkey-cli ping"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("PONG"), std::string::npos);
+    }
+    catch (...)
+    {
+        valkey.Dispose();
+        throw;
+    }
+
+    valkey.Dispose();
 }

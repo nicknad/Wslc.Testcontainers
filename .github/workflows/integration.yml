@@ -33,6 +33,11 @@ jobs:
         run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName~Integration"
         env:
           WSLC_RUN_INTEGRATION: "1"
+      - name: Run module integration tests (real containers)
+        working-directory: csharp
+        run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal
+        env:
+          WSLC_RUN_INTEGRATION: "1"
       - name: Run Postgres module tests (real container)
         working-directory: csharp
         run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal

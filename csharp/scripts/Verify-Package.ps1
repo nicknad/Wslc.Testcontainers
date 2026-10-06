@@ -170,12 +170,16 @@ foreach ($tfm in @('net8.0-windows10.0.19041.0', 'net9.0-windows10.0.19041.0', '
     dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj `
       -c Release -f $tfm --no-build -v minimal -- --filter 'FullyQualifiedName!~Integration'
   }
+  Invoke-Native "module unit ($tfm)" {
+    dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj `
+      -c Release -f $tfm --no-build -v minimal
+  }
 }
 
 # 6. Pack + verify contents
 Step 'Pack'
 New-Item -ItemType Directory -Force artifacts/packages | Out-Null
-foreach ($p in @('src/Wslc.Testcontainers/Wslc.Testcontainers.csproj', 'src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj', 'src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj')) {
+foreach ($p in @('src/Wslc.Testcontainers/Wslc.Testcontainers.csproj', 'src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj', 'src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj', 'src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj')) {
   Invoke-Native "pack ($p)" {
     dotnet pack $p -c Release --no-build -o artifacts/packages /p:Version="$Version" --nologo -v minimal
   }
@@ -212,6 +216,10 @@ if ($RunIntegration) {
     # No --nologo: see the unit test step comment.
     dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj `
       -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter 'FullyQualifiedName~Integration'
+  }
+  Invoke-Native 'module integration' {
+    dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj `
+      -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal
   }
   Invoke-Native 'Postgres module' {
     dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal

@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` |
 
 Behavioral notes:
 
@@ -148,6 +148,7 @@ Typed module builders live in `cpp/modules/`:
 ```cpp
 #include <wslc/modules/postgresql.hpp>
 #include <wslc/modules/redis.hpp>
+#include <wslc/modules/valkey.hpp>
 
 wslc::modules::PostgreSqlBuilder postgresBuilder;
 auto postgres = postgresBuilder.WithPassword("secret").Build();
@@ -158,6 +159,11 @@ wslc::modules::RedisBuilder redisBuilder;
 auto redis = redisBuilder.Build();
 redis.Start();
 const std::string endpoint = redis.GetEndpoint();
+
+wslc::modules::ValkeyBuilder valkeyBuilder;
+auto valkey = valkeyBuilder.Build();
+valkey.Start();
+const std::string valkeyEndpoint = valkey.GetEndpoint();
 ```
 
 ## Configuration

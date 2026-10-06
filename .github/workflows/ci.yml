@@ -34,6 +34,7 @@ jobs:
             10.0.x
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} --no-build -v minimal -- --filter "FullyQualifiedName!~Integration"
+      - run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f ${{ matrix.tfm }} --no-build -v minimal
 
   guard-linux:
     # Proves early, actionable failure off Windows. Only WslPlatformTests run here;
@@ -164,6 +165,10 @@ jobs:
           }
           "base=$base" >> $env:GITHUB_OUTPUT
           Write-Host "clang-tidy base: $base"
+          # A brand-new branch has event.before = 40 zeros; the failed cat-file above
+          # leaves $LASTEXITCODE nonzero, which the actions pwsh wrapper would turn into
+          # a step failure. The recovery is intentional, so claim success explicitly.
+          exit 0
       - name: clang-tidy (changed files; warnings are errors)
         shell: pwsh
         run: |
@@ -222,6 +227,7 @@ jobs:
       - run: dotnet pack src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj -c Release --no-build -o artifacts/packages
       - uses: actions/upload-artifact@v7
         with:
           name: packages

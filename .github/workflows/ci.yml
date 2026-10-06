@@ -165,6 +165,10 @@ jobs:
           }
           "base=$base" >> $env:GITHUB_OUTPUT
           Write-Host "clang-tidy base: $base"
+          # A brand-new branch has event.before = 40 zeros; the failed cat-file above
+          # leaves $LASTEXITCODE nonzero, which the actions pwsh wrapper would turn into
+          # a step failure. The recovery is intentional, so claim success explicitly.
+          exit 0
       - name: clang-tidy (changed files; warnings are errors)
         shell: pwsh
         run: |

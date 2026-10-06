@@ -165,6 +165,12 @@ target_include_directories(wslc_valkey PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_valkey PUBLIC wslc)
 wslc_apply_strict_options(wslc_valkey)
 
+add_library(wslc_mariadb STATIC modules/mariadb/mariadb.cpp)
+add_library(wslc::mariadb ALIAS wslc_mariadb)
+target_include_directories(wslc_mariadb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mariadb/include")
+target_link_libraries(wslc_mariadb PUBLIC wslc)
+wslc_apply_strict_options(wslc_mariadb)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

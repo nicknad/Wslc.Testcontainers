@@ -53,6 +53,7 @@ dotnet add package Wslc.Testcontainers
 dotnet add package Wslc.Testcontainers.Modules.PostgreSql
 dotnet add package Wslc.Testcontainers.Modules.Redis
 dotnet add package Wslc.Testcontainers.Modules.Valkey
+dotnet add package Wslc.Testcontainers.Modules.MariaDb
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -218,6 +219,7 @@ Typed builders live in versioned module packages so tests stay declarative:
 using Wslc.Testcontainers.Modules.PostgreSql;
 using Wslc.Testcontainers.Modules.Redis;
 using Wslc.Testcontainers.Modules.Valkey;
+using Wslc.Testcontainers.Modules.MariaDb;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -230,6 +232,10 @@ var endpoint = redis.GetEndpoint(); // host:port for StackExchange.Redis
 await using var valkey = new ValkeyBuilder().Build();
 await valkey.StartAsync();
 var valkeyEndpoint = valkey.GetEndpoint(); // host:port, same protocol as Redis
+
+await using var mariadb = new MariaDbBuilder().WithPassword("secret").Build();
+await mariadb.StartAsync();
+var mySql = mariadb.GetConnectionString(); // MySqlConnector format
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

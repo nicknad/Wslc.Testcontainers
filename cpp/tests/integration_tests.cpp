@@ -5,6 +5,7 @@
 #include "internal/util.hpp"
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/mariadb.hpp"
 #include "wslc/modules/postgresql.hpp"
 #include "wslc/modules/valkey.hpp"
 #include "wslc/wslc.hpp"
@@ -491,4 +492,29 @@ TEST(IntegrationModules, ValkeyModuleStartsAndAnswersPing)
     }
 
     valkey.Dispose();
+}
+
+TEST(IntegrationModules, MariaDbModuleStartsAndServesQueries)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::MariaDbBuilder builder;
+    auto mariadb = builder.Build();
+    try
+    {
+        mariadb.Start();
+
+        EXPECT_NE(mariadb.GetConnectionString().find("Server=127.0.0.1"), std::string::npos);
+        const auto result = mariadb.Exec(
+            "mariadb", {"-u", "mariadb", "--password=secret", "-D", "customers", "-e", "SELECT 1"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        mariadb.Dispose();
+        throw;
+    }
+
+    mariadb.Dispose();
 }

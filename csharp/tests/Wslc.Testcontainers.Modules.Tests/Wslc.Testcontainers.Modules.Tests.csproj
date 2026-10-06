@@ -18,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Wslc.Testcontainers\Wslc.Testcontainers.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Valkey\Wslc.Testcontainers.Modules.Valkey.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MariaDb\Wslc.Testcontainers.Modules.MariaDb.csproj" />
   </ItemGroup>
 
 </Project>

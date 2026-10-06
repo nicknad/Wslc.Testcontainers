@@ -50,6 +50,8 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `Ready to accept connections`, `GetEndpoint()` as `host:port`.
 - `Wslc.Testcontainers.Modules.Valkey`: TCP 6379 + log
   `Ready to accept connections`, `GetEndpoint()` as `host:port` (Redis-compatible).
+- `Wslc.Testcontainers.Modules.MariaDb`: TCP 3306 + log `ready for connections`,
+  `GetConnectionString()` for MySqlConnector.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

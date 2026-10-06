@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `KeycloakBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `KeycloakBuilder` |
 
 Behavioral notes:
 
@@ -146,6 +146,7 @@ Behavioral notes:
 Typed module builders live in `cpp/modules/`:
 
 ```cpp
+#include <wslc/modules/keycloak.hpp>
 #include <wslc/modules/mailpit.hpp>
 #include <wslc/modules/mariadb.hpp>
 #include <wslc/modules/mongodb.hpp>
@@ -202,6 +203,12 @@ wslc::modules::RustFsBuilder rustFsBuilder;
 auto rustfs = rustFsBuilder.Build();
 rustfs.Start();
 const std::string s3 = rustfs.GetEndpoint();
+
+wslc::modules::KeycloakBuilder keycloakBuilder;
+auto keycloak = keycloakBuilder.Build();
+keycloak.Start();
+const std::string issuer = keycloak.GetEndpoint();
+const std::string keycloakUser = keycloak.AdminUsername();
 ```
 
 ## Configuration

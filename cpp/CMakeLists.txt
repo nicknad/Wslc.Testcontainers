@@ -201,6 +201,12 @@ target_include_directories(wslc_rustfs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_rustfs PUBLIC wslc)
 wslc_apply_strict_options(wslc_rustfs)
 
+add_library(wslc_keycloak STATIC modules/keycloak/keycloak.cpp)
+add_library(wslc::keycloak ALIAS wslc_keycloak)
+target_include_directories(wslc_keycloak PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/keycloak/include")
+target_link_libraries(wslc_keycloak PUBLIC wslc)
+wslc_apply_strict_options(wslc_keycloak)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

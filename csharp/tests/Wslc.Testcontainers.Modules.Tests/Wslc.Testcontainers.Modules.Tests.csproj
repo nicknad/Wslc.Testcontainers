@@ -20,6 +20,10 @@
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Valkey\Wslc.Testcontainers.Modules.Valkey.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MariaDb\Wslc.Testcontainers.Modules.MariaDb.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RabbitMq\Wslc.Testcontainers.Modules.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MongoDb\Wslc.Testcontainers.Modules.MongoDb.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Nats\Wslc.Testcontainers.Modules.Nats.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MailPit\Wslc.Testcontainers.Modules.MailPit.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RustFs\Wslc.Testcontainers.Modules.RustFs.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the Postgres/Redis/Valkey/MariaDB/RabbitMQ modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -65,6 +65,10 @@ dotnet add package Wslc.Testcontainers.Modules.Redis
 dotnet add package Wslc.Testcontainers.Modules.Valkey
 dotnet add package Wslc.Testcontainers.Modules.MariaDb
 dotnet add package Wslc.Testcontainers.Modules.RabbitMq
+dotnet add package Wslc.Testcontainers.Modules.MongoDb
+dotnet add package Wslc.Testcontainers.Modules.Nats
+dotnet add package Wslc.Testcontainers.Modules.MailPit
+dotnet add package Wslc.Testcontainers.Modules.RustFs
 ```
 
 ## Quickstart
@@ -139,6 +143,47 @@ await rabbitmq.StartAsync();
 var amqp = rabbitmq.GetConnectionString(); // amqp://user:pass@host:port/
 ```
 
+MongoDB (driver connection string; root credentials optional):
+
+```csharp
+using Wslc.Testcontainers.Modules.MongoDb;
+
+await using var mongodb = new MongoDbBuilder().Build();
+await mongodb.StartAsync();
+var mongo = mongodb.GetConnectionString(); // mongodb://host:port
+```
+
+NATS (JetStream optional):
+
+```csharp
+using Wslc.Testcontainers.Modules.Nats;
+
+await using var nats = new NatsBuilder().WithJetStream().Build();
+await nats.StartAsync();
+var natsUrl = nats.GetConnectionString(); // nats://host:port
+```
+
+Mailpit (SMTP capture + HTTP UI/API):
+
+```csharp
+using Wslc.Testcontainers.Modules.MailPit;
+
+await using var mailpit = new MailPitBuilder().Build();
+await mailpit.StartAsync();
+var smtp = mailpit.GetSmtpEndpoint();   // host:port
+var mailUi = mailpit.GetHttpEndpoint(); // http://host:port
+```
+
+RustFS (S3-compatible object storage):
+
+```csharp
+using Wslc.Testcontainers.Modules.RustFs;
+
+await using var rustfs = new RustFsBuilder().Build();
+await rustfs.StartAsync();
+var s3 = rustfs.GetEndpoint(); // http://host:port; credentials via AccessKey/SecretKey
+```
+
 ## Core concepts
 
 | Concept | Description |
@@ -147,7 +192,7 @@ var amqp = rabbitmq.GetConnectionString(); // amqp://user:pass@host:port/
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do
@@ -171,7 +216,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | Method | Purpose / notes |
 | --- | --- |
 | `WithImage(image)` / `FromTarball(path, imageName?)` | Mutually exclusive source. |
-| `WithCommand(cmd, params args)` | Init process. WSLC never runs the image's ENTRYPOINT/CMD automatically; the default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules override this with the image entrypoint (e.g. `docker-entrypoint.sh postgres`) — do not override it for modules. |
+| `WithCommand(cmd, params args)` | Init process command. The image ENTRYPOINT is preserved and this becomes its CMD; the default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules set the image's service command (e.g. `mongod`, `nats-server`) — do not override it for modules. |
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve the address and port with `GetConnectEndpoint(containerPort)`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address. |

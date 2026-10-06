@@ -177,6 +177,30 @@ target_include_directories(wslc_rabbitmq PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/mod
 target_link_libraries(wslc_rabbitmq PUBLIC wslc)
 wslc_apply_strict_options(wslc_rabbitmq)
 
+add_library(wslc_mongodb STATIC modules/mongodb/mongodb.cpp)
+add_library(wslc::mongodb ALIAS wslc_mongodb)
+target_include_directories(wslc_mongodb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mongodb/include")
+target_link_libraries(wslc_mongodb PUBLIC wslc)
+wslc_apply_strict_options(wslc_mongodb)
+
+add_library(wslc_nats STATIC modules/nats/nats.cpp)
+add_library(wslc::nats ALIAS wslc_nats)
+target_include_directories(wslc_nats PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/nats/include")
+target_link_libraries(wslc_nats PUBLIC wslc)
+wslc_apply_strict_options(wslc_nats)
+
+add_library(wslc_mailpit STATIC modules/mailpit/mailpit.cpp)
+add_library(wslc::mailpit ALIAS wslc_mailpit)
+target_include_directories(wslc_mailpit PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mailpit/include")
+target_link_libraries(wslc_mailpit PUBLIC wslc)
+wslc_apply_strict_options(wslc_mailpit)
+
+add_library(wslc_rustfs STATIC modules/rustfs/rustfs.cpp)
+add_library(wslc::rustfs ALIAS wslc_rustfs)
+target_include_directories(wslc_rustfs PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/rustfs/include")
+target_link_libraries(wslc_rustfs PUBLIC wslc)
+wslc_apply_strict_options(wslc_rustfs)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

@@ -94,9 +94,15 @@ protected:
 
     /// <summary>
     /// How many times the ready message must appear before the module is considered ready.
-    /// Modules whose entrypoint starts a temporary server (Postgres) override this.
+    /// Modules whose entrypoint starts a temporary server (Postgres, MariaDB, MongoDB with
+    /// credentials) override this. Return 0 for services without a stable readiness log line;
+    /// such modules add their own wait (e.g. HTTP) in <c>Configure</c>.
     /// </summary>
     virtual int ReadyMessageOccurrences() const { return 1; }
+
+    /// <summary>Per-wait readiness timeout configured by <c>WithWaitTimeout</c>, for module waits added in
+    /// <c>Configure</c>.</summary>
+    std::chrono::milliseconds WaitTimeout() const { return m_timeout; }
 
     /// <summary>Builds the core container with the module readiness waits applied.</summary>
     WslContainer BuildContainer()
@@ -106,9 +112,13 @@ protected:
         builder.WithImage(m_image)
             .WithPort(m_port)
             .WithWaitStrategy(ForWsl().WithTimeout(m_timeout).UntilTcpPortIsOpen(m_port))
-            .WithWaitStrategy(
-                ForWsl().WithTimeout(m_timeout).UntilMessageIsLogged(m_readyMessage, ReadyMessageOccurrences()))
             .WithReadinessTimeout(ComputeStartupTimeout(m_timeout));
+        if (ReadyMessageOccurrences() > 0)
+        {
+            builder.WithWaitStrategy(
+                ForWsl().WithTimeout(m_timeout).UntilMessageIsLogged(m_readyMessage, ReadyMessageOccurrences()));
+        }
+
         Configure(builder);
         for (auto& customizer : m_customizers)
         {

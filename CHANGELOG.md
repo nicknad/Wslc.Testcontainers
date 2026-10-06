@@ -4,8 +4,19 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ## Unreleased
 
-Planned 0.3.0 scope: MongoDB, MinIO, NATS, and MailPit modules alongside the existing
-PostgreSql/Redis/Valkey/MariaDb/RabbitMq presets, mirrored in C++.
+### Added
+
+- Four more service modules alongside the existing presets, mirrored in C++:
+  - `Modules.MongoDb` (C#) / `wslc_mongodb` (C++): MongoDB 8 (port 27017, optional root credentials, driver connection string).
+  - `Modules.Nats` (C#) / `wslc_nats` (C++): NATS 2 (port 4222, optional JetStream and credentials, `nats://` URL).
+  - `Modules.MailPit` (C#) / `wslc_mailpit` (C++): Mailpit v1.31 (SMTP 1025 + HTTP 8025, `/livez` readiness, `GetSmtpEndpoint()` / `GetHttpEndpoint()`).
+  - `Modules.RustFs` (C#) / `wslc_rustfs` (C++): RustFS 1.0.1 S3-compatible object storage (API 9000 + console 9001, `/health` readiness, `AccessKey`/`SecretKey`).
+- Module base: `ReadyMessageOccurrences` may return 0 to skip the log-message wait for services without a stable readiness log line; `WaitTimeout` is available to `Configure` for module-added waits (used by the Mailpit/RustFS HTTP readiness checks).
+- The module test suite runs sequentially (`Parallelization(Mode = None)`): parallel WSL sessions exhausted the runtime.
+
+### Changed
+
+- Modules now pass the image's service command as the configured command (e.g. `mongod`, `nats-server`) rather than repeating the image entrypoint path; the runtime preserves the image ENTRYPOINT and treats the configured command as its CMD.
 
 ## 0.2.0
 

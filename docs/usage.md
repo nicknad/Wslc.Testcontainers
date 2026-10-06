@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the Postgres/Redis modules, and the xUnit patterns
+It covers the core container, the Postgres/Redis/Valkey/MariaDB/RabbitMQ modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -62,6 +62,9 @@ Install the packages you need:
 dotnet add package Wslc.Testcontainers
 dotnet add package Wslc.Testcontainers.Modules.PostgreSql
 dotnet add package Wslc.Testcontainers.Modules.Redis
+dotnet add package Wslc.Testcontainers.Modules.Valkey
+dotnet add package Wslc.Testcontainers.Modules.MariaDb
+dotnet add package Wslc.Testcontainers.Modules.RabbitMq
 ```
 
 ## Quickstart
@@ -106,6 +109,36 @@ await redis.StartAsync();
 var endpoint = redis.GetEndpoint(); // host:port for StackExchange.Redis
 ```
 
+Valkey (Redis-compatible protocol):
+
+```csharp
+using Wslc.Testcontainers.Modules.Valkey;
+
+await using var valkey = new ValkeyBuilder().Build();
+await valkey.StartAsync();
+var endpoint = valkey.GetEndpoint(); // host:port, same protocol as Redis
+```
+
+MariaDB (MySqlConnector connection string):
+
+```csharp
+using Wslc.Testcontainers.Modules.MariaDb;
+
+await using var mariadb = new MariaDbBuilder().WithPassword("secret").Build();
+await mariadb.StartAsync();
+var mySql = mariadb.GetConnectionString(); // Server=127.0.0.1;Port=<dynamic>;...
+```
+
+RabbitMQ (AMQP 0-9-1 connection URI):
+
+```csharp
+using Wslc.Testcontainers.Modules.RabbitMq;
+
+await using var rabbitmq = new RabbitMqBuilder().Build();
+await rabbitmq.StartAsync();
+var amqp = rabbitmq.GetConnectionString(); // amqp://user:pass@host:port/
+```
+
 ## Core concepts
 
 | Concept | Description |
@@ -114,7 +147,7 @@ var endpoint = redis.GetEndpoint(); // host:port for StackExchange.Redis
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

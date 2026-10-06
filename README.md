@@ -10,8 +10,8 @@ layout:
 
 | Implementation | Folder | Guide | Artifacts |
 | --- | --- | --- | --- |
-| C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`) |
-| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis` |
+| C# / .NET 8/9/10 | [`csharp/`](csharp/) | [`csharp/README.md`](csharp/README.md) | NuGet: `Wslc.Testcontainers` (+ `Modules.PostgreSql`, `Modules.Redis`, `Modules.Valkey`, `Modules.MariaDb`, `Modules.RabbitMq`) |
+| C++23 (native `wslcsdk`) | [`cpp/`](cpp/) | [`cpp/README.md`](cpp/README.md) | CMake static libraries `wslc`, `wslc_postgresql`, `wslc_redis`, `wslc_valkey`, `wslc_mariadb`, `wslc_rabbitmq` |
 
 ```csharp
 using Wslc.Testcontainers.Modules.PostgreSql;
@@ -81,6 +81,9 @@ ctest --test-dir cpp/build -C Release --output-on-failure
 
 Real-runtime tests (pull public images) run with `WSLC_RUN_INTEGRATION=1` in both languages.
 See the per-language READMEs for details.
+
+Development happens on `development`; `main` only accepts pull requests from `development`.
+See [`docs/branching.md`](docs/branching.md) for the branch protection and release flow.
 
 ## License
 

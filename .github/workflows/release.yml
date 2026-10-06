@@ -66,6 +66,7 @@ jobs:
             9.0.x
             10.0.x
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} -v minimal -- --filter "FullyQualifiedName!~Integration"
+      - run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f ${{ matrix.tfm }} -v minimal
 
   cpp-unit:
     needs: resolve-version
@@ -139,6 +140,9 @@ jobs:
           dotnet pack src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           Get-ChildItem artifacts/packages
       - name: Install smoke test (local feed, outside repo)
         shell: pwsh
@@ -184,4 +188,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = '${{ github.ref_type }}' -eq 'tag' ? '${{ github.ref_name }}' : "v$env:VERSION"
-          gh release create "$tag" --title "$tag" --notes "NuGet: Wslc.Testcontainers $env:VERSION (+ PostgreSql/Redis modules); C++ port in cpp/. See CHANGELOG.md." artifacts/packages/*.nupkg artifacts/packages/*.snupkg --latest=false
+          gh release create "$tag" --title "$tag" --notes "NuGet: Wslc.Testcontainers $env:VERSION (+ service modules); C++ port in cpp/. See CHANGELOG.md." artifacts/packages/*.nupkg artifacts/packages/*.snupkg --latest=false

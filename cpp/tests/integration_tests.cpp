@@ -5,7 +5,10 @@
 #include "internal/util.hpp"
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/mariadb.hpp"
 #include "wslc/modules/postgresql.hpp"
+#include "wslc/modules/rabbitmq.hpp"
+#include "wslc/modules/valkey.hpp"
 #include "wslc/wslc.hpp"
 
 #include <algorithm>
@@ -466,4 +469,76 @@ TEST(IntegrationModules, PostgreSqlModuleStartsAndServesQueries)
     }
 
     postgres.Dispose();
+}
+
+TEST(IntegrationModules, ValkeyModuleStartsAndAnswersPing)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::ValkeyBuilder builder;
+    auto valkey = builder.Build();
+    try
+    {
+        valkey.Start();
+
+        EXPECT_NE(valkey.GetEndpoint().find("127.0.0.1:"), std::string::npos);
+        const auto result = valkey.Exec("/bin/sh", {"-c", "valkey-cli ping"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("PONG"), std::string::npos);
+    }
+    catch (...)
+    {
+        valkey.Dispose();
+        throw;
+    }
+
+    valkey.Dispose();
+}
+
+TEST(IntegrationModules, MariaDbModuleStartsAndServesQueries)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::MariaDbBuilder builder;
+    auto mariadb = builder.Build();
+    try
+    {
+        mariadb.Start();
+
+        EXPECT_NE(mariadb.GetConnectionString().find("Server=127.0.0.1"), std::string::npos);
+        const auto result =
+            mariadb.Exec("mariadb", {"-u", "mariadb", "--password=secret", "-D", "customers", "-e", "SELECT 1"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        mariadb.Dispose();
+        throw;
+    }
+
+    mariadb.Dispose();
+}
+
+TEST(IntegrationModules, RabbitMqModuleStartsAndAnswersPing)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::RabbitMqBuilder builder;
+    auto rabbitmq = builder.Build();
+    try
+    {
+        rabbitmq.Start();
+
+        EXPECT_NE(rabbitmq.GetConnectionString().find("amqp://rabbit:secret@127.0.0.1:"), std::string::npos);
+        const auto result = rabbitmq.Exec("rabbitmq-diagnostics", {"-q", "ping"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        rabbitmq.Dispose();
+        throw;
+    }
+
+    rabbitmq.Dispose();
 }

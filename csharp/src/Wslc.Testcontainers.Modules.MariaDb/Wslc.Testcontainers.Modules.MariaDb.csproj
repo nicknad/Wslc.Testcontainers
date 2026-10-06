@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <WindowsSdkPackageVersion>10.0.26100.80</WindowsSdkPackageVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>Wslc.Testcontainers.Modules.MariaDb</RootNamespace>
+    <AssemblyName>Wslc.Testcontainers.Modules.MariaDb</AssemblyName>
+    <PackageId>Wslc.Testcontainers.Modules.MariaDb</PackageId>
+    <Description>MariaDB module for Wslc.Testcontainers: typed builder and connection string.</Description>
+    <PackageTags>wsl;containers;testing;integration-testing;testcontainers;windows;mariadb;mysql</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wslc.Testcontainers\Wslc.Testcontainers.csproj" />
+  </ItemGroup>
+
+</Project>

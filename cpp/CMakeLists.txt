@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Wslc.Testcontainers.Cpp VERSION 0.1.0 LANGUAGES CXX)
+project(Wslc.Testcontainers.Cpp VERSION 0.2.0 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")
@@ -158,6 +158,24 @@ add_library(wslc::redis ALIAS wslc_redis)
 target_include_directories(wslc_redis PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/redis/include")
 target_link_libraries(wslc_redis PUBLIC wslc)
 wslc_apply_strict_options(wslc_redis)
+
+add_library(wslc_valkey STATIC modules/valkey/valkey.cpp)
+add_library(wslc::valkey ALIAS wslc_valkey)
+target_include_directories(wslc_valkey PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/valkey/include")
+target_link_libraries(wslc_valkey PUBLIC wslc)
+wslc_apply_strict_options(wslc_valkey)
+
+add_library(wslc_mariadb STATIC modules/mariadb/mariadb.cpp)
+add_library(wslc::mariadb ALIAS wslc_mariadb)
+target_include_directories(wslc_mariadb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mariadb/include")
+target_link_libraries(wslc_mariadb PUBLIC wslc)
+wslc_apply_strict_options(wslc_mariadb)
+
+add_library(wslc_rabbitmq STATIC modules/rabbitmq/rabbitmq.cpp)
+add_library(wslc::rabbitmq ALIAS wslc_rabbitmq)
+target_include_directories(wslc_rabbitmq PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/rabbitmq/include")
+target_link_libraries(wslc_rabbitmq PUBLIC wslc)
+wslc_apply_strict_options(wslc_rabbitmq)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

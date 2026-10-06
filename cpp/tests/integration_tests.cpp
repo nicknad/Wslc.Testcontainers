@@ -505,8 +505,8 @@ TEST(IntegrationModules, MariaDbModuleStartsAndServesQueries)
         mariadb.Start();
 
         EXPECT_NE(mariadb.GetConnectionString().find("Server=127.0.0.1"), std::string::npos);
-        const auto result = mariadb.Exec(
-            "mariadb", {"-u", "mariadb", "--password=secret", "-D", "customers", "-e", "SELECT 1"});
+        const auto result =
+            mariadb.Exec("mariadb", {"-u", "mariadb", "--password=secret", "-D", "customers", "-e", "SELECT 1"});
         EXPECT_EQ(result.ExitCode, 0);
         EXPECT_NE(result.Stdout.find('1'), std::string::npos);
     }

@@ -1,0 +1,27 @@
+name: main-source-guard
+
+# GitHub has no native rule for the *source* branch of a pull request, so this
+# workflow is the enforcement point: the `main-protection` ruleset requires the
+# `guard-source-branch` status check, which only passes for `development`.
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  guard-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require development as the PR source branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD_REF" != "development" ]; then
+            echo "::error::Only pull requests from 'development' may target main (got '$HEAD_REF'). Land changes on development first, then open development -> main."
+            exit 1
+          fi
+          echo "ok: source branch is development"

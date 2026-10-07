@@ -15,11 +15,11 @@ public sealed class ProcessRegistryTests
         registry.Add(exited);
         registry.Add(live);
 
-        Assert.Equal(new IWslProcess[] { live }, registry.Snapshot());
+        Assert.Equal(new IWslProcess[] { live }, registry.TakeAll());
     }
 
     [Fact]
-    public void Removing_a_process_takes_it_out_of_the_snapshot()
+    public void Removing_a_process_takes_it_out_of_the_registry()
     {
         var registry = new ProcessRegistry();
         var process = new FakeProcess();
@@ -27,20 +27,7 @@ public sealed class ProcessRegistryTests
 
         registry.Remove(process);
 
-        Assert.Empty(registry.Snapshot());
-    }
-
-    [Fact]
-    public void Snapshot_is_a_copy()
-    {
-        var registry = new ProcessRegistry();
-        registry.Add(new FakeProcess());
-
-        var snapshot = registry.Snapshot();
-        _ = registry.TakeAll();
-
-        Assert.Single(snapshot);
-        Assert.Empty(registry.Snapshot());
+        Assert.Empty(registry.TakeAll());
     }
 
     [Fact]
@@ -53,7 +40,7 @@ public sealed class ProcessRegistryTests
         registry.Add(faulty);
         registry.Add(live);
 
-        Assert.Equal(new IWslProcess[] { live }, registry.Snapshot());
+        Assert.Equal(new IWslProcess[] { live }, registry.TakeAll());
     }
 
     [Fact]
@@ -68,7 +55,7 @@ public sealed class ProcessRegistryTests
         registry.Add(second);
 
         Assert.Equal(new IWslProcess[] { first, second }, registry.TakeAll());
-        Assert.Empty(registry.Snapshot());
+        Assert.Empty(registry.TakeAll());
 
         registry.Add(exited);
         Assert.Empty(registry.TakeAll());
@@ -87,7 +74,7 @@ public sealed class ProcessRegistryTests
         registry.Add(second);
 
         Assert.Equal(new IWslProcess[] { second }, registry.TakeAll());
-        Assert.Empty(registry.Snapshot());
+        Assert.Empty(registry.TakeAll());
     }
 
     [Fact]

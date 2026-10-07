@@ -7,5 +7,4 @@ Wslc.Testcontainers.Modules.Nats.NatsBuilder.WithJetStream(bool enabled = true) 
 Wslc.Testcontainers.Modules.Nats.NatsBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.Nats.NatsBuilder!
 Wslc.Testcontainers.Modules.Nats.NatsBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.Nats.NatsBuilder!
 Wslc.Testcontainers.Modules.Nats.NatsContainer
-override Wslc.Testcontainers.Modules.Nats.NatsContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.Nats.NatsContainer.GetConnectionString() -> string!

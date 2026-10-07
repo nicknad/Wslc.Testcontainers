@@ -5,6 +5,5 @@ Wslc.Testcontainers.Modules.Vault.VaultBuilder.Build() -> Wslc.Testcontainers.Mo
 Wslc.Testcontainers.Modules.Vault.VaultBuilder.VaultBuilder() -> void
 Wslc.Testcontainers.Modules.Vault.VaultBuilder.WithRootToken(string! rootToken) -> Wslc.Testcontainers.Modules.Vault.VaultBuilder!
 Wslc.Testcontainers.Modules.Vault.VaultContainer
-override Wslc.Testcontainers.Modules.Vault.VaultContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.Vault.VaultContainer.GetAddress() -> string!
 Wslc.Testcontainers.Modules.Vault.VaultContainer.RootToken.get -> string!

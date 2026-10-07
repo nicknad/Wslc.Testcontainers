@@ -33,7 +33,4 @@ public sealed class ClickHouseContainer : WslModuleContainer
         var endpoint = GetConnectEndpoint(HttpPort);
         return $"Host={endpoint.Address};Port={endpoint.Port};Username={_username};Password={_password};Database={_database}";
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

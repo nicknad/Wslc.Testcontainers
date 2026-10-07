@@ -143,6 +143,7 @@ public sealed class WslInstanceStoreTests : IDisposable
 
         var instanceDirectory = _store.GetInstanceDirectory(metadata.InstanceId);
         Assert.Empty(Directory.EnumerateFiles(instanceDirectory, "*.tmp"));
+        Assert.Empty(Directory.EnumerateFiles(instanceDirectory, "*.wslc-tmp"));
     }
 
     private static bool CreateDirectoryJunction(string link, string target)

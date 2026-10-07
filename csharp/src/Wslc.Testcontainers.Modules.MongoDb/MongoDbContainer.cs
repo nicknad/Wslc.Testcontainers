@@ -36,7 +36,4 @@ public sealed class MongoDbContainer : WslModuleContainer
         var password = Uri.EscapeDataString(_password!);
         return $"mongodb://{user}:{password}@{endpoint.Address}:{endpoint.Port}/?authSource=admin";
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

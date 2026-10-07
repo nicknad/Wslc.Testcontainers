@@ -15,12 +15,5 @@ public sealed class ElasticsearchContainer : WslModuleContainer
     }
 
     /// <summary>Renders the HTTP endpoint (e.g. <c>http://127.0.0.1:49153</c>) for a client or REST call.</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
+    public string GetEndpoint() => FormatHttpEndpoint(GetConnectEndpoint(DefaultPort));
 }

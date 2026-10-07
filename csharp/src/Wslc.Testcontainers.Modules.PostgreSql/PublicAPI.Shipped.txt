@@ -7,5 +7,4 @@ Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.WithDatabase(string! da
 Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder!
 Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlBuilder!
 Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer
-override Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.PostgreSql.PostgreSqlContainer.GetConnectionString() -> string!

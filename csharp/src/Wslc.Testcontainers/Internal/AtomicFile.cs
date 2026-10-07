@@ -36,6 +36,26 @@ internal static class AtomicFile
     public static void Commit(string tempPath, string destinationPath) =>
         File.Move(tempPath, destinationPath, overwrite: true);
 
+    /// <summary>
+    /// Writes text through the same temp-plus-rename sequence as a copy commit, so a crash
+    /// mid-write cannot leave truncated content behind. The per-call temp name (the destination
+    /// file name plus a GUID) keeps concurrent writers from clobbering each other's temp file;
+    /// it is removed whether or not the rename succeeded.
+    /// </summary>
+    public static void WriteAllText(string path, string content)
+    {
+        var tempPath = CreateTempPath(path);
+        try
+        {
+            File.WriteAllText(tempPath, content);
+            Commit(tempPath, path);
+        }
+        finally
+        {
+            Discard(tempPath);
+        }
+    }
+
     /// <summary>Best-effort removal of an abandoned temp file.</summary>
     public static void Discard(string tempPath)
     {

@@ -19,7 +19,7 @@ frozen by the `Verify-Package.ps1` promotion gate until the first release promot
 |----|-------|--------|-------|
 | M2 | Argument vs runtime exception taxonomy; platform exception nesting | UNVERIFIED | Confirm which failures should be `Argument*` vs `WslException`, and whether the C++ platform exception should nest the original error like C#. |
 | M8 | TimeSpan/ms, dict/map, Version parity | PARTIAL | `Inner` removed; remaining: verify C# `TimeSpan`/`IReadOnlyDictionary`/`System.Version` behavior matches C++ `chrono::milliseconds`/`std::map`/`WslVersion` (goldens cover config hashes only). |
-| M9 | Reversible builders; `RequireNetwork` | PARTIAL | `SuppressFinalize` resolved via the abstract `DisposeAsync` + `DisposeInnerAsync` shape; reversible builders and the `RequireNetwork` concept remain unverified. |
+| M9 | Reversible builders; `RequireNetwork` | PARTIAL | `SuppressFinalize` resolved via the virtual base `DisposeAsync` that suppresses finalization and disposes the inner container; reversible builders and the `RequireNetwork` concept remain unverified. |
 | M12 | Split god classes (1043/1406 lines) | UNVERIFIED | `WslContainer.cs` / `wsl_container.cpp` are still monolithic; decide whether to split before 1.0. |
 | M14 | Catch audit; re-enable clang-tidy checks | UNVERIFIED | Review broad catches (`Ignore()`/`Debug`) and whether any disabled clang-tidy checks can return. |
 | M15 | Module constants; Doxygen casing; `reserve`; WSLC_ env validation | UNVERIFIED | Module constant extraction, XML/doc param casing, container `reserve` calls, and validation of `WSLC_*` values. |

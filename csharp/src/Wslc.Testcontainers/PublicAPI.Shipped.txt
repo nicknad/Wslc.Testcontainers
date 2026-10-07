@@ -161,8 +161,7 @@ Wslc.Testcontainers.WslModuleBuilder<TBuilder>.WslModuleBuilder(string! defaultI
 Wslc.Testcontainers.WslModuleContainer
 Wslc.Testcontainers.WslModuleContainer.CopyFromAsync(string! containerPath, string! hostPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
 Wslc.Testcontainers.WslModuleContainer.CopyToAsync(string! hostPath, string! containerPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
-abstract Wslc.Testcontainers.WslModuleContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
-Wslc.Testcontainers.WslModuleContainer.DisposeInnerAsync() -> System.Threading.Tasks.ValueTask
+virtual Wslc.Testcontainers.WslModuleContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.WslModuleContainer.Image.get -> string?
 Wslc.Testcontainers.WslModuleContainer.IsStarted.get -> bool
 Wslc.Testcontainers.WslModuleContainer.IsReuseEffective.get -> bool

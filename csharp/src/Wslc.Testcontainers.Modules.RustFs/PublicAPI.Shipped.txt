@@ -8,6 +8,5 @@ Wslc.Testcontainers.Modules.RustFs.RustFsBuilder.WithAccessKey(string! accessKey
 Wslc.Testcontainers.Modules.RustFs.RustFsBuilder.WithSecretKey(string! secretKey) -> Wslc.Testcontainers.Modules.RustFs.RustFsBuilder!
 Wslc.Testcontainers.Modules.RustFs.RustFsContainer
 Wslc.Testcontainers.Modules.RustFs.RustFsContainer.AccessKey.get -> string!
-override Wslc.Testcontainers.Modules.RustFs.RustFsContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.RustFs.RustFsContainer.GetEndpoint() -> string!
 Wslc.Testcontainers.Modules.RustFs.RustFsContainer.SecretKey.get -> string!

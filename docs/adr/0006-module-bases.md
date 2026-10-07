@@ -15,8 +15,9 @@ contract, and a third module would copy the pattern again.
   implements `IWslContainer` (module containers are substitutable) and forwards
   every lifecycle/exec/copy/log member. It deliberately does not expose the
   wrapped container (`Inner`): module containers implement the full interface,
-  so callers do not need an escape hatch. Sealed modules override the abstract
-  `DisposeAsync` with the protected `DisposeInnerAsync` helper.
+  so callers do not need an escape hatch. Disposal is a virtual base method
+  that suppresses finalization (CA1816) and disposes the wrapped container;
+  modules override it only when they own extra resources.
 - `WslModuleBuilder<TBuilder>` is the public fluent base. It owns the default
   image, exposed port, readiness waits and startup timeout, and calls the
   `Configure(WslContainerBuilder)` hook for module-specific settings.
@@ -34,5 +35,6 @@ contract, and a third module would copy the pattern again.
   stays consistent.
 - The public API grows by two base types, so the `PublicAPI.Unshipped.txt`
   files list them until the first release.
-- Derived module containers are expected to be `sealed` so their disposal
-  override needs no finalizer-suppression pattern (CA1816).
+- Derived module containers are expected to be `sealed`; the base
+  `DisposeAsync` suppresses finalization on behalf of derived types (CA1816),
+  so derived disposal overrides do not repeat that pattern.

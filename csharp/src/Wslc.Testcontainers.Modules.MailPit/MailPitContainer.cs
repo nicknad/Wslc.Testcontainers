@@ -25,12 +25,5 @@ public sealed class MailPitContainer : WslModuleContainer
     }
 
     /// <summary>Renders the Mailpit HTTP UI/API base URL (e.g. <c>http://127.0.0.1:49153</c>).</summary>
-    public string GetHttpEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(HttpPort);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
+    public string GetHttpEndpoint() => FormatHttpEndpoint(GetConnectEndpoint(HttpPort));
 }

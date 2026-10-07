@@ -20,7 +20,4 @@ public sealed class ValkeyContainer : WslModuleContainer
         var endpoint = GetConnectEndpoint(DefaultPort);
         return $"{endpoint.Address}:{endpoint.Port}";
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

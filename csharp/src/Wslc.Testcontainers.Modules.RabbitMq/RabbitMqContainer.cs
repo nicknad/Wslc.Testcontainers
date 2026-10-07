@@ -30,7 +30,4 @@ public sealed class RabbitMqContainer : WslModuleContainer
         var password = Uri.EscapeDataString(_password);
         return $"amqp://{user}:{password}@{endpoint.Address}:{endpoint.Port}/";
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

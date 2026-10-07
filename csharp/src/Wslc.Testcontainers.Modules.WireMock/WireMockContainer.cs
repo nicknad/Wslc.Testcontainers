@@ -15,12 +15,5 @@ public sealed class WireMockContainer : WslModuleContainer
     }
 
     /// <summary>Renders the WireMock HTTP base URL (e.g. <c>http://127.0.0.1:49153</c>).</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
+    public string GetEndpoint() => FormatHttpEndpoint(GetConnectEndpoint(DefaultPort));
 }

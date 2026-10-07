@@ -672,6 +672,8 @@ TEST(IntegrationModules, WireMockModuleStartsAndAnswersHealth)
     }
 
     wiremock.Dispose();
+}
+
 TEST(IntegrationModules, QdrantModuleStartsAndAnswersReady)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
@@ -697,6 +699,8 @@ TEST(IntegrationModules, QdrantModuleStartsAndAnswersReady)
     }
 
     qdrant.Dispose();
+}
+
 TEST(IntegrationModules, ClickHouseModuleStartsAndServesQuery)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
@@ -719,6 +723,8 @@ TEST(IntegrationModules, ClickHouseModuleStartsAndServesQuery)
     }
 
     clickhouse.Dispose();
+}
+
 TEST(IntegrationModules, VaultModuleStartsAndWritesASecret)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
@@ -733,6 +739,17 @@ TEST(IntegrationModules, VaultModuleStartsAndWritesASecret)
         EXPECT_EQ(vault.RootToken(), "root");
         const auto result = vault.Exec(
             "/bin/sh", {"-c", "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root vault kv put secret/wslc value=1"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        vault.Dispose();
+        throw;
+    }
+
+    vault.Dispose();
+}
+
 TEST(IntegrationModules, KeycloakModuleStartsAndServesMasterRealm)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
@@ -750,6 +767,17 @@ TEST(IntegrationModules, KeycloakModuleStartsAndServesMasterRealm)
         const auto result =
             keycloak.Exec("/bin/sh", {"-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/master "
                                             "HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q master <&3"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        keycloak.Dispose();
+        throw;
+    }
+
+    keycloak.Dispose();
+}
+
 TEST(IntegrationModules, ElasticsearchModuleStartsAndAnswersHealth)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
@@ -766,16 +794,6 @@ TEST(IntegrationModules, ElasticsearchModuleStartsAndAnswersHealth)
     }
     catch (...)
     {
-        vault.Dispose();
-        throw;
-    }
-
-    vault.Dispose();
-        keycloak.Dispose();
-        throw;
-    }
-
-    keycloak.Dispose();
         elasticsearch.Dispose();
         throw;
     }

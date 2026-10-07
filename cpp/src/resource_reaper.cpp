@@ -6,6 +6,8 @@
 
 #include <windows.h>
 
+#include <wil/resource.h>
+
 namespace wslc::internal
 {
 
@@ -66,9 +68,9 @@ bool IsOwnerAlive(int process_id)
         return false;
     }
 
-    HANDLE process =
-        OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(process_id));
-    if (process == nullptr)
+    wil::unique_handle process(
+        OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(process_id)));
+    if (!process)
     {
         const DWORD error = GetLastError();
         // Access denied querying another user's process: assume alive to avoid deleting live storage.
@@ -76,9 +78,7 @@ bool IsOwnerAlive(int process_id)
     }
 
     DWORD ExitCode = 0;
-    const bool alive = GetExitCodeProcess(process, &ExitCode) != 0 && ExitCode == STILL_ACTIVE;
-    CloseHandle(process);
-    return alive;
+    return GetExitCodeProcess(process.get(), &ExitCode) != 0 && ExitCode == STILL_ACTIVE;
 }
 
 bool IsOwnerAlive(const InstanceMetadata& metadata)
@@ -88,18 +88,17 @@ bool IsOwnerAlive(const InstanceMetadata& metadata)
         return false;
     }
 
-    HANDLE process = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
-                                 static_cast<DWORD>(metadata.OwnerProcessId));
-    if (process == nullptr)
+    wil::unique_handle process(OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                           static_cast<DWORD>(metadata.OwnerProcessId)));
+    if (!process)
     {
         const DWORD error = GetLastError();
         return error == ERROR_ACCESS_DENIED;
     }
 
     DWORD ExitCode = 0;
-    if (GetExitCodeProcess(process, &ExitCode) == 0 || ExitCode != STILL_ACTIVE)
+    if (GetExitCodeProcess(process.get(), &ExitCode) == 0 || ExitCode != STILL_ACTIVE)
     {
-        CloseHandle(process);
         return false;
     }
 
@@ -112,7 +111,7 @@ bool IsOwnerAlive(const InstanceMetadata& metadata)
     FILETIME kernel{};
     FILETIME user{};
     bool alive = true;
-    if (metadata.CreatedAt && GetProcessTimes(process, &creation, &exit, &kernel, &user) != 0)
+    if (metadata.CreatedAt && GetProcessTimes(process.get(), &creation, &exit, &kernel, &user) != 0)
     {
         const auto started = FileTimeToTimePoint(creation);
         if (started > *metadata.CreatedAt + std::chrono::minutes(1))
@@ -121,7 +120,6 @@ bool IsOwnerAlive(const InstanceMetadata& metadata)
         }
     }
 
-    CloseHandle(process);
     return alive;
 }
 
@@ -133,9 +131,9 @@ bool IsReuseInstanceInUse(const std::filesystem::path& instanceDirectory)
         return false;
     }
 
-    const HANDLE Handle = CreateFileW(lockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING,
-                                      FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (Handle == INVALID_HANDLE_VALUE)
+    const wil::unique_hfile Handle(CreateFileW(lockPath.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr,
+                                               OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    if (!Handle)
     {
         const DWORD error = GetLastError();
         // A missing file means the lock was released; anything else (sharing violation, ACL)
@@ -143,7 +141,6 @@ bool IsReuseInstanceInUse(const std::filesystem::path& instanceDirectory)
         return error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND;
     }
 
-    CloseHandle(Handle);
     return false;
 }
 

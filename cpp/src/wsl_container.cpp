@@ -19,6 +19,8 @@
 
 #include <windows.h>
 
+#include <wil/resource.h>
+
 #include <atomic>
 #include <condition_variable>
 #include <format>
@@ -165,7 +167,7 @@ struct WslContainer::Impl
     std::shared_ptr<internal::PortMapping> network;
     std::shared_ptr<internal::ContainerProcessState> main_process;
     std::optional<internal::InstanceMetadata> metadata;
-    HANDLE reuse_lock = INVALID_HANDLE_VALUE;
+    wil::unique_hfile reuse_lock;
     internal::ProcessRegistry processes;
 
     // WslcStartContainer with ATTACH streams the init process IO and blocks until that process
@@ -841,7 +843,7 @@ void WslContainer::Impl::AcquireReuseLock(std::stop_token token)
                                           FILE_ATTRIBUTE_NORMAL, nullptr);
         if (Handle != INVALID_HANDLE_VALUE)
         {
-            reuse_lock = Handle;
+            reuse_lock.reset(Handle);
             return;
         }
 
@@ -857,11 +859,7 @@ void WslContainer::Impl::AcquireReuseLock(std::stop_token token)
 
 void WslContainer::Impl::ReleaseReuseLock()
 {
-    if (reuse_lock != INVALID_HANDLE_VALUE)
-    {
-        CloseHandle(reuse_lock);
-        reuse_lock = INVALID_HANDLE_VALUE;
-    }
+    reuse_lock.reset();
 }
 
 void WslContainer::Impl::Stop(std::stop_token token)

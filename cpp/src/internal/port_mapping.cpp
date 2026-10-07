@@ -1,9 +1,10 @@
 #include "internal/port_mapping.hpp"
 
-#include "internal/json.hpp"
 #include "internal/tcp_http.hpp"
 #include "internal/util.hpp"
 #include "wslc/exceptions.hpp"
+
+#include <nlohmann/json.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -61,17 +62,17 @@ bool TryParseInspectPort(std::string_view key, int& ContainerPort)
     return suffix.empty() || EqualsIgnoreCase(suffix, "tcp");
 }
 
-bool TryReadMappedPort(const json::Value& element, int& port)
+bool TryReadMappedPort(const nlohmann::json& element, int& port)
 {
     port = 0;
-    if (element.IsString())
+    if (element.is_string())
     {
-        return TryParsePortDigits(element.String, port);
+        return TryParsePortDigits(element.get_ref<const std::string&>(), port);
     }
 
-    if (element.IsNumber())
+    if (element.is_number())
     {
-        const double value = element.Number;
+        const double value = element.get<double>();
         if (!std::isfinite(value) || value < 1.0 || value > 65535.0 || value != std::trunc(value))
         {
             return false;
@@ -197,42 +198,56 @@ int PortMapping::GetMappedPort(int containerPort) const
 
 void PortMapping::ResolveFromInspect(std::string_view inspect_json)
 {
-    const auto document = json::Parse(inspect_json);
-    if (!document)
+    // The runtime may return partial JSON while ports are being assigned; treat unparsable
+    // payloads as "not yet resolved" so the poll loop retries instead of failing startup.
+    // Note: a number that overflows double (e.g. 1e999) makes nlohmann/json reject the whole
+    // document, so even valid entries stay unresolved until the next poll. The runtime only
+    // emits small integers and strings, where per-value skipping still applies.
+    nlohmann::json document;
+    try
+    {
+        document = nlohmann::json::parse(inspect_json.begin(), inspect_json.end());
+    }
+    catch (const nlohmann::json::exception&)
     {
         return;
     }
 
-    const json::Value* ports = document->Find("Ports");
-    if (ports == nullptr || !ports->IsObject())
+    if (!document.is_object())
     {
         return;
     }
 
-    for (const auto& property : ports->Object)
+    const auto ports = document.find("Ports");
+    if (ports == document.end() || !ports->is_object())
+    {
+        return;
+    }
+
+    for (const auto& [key, value] : ports->items())
     {
         int ContainerPort = 0;
-        if (!TryParseInspectPort(property.first, ContainerPort))
+        if (!TryParseInspectPort(key, ContainerPort))
         {
             continue;
         }
 
         const auto it = m_entries.find(ContainerPort);
-        if (it == m_entries.end() || !property.second.IsArray())
+        if (it == m_entries.end() || !value.is_array())
         {
             continue;
         }
 
-        for (const auto& item : property.second.Array)
+        for (const auto& item : value)
         {
-            if (!item.IsObject())
+            if (!item.is_object())
             {
                 continue;
             }
 
-            const json::Value* host_port = item.Find("HostPort");
+            const auto hostPort = item.find("HostPort");
             int mapped = 0;
-            if (host_port != nullptr && TryReadMappedPort(*host_port, mapped))
+            if (hostPort != item.end() && TryReadMappedPort(*hostPort, mapped))
             {
                 it->second.MappedPort = mapped;
                 break;

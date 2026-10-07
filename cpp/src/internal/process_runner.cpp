@@ -137,11 +137,11 @@ ExecResult ProcessRunner::Run(WslcContainer container, const ProcessSettings& se
     {
         if (StandardInput)
         {
-            IoHandle stdinHandle;
+            wil::unique_handle stdinHandle;
             HANDLE Handle = nullptr;
             const HRESULT result = WslcGetProcessIOHandle(State->Handle(), WSLC_PROCESS_IO_HANDLE_STDIN, &Handle);
             check(result, ErrorKind::Process, "Failed to open the process standard input", nullptr);
-            stdinHandle = IoHandle(Handle);
+            stdinHandle.reset(Handle);
 
             std::size_t offset = 0;
             while (offset < StandardInput->size())
@@ -208,15 +208,15 @@ void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path&
 
     try
     {
-        IoHandle stdinHandle;
+        wil::unique_handle stdinHandle;
         HANDLE Handle = nullptr;
         HRESULT result = WslcGetProcessIOHandle(State->Handle(), WSLC_PROCESS_IO_HANDLE_STDIN, &Handle);
         check(result, ErrorKind::Process, "Failed to open the process standard input", nullptr);
-        stdinHandle = IoHandle(Handle);
+        stdinHandle.reset(Handle);
 
         // Open without following reparse points, then read attributes and size from the same
         // handle: a path swapped after a pre-check cannot bypass these guards.
-        IoHandle fileHandle(CreateFileW(
+        wil::unique_hfile fileHandle(CreateFileW(
             Source.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
             FILE_FLAG_SEQUENTIAL_SCAN | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr));
         if (!fileHandle)
@@ -341,11 +341,11 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
     std::filesystem::path tempFile;
     try
     {
-        IoHandle stdoutHandle;
+        wil::unique_handle stdoutHandle;
         HANDLE Handle = nullptr;
         const HRESULT result = WslcGetProcessIOHandle(State->Handle(), WSLC_PROCESS_IO_HANDLE_STDOUT, &Handle);
         check(result, ErrorKind::Process, "Failed to open the process standard output", nullptr);
-        stdoutHandle = IoHandle(Handle);
+        stdoutHandle.reset(Handle);
 
         const std::filesystem::path fullDestination = std::filesystem::absolute(Destination);
         EnsureReplaceableDestination(fullDestination);

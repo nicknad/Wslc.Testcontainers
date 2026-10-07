@@ -71,6 +71,8 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `GetConnectionString()` for ClickHouse.Client.
 - `Wslc.Testcontainers.Modules.Vault`: HTTP 8200 in dev mode, readiness via `/v1/sys/health`,
   `GetAddress()` plus `RootToken`.
+- `Wslc.Testcontainers.Modules.Keycloak`: HTTP 8080, readiness via `/realms/master`,
+  `GetEndpoint()` plus `AdminUsername`/`AdminPassword`.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

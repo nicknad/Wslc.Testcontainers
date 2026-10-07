@@ -63,6 +63,7 @@ dotnet add package Wslc.Testcontainers.Modules.WireMock
 dotnet add package Wslc.Testcontainers.Modules.Qdrant
 dotnet add package Wslc.Testcontainers.Modules.ClickHouse
 dotnet add package Wslc.Testcontainers.Modules.Vault
+dotnet add package Wslc.Testcontainers.Modules.Keycloak
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -238,6 +239,7 @@ using Wslc.Testcontainers.Modules.WireMock;
 using Wslc.Testcontainers.Modules.Qdrant;
 using Wslc.Testcontainers.Modules.ClickHouse;
 using Wslc.Testcontainers.Modules.Vault;
+using Wslc.Testcontainers.Modules.Keycloak;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -288,6 +290,9 @@ var clickHouseClient = clickhouse.GetConnectionString(); // Host=...;Port=...;Us
 await using var vault = new VaultBuilder().Build();
 await vault.StartAsync();
 var vaultAddress = vault.GetAddress(); // http://host:port; RootToken defaults to "root"
+await using var keycloak = new KeycloakBuilder().Build();
+await keycloak.StartAsync();
+var issuer = keycloak.GetEndpoint(); // http://host:port; credentials via AdminUsername/AdminPassword
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

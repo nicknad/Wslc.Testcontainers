@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` |
 
 Behavioral notes:
 
@@ -147,6 +147,7 @@ Typed module builders live in `cpp/modules/`:
 
 ```cpp
 #include <wslc/modules/clickhouse.hpp>
+#include <wslc/modules/keycloak.hpp>
 #include <wslc/modules/mailpit.hpp>
 #include <wslc/modules/mariadb.hpp>
 #include <wslc/modules/mongodb.hpp>
@@ -224,6 +225,11 @@ auto vault = vaultBuilder.Build();
 vault.Start();
 const std::string vaultAddress = vault.GetAddress();
 const std::string vaultRootToken = vault.RootToken();
+wslc::modules::KeycloakBuilder keycloakBuilder;
+auto keycloak = keycloakBuilder.Build();
+keycloak.Start();
+const std::string issuer = keycloak.GetEndpoint();
+const std::string keycloakUser = keycloak.AdminUsername();
 ```
 
 ## Configuration

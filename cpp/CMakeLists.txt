@@ -221,6 +221,11 @@ add_library(wslc::vault ALIAS wslc_vault)
 target_include_directories(wslc_vault PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/vault/include")
 target_link_libraries(wslc_vault PUBLIC wslc)
 wslc_apply_strict_options(wslc_vault)
+add_library(wslc_keycloak STATIC modules/keycloak/keycloak.cpp)
+add_library(wslc::keycloak ALIAS wslc_keycloak)
+target_include_directories(wslc_keycloak PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/keycloak/include")
+target_link_libraries(wslc_keycloak PUBLIC wslc)
+wslc_apply_strict_options(wslc_keycloak)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

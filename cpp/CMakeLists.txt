@@ -226,6 +226,11 @@ add_library(wslc::keycloak ALIAS wslc_keycloak)
 target_include_directories(wslc_keycloak PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/keycloak/include")
 target_link_libraries(wslc_keycloak PUBLIC wslc)
 wslc_apply_strict_options(wslc_keycloak)
+add_library(wslc_elasticsearch STATIC modules/elasticsearch/elasticsearch.cpp)
+add_library(wslc::elasticsearch ALIAS wslc_elasticsearch)
+target_include_directories(wslc_elasticsearch PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/elasticsearch/include")
+target_link_libraries(wslc_elasticsearch PUBLIC wslc)
+wslc_apply_strict_options(wslc_elasticsearch)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

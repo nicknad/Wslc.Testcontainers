@@ -152,6 +152,7 @@ jobs:
           dotnet pack src/Wslc.Testcontainers.Modules.ClickHouse/Wslc.Testcontainers.Modules.ClickHouse.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.Vault/Wslc.Testcontainers.Modules.Vault.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           dotnet pack src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          dotnet pack src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
           Get-ChildItem artifacts/packages
       - name: Install smoke test (local feed, outside repo)
         shell: pwsh

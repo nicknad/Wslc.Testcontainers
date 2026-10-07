@@ -7,6 +7,7 @@
 #include "wslc/exceptions.hpp"
 #include "wslc/modules/clickhouse.hpp"
 #include "wslc/modules/keycloak.hpp"
+#include "wslc/modules/elasticsearch.hpp"
 #include "wslc/modules/mailpit.hpp"
 #include "wslc/modules/mariadb.hpp"
 #include "wslc/modules/mongodb.hpp"
@@ -749,6 +750,18 @@ TEST(IntegrationModules, KeycloakModuleStartsAndServesMasterRealm)
         const auto result =
             keycloak.Exec("/bin/sh", {"-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/master "
                                             "HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q master <&3"});
+TEST(IntegrationModules, ElasticsearchModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::ElasticsearchBuilder builder;
+    auto elasticsearch = builder.Build();
+    try
+    {
+        elasticsearch.Start();
+
+        EXPECT_NE(elasticsearch.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        const auto result = elasticsearch.Exec("/bin/sh", {"-c", "curl -sf http://127.0.0.1:9200/_cluster/health"});
         EXPECT_EQ(result.ExitCode, 0);
     }
     catch (...)
@@ -763,4 +776,9 @@ TEST(IntegrationModules, KeycloakModuleStartsAndServesMasterRealm)
     }
 
     keycloak.Dispose();
+        elasticsearch.Dispose();
+        throw;
+    }
+
+    elasticsearch.Dispose();
 }

@@ -73,6 +73,9 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `GetAddress()` plus `RootToken`.
 - `Wslc.Testcontainers.Modules.Keycloak`: HTTP 8080, readiness via `/realms/master`,
   `GetEndpoint()` plus `AdminUsername`/`AdminPassword`.
+- `Wslc.Testcontainers.Modules.Elasticsearch`: HTTP 9200, readiness via
+  `/_cluster/health?wait_for_status=yellow`, `GetEndpoint()`; single-node, security off,
+  512 MB heap, niofs storage.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

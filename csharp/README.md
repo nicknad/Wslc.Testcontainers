@@ -64,6 +64,7 @@ dotnet add package Wslc.Testcontainers.Modules.Qdrant
 dotnet add package Wslc.Testcontainers.Modules.ClickHouse
 dotnet add package Wslc.Testcontainers.Modules.Vault
 dotnet add package Wslc.Testcontainers.Modules.Keycloak
+dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -240,6 +241,7 @@ using Wslc.Testcontainers.Modules.Qdrant;
 using Wslc.Testcontainers.Modules.ClickHouse;
 using Wslc.Testcontainers.Modules.Vault;
 using Wslc.Testcontainers.Modules.Keycloak;
+using Wslc.Testcontainers.Modules.Elasticsearch;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -293,6 +295,9 @@ var vaultAddress = vault.GetAddress(); // http://host:port; RootToken defaults t
 await using var keycloak = new KeycloakBuilder().Build();
 await keycloak.StartAsync();
 var issuer = keycloak.GetEndpoint(); // http://host:port; credentials via AdminUsername/AdminPassword
+await using var elasticsearch = new ElasticsearchBuilder().Build();
+await elasticsearch.StartAsync();
+var rest = elasticsearch.GetEndpoint(); // http://host:port
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

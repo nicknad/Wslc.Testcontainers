@@ -164,4 +164,8 @@ internal static class BuilderLimits
                 $"Too many wait strategies: {count} configured or combined, but the maximum is {MaxWaitStrategies}.");
         }
     }
+
+    /// <summary>Adds two timeouts, saturating at <see cref="TimeSpan.MaxValue"/> instead of overflowing.</summary>
+    public static TimeSpan SaturatingAdd(TimeSpan left, TimeSpan right) =>
+        right > TimeSpan.MaxValue - left ? TimeSpan.MaxValue : left + right;
 }

@@ -21,7 +21,6 @@
 
 #include <atomic>
 #include <condition_variable>
-#include <cctype>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -46,36 +45,13 @@ constexpr int c_maxStartAttempts = 200;
 constexpr std::chrono::milliseconds c_startPollDelay{50};
 constexpr std::chrono::milliseconds c_startThreadJoinTimeout{5000};
 
-void ValidateEnvironmentName(const std::string& Name)
-{
-    if (internal::IsBlank(Name))
-    {
-        throw WslException("Environment variable name must not be empty.");
-    }
-
-    const char first = Name[0];
-    if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
-    {
-        throw WslException("Environment variable name '" + Name + "' must start with a letter or underscore.");
-    }
-
-    for (const char character : Name)
-    {
-        if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
-        {
-            throw WslException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
-                               character + "'.");
-        }
-    }
-}
-
 void ValidateProcessOptions(const ProcessOptions& options)
 {
     internal::RequireCount(options.Environment.size(), internal::c_maxEnvironmentVariables,
                            "exec environment variables");
     for (const auto& pair : options.Environment)
     {
-        ValidateEnvironmentName(pair.first);
+        internal::RequireEnvironmentName(pair.first);
         internal::RequireEnvironmentValue(pair.first, pair.second);
     }
 
@@ -107,7 +83,26 @@ std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxL
 
 std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines)
 {
-    std::vector<std::string> selected;
+    // Two passes, O(n) total: count matches first, then join only the trailing window.
+    // The previous vector-erase-front version was O(n*m).
+    std::size_t total = 0;
+    for (const auto& line : Logs)
+    {
+        if (line.Source == Source)
+        {
+            total++;
+        }
+    }
+
+    if (total == 0)
+    {
+        return std::nullopt;
+    }
+
+    const std::size_t skip = total > maxLines ? total - maxLines : 0;
+    std::string result;
+    std::size_t seen = 0;
+    std::size_t emitted = 0;
     for (const auto& line : Logs)
     {
         if (line.Source != Source)
@@ -115,19 +110,20 @@ std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource 
             continue;
         }
 
-        selected.push_back(line.Text);
-        if (selected.size() > maxLines)
+        if (seen++ < skip)
         {
-            selected.erase(selected.begin());
+            continue;
         }
+
+        if (emitted++ > 0)
+        {
+            result.push_back('\n');
+        }
+
+        result += line.Text;
     }
 
-    if (selected.empty())
-    {
-        return std::nullopt;
-    }
-
-    return internal::join(selected, "\n");
+    return result;
 }
 
 std::string DescribeException(const std::exception_ptr& error)

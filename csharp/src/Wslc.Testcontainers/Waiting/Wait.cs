@@ -37,13 +37,13 @@ public sealed class WslWaitBuilder
 
     /// <summary>Waits until a Linux TCP port accepts connections.</summary>
     public IWaitStrategy UntilTcpPortIsOpen(int port) =>
-        Configure(new TcpPortWaitStrategy(ValidatePort(port)));
+        Configure(new TcpPortWaitStrategy(Validation.ValidatePort(port, nameof(port))));
 
     /// <summary>Waits until an HTTP GET against the given Linux port succeeds (2xx-4xx; 5xx retries).</summary>
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health?ready=1</c>). Not a full URL.</param>
     /// <param name="port">Linux container port to probe via its mapped host port.</param>
     public IWaitStrategy UntilHttpRequestSucceeds(string pathAndQuery, int port) =>
-        Configure(new HttpWaitStrategy(Validation.RequireHttpPath(pathAndQuery, nameof(pathAndQuery)), ValidatePort(port)));
+        Configure(new HttpWaitStrategy(Validation.RequireHttpPath(pathAndQuery, nameof(pathAndQuery)), Validation.ValidatePort(port, nameof(port))));
 
     /// <summary>Waits until an HTTP GET against Linux port 80 succeeds.</summary>
     /// <param name="pathAndQuery">Absolute path with optional query (e.g. <c>/health</c>). Not a full URL.</param>
@@ -52,11 +52,11 @@ public sealed class WslWaitBuilder
 
     /// <summary>Waits until a process with the given name is running.</summary>
     public IWaitStrategy UntilProcessIsRunning(string processName) =>
-        Configure(new ProcessRunningWaitStrategy(RequireText(processName, nameof(processName))));
+        Configure(new ProcessRunningWaitStrategy(Validation.RequireText(processName, nameof(processName))));
 
     /// <summary>Waits until no process with the given name is running.</summary>
     public IWaitStrategy UntilProcessExits(string processName) =>
-        Configure(new ProcessExitsWaitStrategy(RequireText(processName, nameof(processName))));
+        Configure(new ProcessExitsWaitStrategy(Validation.RequireText(processName, nameof(processName))));
 
     /// <summary>
     /// Waits until a message appears in captured stdout/stderr (ordinal substring, case-sensitive).
@@ -75,7 +75,7 @@ public sealed class WslWaitBuilder
     public IWaitStrategy UntilMessageIsLogged(string message, int occurrences)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(occurrences, 1);
-        return Configure(new LogMessageWaitStrategy(RequireText(message, nameof(message)), occurrences));
+        return Configure(new LogMessageWaitStrategy(Validation.RequireText(message, nameof(message)), occurrences));
     }
 
     /// <summary>Waits until an absolute Linux path exists inside the environment (e.g. <c>/tmp/ready</c>).</summary>
@@ -96,7 +96,7 @@ public sealed class WslWaitBuilder
     public IWaitStrategy Until(string name, Func<IWaitTarget, CancellationToken, Task<bool>> condition)
     {
         ArgumentNullException.ThrowIfNull(condition);
-        return Configure(new DelegateWaitStrategy(RequireText(name, nameof(name)), condition));
+        return Configure(new DelegateWaitStrategy(Validation.RequireText(name, nameof(name)), condition));
     }
 
     private IWaitStrategy Configure(IWaitStrategy strategy)
@@ -113,16 +113,4 @@ public sealed class WslWaitBuilder
 
         return strategy;
     }
-
-    private static int ValidatePort(int port)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
-        return port;
-    }
-
-    private static string RequireText(string value, string parameterName) =>
-        string.IsNullOrWhiteSpace(value)
-            ? throw new ArgumentException("Value must not be empty.", parameterName)
-            : value;
 }

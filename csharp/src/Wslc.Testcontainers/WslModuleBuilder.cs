@@ -111,16 +111,11 @@ public abstract class WslModuleBuilder<TBuilder>
 
     internal static TimeSpan ComputeStartupTimeout(TimeSpan perWaitTimeout)
     {
-        // Sequential waits need sum(wait timeouts) + provisioning slack.
-        try
-        {
-            var doubled = perWaitTimeout + perWaitTimeout;
-            return doubled + TimeSpan.FromSeconds(30);
-        }
-        catch (OverflowException)
-        {
-            return TimeSpan.MaxValue;
-        }
+        // Sequential waits need sum(wait timeouts) + provisioning slack. Saturate instead of
+        // overflowing; the core builder rejects values above the 24 h startup cap with guidance.
+        return Internal.BuilderLimits.SaturatingAdd(
+            Internal.BuilderLimits.SaturatingAdd(perWaitTimeout, perWaitTimeout),
+            TimeSpan.FromSeconds(30));
     }
 
     /// <summary>

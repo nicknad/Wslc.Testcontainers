@@ -42,22 +42,22 @@ bool TryParsePortDigits(std::string_view text, int& port)
     return port > 0;
 }
 
-bool TryParseInspectPort(std::string key, int& ContainerPort)
+bool TryParseInspectPort(std::string_view key, int& ContainerPort)
 {
     ContainerPort = 0;
     const std::size_t separator = key.find('/');
-    const std::string port_part = separator == std::string::npos ? key : key.substr(0, separator);
+    const std::string_view port_part = separator == std::string_view::npos ? key : key.substr(0, separator);
     if (!TryParsePortDigits(port_part, ContainerPort))
     {
         return false;
     }
 
-    if (separator == std::string::npos)
+    if (separator == std::string_view::npos)
     {
         return true;
     }
 
-    const std::string suffix = key.substr(separator + 1);
+    const std::string_view suffix = key.substr(separator + 1);
     return suffix.empty() || EqualsIgnoreCase(suffix, "tcp");
 }
 
@@ -112,7 +112,10 @@ PortMapping PortMapping::Create(const std::vector<WslPortMappingRecord>& mapping
     {
         if (!result.m_entries.contains(mapping.ContainerPort))
         {
-            result.m_entries[mapping.ContainerPort] = Entry{mapping.BindAddress, 0};
+            Entry entry;
+            entry.BindAddress = mapping.BindAddress;
+            entry.ProbeHost = ResolveProbeHost(mapping.BindAddress);
+            result.m_entries[mapping.ContainerPort] = std::move(entry);
         }
     }
 
@@ -247,28 +250,35 @@ bool PortMapping::IsPortOpen(int containerPort, std::stop_token token) const
 WslEndpoint PortMapping::GetConnectEndpoint(int containerPort) const
 {
     const auto it = m_entries.find(containerPort);
-    std::string host = "127.0.0.1";
-    if (it != m_entries.end() && it->second.BindAddress)
+    const std::string host = it != m_entries.end() ? it->second.ProbeHost : "127.0.0.1";
+
+    return WslEndpoint{host, GetMappedPort(containerPort)};
+}
+
+std::string PortMapping::ResolveProbeHost(const std::optional<std::string>& bindAddress)
+{
+    if (!bindAddress)
     {
-        const auto normalized = NormalizeIpAddress(*it->second.BindAddress);
-        if (normalized)
-        {
-            if (*normalized == "0.0.0.0")
-            {
-                host = "127.0.0.1";
-            }
-            else if (*normalized == "::")
-            {
-                host = "::1";
-            }
-            else
-            {
-                host = *normalized;
-            }
-        }
+        return "127.0.0.1";
     }
 
-    return WslEndpoint{std::move(host), GetMappedPort(containerPort)};
+    const auto normalized = NormalizeIpAddress(*bindAddress);
+    if (!normalized)
+    {
+        return "127.0.0.1";
+    }
+
+    if (*normalized == "0.0.0.0")
+    {
+        return "127.0.0.1";
+    }
+
+    if (*normalized == "::")
+    {
+        return "::1";
+    }
+
+    return *normalized;
 }
 
 } // namespace wslc::internal

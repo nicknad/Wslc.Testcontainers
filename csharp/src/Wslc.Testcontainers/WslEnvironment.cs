@@ -217,6 +217,11 @@ public static class WslEnvironment
         };
     }
 
+    /// <summary>
+    /// Parses a timeout value: invariant seconds as a double (&gt; 0, e.g. "60", "1.5") or a
+    /// <see cref="TimeSpan"/> string ([d.]hh:mm:ss[.fffffff]). Matches the C++ contract; anything
+    /// else (including zero/negative) yields null so callers fall back to defaults.
+    /// </summary>
     internal static TimeSpan? ParseTimeout(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

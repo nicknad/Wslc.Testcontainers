@@ -28,7 +28,7 @@ bool IsContinuousIntegration()
 
 std::optional<std::chrono::milliseconds> ParseClockTime(std::string_view value)
 {
-    const std::string trimmed = internal::trim(value);
+    const std::string trimmed = internal::Trim(value);
     if (trimmed.empty())
     {
         return std::nullopt;
@@ -165,7 +165,7 @@ std::optional<std::string> WslEnvironment::GetNonEmpty(const char* Name)
         return std::nullopt;
     }
 
-    return internal::trim(value);
+    return internal::Trim(value);
 }
 
 std::optional<bool> WslEnvironment::ParseBool(const std::optional<std::string>& value)
@@ -180,20 +180,28 @@ std::optional<bool> WslEnvironment::ParseBool(const std::optional<std::string>& 
 
 std::optional<std::chrono::milliseconds> WslEnvironment::ParseTimeout(const std::optional<std::string>& value)
 {
-    if (!value || internal::IsBlank(*value))
+    // Accepted formats (matching the C# WslEnvironment.ParseTimeout contract): invariant
+    // seconds as a double (> 0, e.g. "60", "1.5") or [d.]hh:mm:ss[.fff] clock time.
+    // Inputs are trimmed (GetNonEmpty already trims) so surrounding whitespace is ignored.
+    if (!value)
     {
         return std::nullopt;
     }
 
-    const std::string& Text = *value;
+    const std::string text = internal::Trim(*value);
+    if (text.empty())
+    {
+        return std::nullopt;
+    }
+
     char* end = nullptr;
-    const double seconds = std::strtod(Text.c_str(), &end);
+    const double seconds = std::strtod(text.c_str(), &end);
     if (*end == '\0' && seconds > 0)
     {
         return std::chrono::milliseconds(static_cast<std::int64_t>(seconds * 1000.0));
     }
 
-    return ParseClockTime(Text);
+    return ParseClockTime(text);
 }
 
 std::optional<std::string> WslEnvironment::DefaultImage()

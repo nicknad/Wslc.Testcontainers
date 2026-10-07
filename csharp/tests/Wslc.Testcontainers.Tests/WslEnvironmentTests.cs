@@ -121,4 +121,32 @@ public sealed class WslEnvironmentTests
 
         Assert.Equal(new string('_', 64), sanitized);
     }
+
+    [Theory]
+    [InlineData("60", 60)]
+    [InlineData("1.5", 1.5)]
+    [InlineData("00:01:00", 60)]
+    [InlineData("00:00:01.500", 1.5)]
+    [InlineData("1.00:00:00", 86400)]
+    public void ParseTimeout_accepts_seconds_and_clock_times(string value, double expectedSeconds)
+    {
+        Assert.Equal(TimeSpan.FromSeconds(expectedSeconds), WslEnvironment.ParseTimeout(value));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-5")]
+    [InlineData("abc")]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ParseTimeout_rejects_non_positive_and_invalid(string value)
+    {
+        Assert.Null(WslEnvironment.ParseTimeout(value));
+    }
+
+    [Fact]
+    public void ParseTimeout_rejects_null()
+    {
+        Assert.Null(WslEnvironment.ParseTimeout(null));
+    }
 }

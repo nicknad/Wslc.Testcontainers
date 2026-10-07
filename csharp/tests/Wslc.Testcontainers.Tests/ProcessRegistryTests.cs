@@ -37,7 +37,7 @@ public sealed class ProcessRegistryTests
         registry.Add(new FakeProcess());
 
         var snapshot = registry.Snapshot();
-        registry.Clear();
+        _ = registry.TakeAll();
 
         Assert.Single(snapshot);
         Assert.Empty(registry.Snapshot());

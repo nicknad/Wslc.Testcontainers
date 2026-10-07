@@ -34,32 +34,28 @@ internal abstract record WaitStrategyBase : IWaitStrategy
 
         // Composites flatten their children, so the top-level Build count cannot see nested
         // strategies; enforce the combined cap here instead.
-        List<IWaitStrategy> combined;
-        if (this is CompositeWaitStrategy composite && other is CompositeWaitStrategy otherComposite)
-        {
-            combined = new List<IWaitStrategy>(composite.Strategies.Count + otherComposite.Strategies.Count);
-            combined.AddRange(composite.Strategies);
-            combined.AddRange(otherComposite.Strategies);
-        }
-        else if (this is CompositeWaitStrategy single)
-        {
-            combined = new List<IWaitStrategy>(single.Strategies.Count + 1) { };
-            combined.AddRange(single.Strategies);
-            combined.Add(other);
-        }
-        else if (other is CompositeWaitStrategy otherSingle)
-        {
-            combined = new List<IWaitStrategy>(otherSingle.Strategies.Count + 1) { this };
-            combined.AddRange(otherSingle.Strategies);
-        }
-        else
-        {
-            combined = new List<IWaitStrategy>(2) { this, other };
-        }
+        var combined = new List<IWaitStrategy>(CountStrategies(this) + CountStrategies(other));
+        AddFlattened(combined, this);
+        AddFlattened(combined, other);
 
         BuilderLimits.RequireWaitStrategyCount(combined.Count);
         return new CompositeWaitStrategy(combined) with { Timeout = Timeout, RetryInterval = RetryInterval };
     }
+
+    private static void AddFlattened(List<IWaitStrategy> combined, IWaitStrategy strategy)
+    {
+        if (strategy is CompositeWaitStrategy composite)
+        {
+            combined.AddRange(composite.Strategies);
+        }
+        else
+        {
+            combined.Add(strategy);
+        }
+    }
+
+    private static int CountStrategies(IWaitStrategy strategy) =>
+        strategy is CompositeWaitStrategy composite ? composite.Strategies.Count : 1;
 
     public abstract Task WaitAsync(IWaitTarget target, CancellationToken cancellationToken);
 

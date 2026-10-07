@@ -289,6 +289,19 @@ TEST(PortMapping, InspectPayloadAcceptsBarePortKeys)
     EXPECT_EQ(mapping.GetMappedPort(8080), 4514);
 }
 
+TEST(PortMapping, MalformedInspectPayloadsLeavePortsUnresolved)
+{
+    for (const char* inspect :
+         {"not json", "", "{\"Ports\":\"oops\"}", "{\"Ports\":{\"8080/tcp\":\"oops\"}}",
+          "{\"Ports\":{\"8080/tcp\":[42,\"oops\",null]}}"})
+    {
+        PortMapping mapping = PortMapping::Create({Port(8080)});
+        mapping.ResolveFromInspect(inspect);
+
+        EXPECT_THROW(mapping.GetMappedPort(8080), WslNetworkException) << inspect;
+    }
+}
+
 TEST(PortMapping, DuplicateMappingsKeepTheFirstBindAddress)
 {
     const PortMapping mapping = PortMapping::Create({Port(8080, "127.0.0.1"), Port(8080, "0.0.0.0")});

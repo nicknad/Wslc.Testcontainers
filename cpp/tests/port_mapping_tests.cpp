@@ -246,8 +246,7 @@ TEST(PortMapping, OutOfRangeDoublePoisonsTheWholePayload)
     // retries. The C# port (lazy System.Text.Json numbers) still skips per value; the runtime
     // only ever emits small integers and strings, so both agree on realistic payloads.
     PortMapping mapping = PortMapping::Create({Port(8080)});
-    mapping.ResolveFromInspect(
-        "{\"Ports\":{\"8080/tcp\":[{\"HostPort\":1e999},{\"HostPort\":\"4515\"}]}}");
+    mapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":1e999},{\"HostPort\":\"4515\"}]}}");
 
     EXPECT_THROW(mapping.GetMappedPort(8080), WslNetworkException);
 }

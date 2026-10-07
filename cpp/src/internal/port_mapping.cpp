@@ -200,6 +200,9 @@ void PortMapping::ResolveFromInspect(std::string_view inspect_json)
 {
     // The runtime may return partial JSON while ports are being assigned; treat unparsable
     // payloads as "not yet resolved" so the poll loop retries instead of failing startup.
+    // Note: a number that overflows double (e.g. 1e999) makes nlohmann/json reject the whole
+    // document, so even valid entries stay unresolved until the next poll. The runtime only
+    // emits small integers and strings, where per-value skipping still applies.
     nlohmann::json document;
     try
     {

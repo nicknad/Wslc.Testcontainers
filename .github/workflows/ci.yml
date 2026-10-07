@@ -39,7 +39,8 @@ jobs:
   guard-linux:
     # Proves early, actionable failure off Windows. Only WslPlatformTests run here;
     # the rest of the suite is Windows-only by design (Build() throws PlatformNotSupported).
-    runs-on: ubuntu-latest
+    # Pinned to the current LTS image; ubuntu-latest starts migrating to Ubuntu 26 in October 2026.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: csharp
@@ -80,7 +81,7 @@ jobs:
         with:
           path: cpp/build/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ./.github/actions/setup-msvc
       - name: Configure
         shell: pwsh
         env:
@@ -139,7 +140,7 @@ jobs:
         with:
           path: cpp/build-tidy/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ./.github/actions/setup-msvc
       - name: Configure (compile_commands.json)
         shell: pwsh
         env:
@@ -196,7 +197,7 @@ jobs:
         with:
           path: cpp/build-asan/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ./.github/actions/setup-msvc
       - name: Configure (AddressSanitizer)
         shell: pwsh
         env:

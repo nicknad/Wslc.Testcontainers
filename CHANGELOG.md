@@ -2,16 +2,22 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
-## Unreleased
+## 0.3.0
 
 ### Added
 
-- Four more service modules alongside the existing presets, mirrored in C++:
+- Ten more service modules alongside the existing presets, mirrored in C++:
   - `Modules.MongoDb` (C#) / `wslc_mongodb` (C++): MongoDB 8 (port 27017, optional root credentials, driver connection string).
   - `Modules.Nats` (C#) / `wslc_nats` (C++): NATS 2 (port 4222, optional JetStream and credentials, `nats://` URL).
   - `Modules.MailPit` (C#) / `wslc_mailpit` (C++): Mailpit v1.31 (SMTP 1025 + HTTP 8025, `/livez` readiness, `GetSmtpEndpoint()` / `GetHttpEndpoint()`).
   - `Modules.RustFs` (C#) / `wslc_rustfs` (C++): RustFS 1.0.1 S3-compatible object storage (API 9000 + console 9001, `/health` readiness, `AccessKey`/`SecretKey`).
-- Module base: `ReadyMessageOccurrences` may return 0 to skip the log-message wait for services without a stable readiness log line; `WaitTimeout` is available to `Configure` for module-added waits (used by the Mailpit/RustFS HTTP readiness checks).
+  - `Modules.WireMock` (C#) / `wslc_wiremock` (C++): WireMock 3 (port 8080, `/__admin/health` readiness, `GetEndpoint()`).
+  - `Modules.Qdrant` (C#) / `wslc_qdrant` (C++): Qdrant v1.19.2 vector database (HTTP 6333 + gRPC 6334, `/readyz` readiness).
+  - `Modules.ClickHouse` (C#) / `wslc_clickhouse` (C++): ClickHouse 26.7 (HTTP 8123 + native 9000, `/ping` readiness, ClickHouse.Client connection string).
+  - `Modules.Vault` (C#) / `wslc_vault` (C++): HashiCorp Vault 2.1 dev mode (port 8200, `/v1/sys/health` readiness, `GetAddress()` + `RootToken`).
+  - `Modules.Keycloak` (C#) / `wslc_keycloak` (C++): Keycloak 26.8 `start-dev` (port 8080, `/realms/master` readiness, admin credentials).
+  - `Modules.Elasticsearch` (C#) / `wslc_elasticsearch` (C++): Elasticsearch 9.5.3 single node (port 9200, `_cluster/health` readiness, security off, 512 MB heap, niofs storage because the session kernel's `vm.max_map_count` is below the mmap bootstrap check).
+- Module base: `ReadyMessageOccurrences` may return 0 to skip the log-message wait for services without a stable readiness log line; `WaitTimeout` is available to `Configure` for module-added waits (used by the HTTP readiness checks).
 - The module test suite runs sequentially (`Parallelization(Mode = None)`): parallel WSL sessions exhausted the runtime.
 
 ### Changed

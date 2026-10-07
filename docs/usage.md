@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -72,6 +72,7 @@ dotnet add package Wslc.Testcontainers.Modules.RustFs
 dotnet add package Wslc.Testcontainers.Modules.WireMock
 dotnet add package Wslc.Testcontainers.Modules.Qdrant
 dotnet add package Wslc.Testcontainers.Modules.ClickHouse
+dotnet add package Wslc.Testcontainers.Modules.Vault
 ```
 
 ## Quickstart
@@ -212,6 +213,15 @@ using Wslc.Testcontainers.Modules.ClickHouse;
 await using var clickhouse = new ClickHouseBuilder().Build();
 await clickhouse.StartAsync();
 var clickHouseClient = clickhouse.GetConnectionString(); // Host=127.0.0.1;Port=<dynamic>;...
+Vault (dev mode, fixed root token):
+
+```csharp
+using Wslc.Testcontainers.Modules.Vault;
+
+await using var vault = new VaultBuilder().Build();
+await vault.StartAsync();
+var vaultAddress = vault.GetAddress(); // http://host:port for VAULT_ADDR
+var rootToken = vault.RootToken;       // "root" unless WithRootToken(...) overrides it
 ```
 
 ## Core concepts
@@ -222,7 +232,7 @@ var clickHouseClient = clickhouse.GetConnectionString(); // Host=127.0.0.1;Port=
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `ClickHouseBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `ClickHouseBuilder, `VaultBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

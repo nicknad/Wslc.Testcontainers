@@ -216,6 +216,11 @@ add_library(wslc::clickhouse ALIAS wslc_clickhouse)
 target_include_directories(wslc_clickhouse PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/clickhouse/include")
 target_link_libraries(wslc_clickhouse PUBLIC wslc)
 wslc_apply_strict_options(wslc_clickhouse)
+add_library(wslc_vault STATIC modules/vault/vault.cpp)
+add_library(wslc::vault ALIAS wslc_vault)
+target_include_directories(wslc_vault PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/vault/include")
+target_link_libraries(wslc_vault PUBLIC wslc)
+wslc_apply_strict_options(wslc_vault)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

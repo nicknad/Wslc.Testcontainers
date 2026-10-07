@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` |
 
 Behavioral notes:
 
@@ -158,6 +158,7 @@ Typed module builders live in `cpp/modules/`:
 #include <wslc/modules/rustfs.hpp>
 #include <wslc/modules/valkey.hpp>
 #include <wslc/modules/wiremock.hpp>
+#include <wslc/modules/vault.hpp>
 
 wslc::modules::PostgreSqlBuilder postgresBuilder;
 auto postgres = postgresBuilder.WithPassword("secret").Build();
@@ -218,6 +219,11 @@ wslc::modules::ClickHouseBuilder clickHouseBuilder;
 auto clickhouse = clickHouseBuilder.Build();
 clickhouse.Start();
 const std::string clickHouseClient = clickhouse.GetConnectionString();
+wslc::modules::VaultBuilder vaultBuilder;
+auto vault = vaultBuilder.Build();
+vault.Start();
+const std::string vaultAddress = vault.GetAddress();
+const std::string vaultRootToken = vault.RootToken();
 ```
 
 ## Configuration

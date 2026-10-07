@@ -62,6 +62,7 @@ dotnet add package Wslc.Testcontainers.Modules.RustFs
 dotnet add package Wslc.Testcontainers.Modules.WireMock
 dotnet add package Wslc.Testcontainers.Modules.Qdrant
 dotnet add package Wslc.Testcontainers.Modules.ClickHouse
+dotnet add package Wslc.Testcontainers.Modules.Vault
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -236,6 +237,7 @@ using Wslc.Testcontainers.Modules.RustFs;
 using Wslc.Testcontainers.Modules.WireMock;
 using Wslc.Testcontainers.Modules.Qdrant;
 using Wslc.Testcontainers.Modules.ClickHouse;
+using Wslc.Testcontainers.Modules.Vault;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -283,6 +285,9 @@ var qdrantHttp = qdrant.GetEndpoint(); // http://host:port; gRPC via GetConnectE
 await using var clickhouse = new ClickHouseBuilder().Build();
 await clickhouse.StartAsync();
 var clickHouseClient = clickhouse.GetConnectionString(); // Host=...;Port=...;Username=...;Password=...;Database=...
+await using var vault = new VaultBuilder().Build();
+await vault.StartAsync();
+var vaultAddress = vault.GetAddress(); // http://host:port; RootToken defaults to "root"
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

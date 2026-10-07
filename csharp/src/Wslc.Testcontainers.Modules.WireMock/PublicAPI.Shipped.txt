@@ -1,0 +1,8 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.WireMock.WireMockContainer.DefaultPort = 8080 -> int
+Wslc.Testcontainers.Modules.WireMock.WireMockBuilder
+Wslc.Testcontainers.Modules.WireMock.WireMockBuilder.Build() -> Wslc.Testcontainers.Modules.WireMock.WireMockContainer!
+Wslc.Testcontainers.Modules.WireMock.WireMockBuilder.WireMockBuilder() -> void
+Wslc.Testcontainers.Modules.WireMock.WireMockContainer
+override Wslc.Testcontainers.Modules.WireMock.WireMockContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.WireMock.WireMockContainer.GetEndpoint() -> string!

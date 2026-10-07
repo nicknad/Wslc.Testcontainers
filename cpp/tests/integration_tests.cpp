@@ -13,6 +13,7 @@
 #include "wslc/modules/rabbitmq.hpp"
 #include "wslc/modules/rustfs.hpp"
 #include "wslc/modules/valkey.hpp"
+#include "wslc/modules/wiremock.hpp"
 #include "wslc/wslc.hpp"
 
 #include <algorithm>
@@ -642,4 +643,28 @@ TEST(IntegrationModules, RustFsModuleStartsAndAnswersHealth)
     }
 
     rustfs.Dispose();
+}
+
+TEST(IntegrationModules, WireMockModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::WireMockBuilder builder;
+    auto wiremock = builder.Build();
+    try
+    {
+        wiremock.Start();
+
+        EXPECT_NE(wiremock.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        const auto result = wiremock.Exec("/bin/sh", {"-c", "wget -q -O - http://127.0.0.1:8080/__admin/health"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("healthy"), std::string::npos);
+    }
+    catch (...)
+    {
+        wiremock.Dispose();
+        throw;
+    }
+
+    wiremock.Dispose();
 }

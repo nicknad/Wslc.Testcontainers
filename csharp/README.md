@@ -61,6 +61,7 @@ dotnet add package Wslc.Testcontainers.Modules.MailPit
 dotnet add package Wslc.Testcontainers.Modules.RustFs
 dotnet add package Wslc.Testcontainers.Modules.WireMock
 dotnet add package Wslc.Testcontainers.Modules.Qdrant
+dotnet add package Wslc.Testcontainers.Modules.ClickHouse
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -234,6 +235,7 @@ using Wslc.Testcontainers.Modules.MailPit;
 using Wslc.Testcontainers.Modules.RustFs;
 using Wslc.Testcontainers.Modules.WireMock;
 using Wslc.Testcontainers.Modules.Qdrant;
+using Wslc.Testcontainers.Modules.ClickHouse;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -278,6 +280,9 @@ var stubs = wiremock.GetEndpoint(); // http://host:port
 await using var qdrant = new QdrantBuilder().Build();
 await qdrant.StartAsync();
 var qdrantHttp = qdrant.GetEndpoint(); // http://host:port; gRPC via GetConnectEndpoint(QdrantContainer.GrpcPort)
+await using var clickhouse = new ClickHouseBuilder().Build();
+await clickhouse.StartAsync();
+var clickHouseClient = clickhouse.GetConnectionString(); // Host=...;Port=...;Username=...;Password=...;Database=...
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

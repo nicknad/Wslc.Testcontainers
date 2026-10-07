@@ -66,6 +66,9 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `GetEndpoint()` for the stub and admin API base URL.
 - `Wslc.Testcontainers.Modules.Qdrant`: HTTP 6333 + gRPC 6334, readiness via `/readyz`,
   `GetEndpoint()` for the HTTP API (gRPC via `GetConnectEndpoint(GrpcPort)`).
+- `Wslc.Testcontainers.Modules.ClickHouse`: HTTP 8123 + native 9000, readiness via `/ping`
+  (the entrypoint's user/database setup runs before the real server starts),
+  `GetConnectionString()` for ClickHouse.Client.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

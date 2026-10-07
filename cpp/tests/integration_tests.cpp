@@ -5,6 +5,7 @@
 #include "internal/util.hpp"
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/clickhouse.hpp"
 #include "wslc/modules/mailpit.hpp"
 #include "wslc/modules/mariadb.hpp"
 #include "wslc/modules/mongodb.hpp"
@@ -693,4 +694,26 @@ TEST(IntegrationModules, QdrantModuleStartsAndAnswersReady)
     }
 
     qdrant.Dispose();
+TEST(IntegrationModules, ClickHouseModuleStartsAndServesQuery)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::ClickHouseBuilder builder;
+    auto clickhouse = builder.Build();
+    try
+    {
+        clickhouse.Start();
+
+        EXPECT_NE(clickhouse.GetConnectionString().find("Host=127.0.0.1;Port="), std::string::npos);
+        const auto result = clickhouse.Exec("clickhouse-client", {"--query", "SELECT 1"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        clickhouse.Dispose();
+        throw;
+    }
+
+    clickhouse.Dispose();
 }

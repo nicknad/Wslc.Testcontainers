@@ -236,6 +236,7 @@ jobs:
       - run: dotnet pack src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.WireMock/Wslc.Testcontainers.Modules.WireMock.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Qdrant/Wslc.Testcontainers.Modules.Qdrant.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.ClickHouse/Wslc.Testcontainers.Modules.ClickHouse.csproj -c Release --no-build -o artifacts/packages
       - uses: actions/upload-artifact@v7
         with:
           name: packages

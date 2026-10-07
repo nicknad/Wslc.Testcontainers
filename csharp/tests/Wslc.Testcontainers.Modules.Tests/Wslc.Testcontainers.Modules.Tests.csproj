@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RustFs\Wslc.Testcontainers.Modules.RustFs.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.WireMock\Wslc.Testcontainers.Modules.WireMock.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Qdrant\Wslc.Testcontainers.Modules.Qdrant.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.ClickHouse\Wslc.Testcontainers.Modules.ClickHouse.csproj" />
   </ItemGroup>
 
 </Project>

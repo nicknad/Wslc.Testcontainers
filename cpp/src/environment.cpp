@@ -188,7 +188,7 @@ std::optional<std::chrono::milliseconds> WslEnvironment::ParseTimeout(const std:
     const std::string& Text = *value;
     char* end = nullptr;
     const double seconds = std::strtod(Text.c_str(), &end);
-    if (end != nullptr && *end == '\0' && seconds > 0)
+    if (*end == '\0' && seconds > 0)
     {
         return std::chrono::milliseconds(static_cast<std::int64_t>(seconds * 1000.0));
     }

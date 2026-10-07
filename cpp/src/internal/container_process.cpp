@@ -487,10 +487,7 @@ void ContainerProcess::Kill(std::stop_token token)
 
 void ContainerProcess::Dispose()
 {
-    if (m_state)
-    {
-        m_state->Dispose();
-    }
+    m_state->Dispose();
 }
 
 } // namespace wslc::internal

@@ -1,7 +1,5 @@
 #include "wslc/platform.hpp"
 
-#include "internal/util.hpp"
-
 #include <windows.h>
 
 #include <string>

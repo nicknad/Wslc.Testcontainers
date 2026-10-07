@@ -33,7 +33,7 @@ public sealed record ExecResult(int ExitCode, string Stdout, string Stderr)
     /// their contents, so logging a result cannot dump megabytes of captured output.
     /// </summary>
     public override string ToString() =>
-        $"ExecResult {{ ExitCode = {ExitCode}, Stdout.Length = {Stdout?.Length ?? 0}, Stderr.Length = {Stderr?.Length ?? 0} }}";
+        $"ExecResult {{ ExitCode = {ExitCode}, Stdout.Length = {Stdout.Length}, Stderr.Length = {Stderr.Length} }}";
 
     private static string Truncate(string value, int maxChars = 4096)
     {

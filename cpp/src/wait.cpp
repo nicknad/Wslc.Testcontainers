@@ -6,11 +6,10 @@
 #include "wslc/environment.hpp"
 #include "wslc/exceptions.hpp"
 
-#include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -98,16 +97,9 @@ protected:
     {
         std::string message = "Timed out after " + internal::FormatMilliseconds(Elapsed) + "s waiting for " + Name() +
                               " on '" + target.Name() + "'.";
-        const std::string detail = BuildFailureDetail(target);
-        if (!internal::IsBlank(detail))
-        {
-            message += "\n" + detail;
-        }
 
         return WslReadinessException(message, Name(), m_timeout, TakeLast(target.GetRecentLogs(), c_maxLogLines));
     }
-
-    virtual std::string BuildFailureDetail(IWaitTarget&) const { return {}; }
 
     std::chrono::milliseconds m_timeout = WslEnvironment::DefaultWaitTimeout();
     std::chrono::milliseconds m_retryInterval = std::chrono::milliseconds(250);

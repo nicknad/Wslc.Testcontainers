@@ -114,11 +114,8 @@ public abstract class WslModuleBuilder<TBuilder>
         // Sequential waits need sum(wait timeouts) + provisioning slack.
         try
         {
-            checked
-            {
-                var doubled = perWaitTimeout + perWaitTimeout;
-                return doubled + TimeSpan.FromSeconds(30);
-            }
+            var doubled = perWaitTimeout + perWaitTimeout;
+            return doubled + TimeSpan.FromSeconds(30);
         }
         catch (OverflowException)
         {

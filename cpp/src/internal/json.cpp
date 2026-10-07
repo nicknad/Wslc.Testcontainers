@@ -309,7 +309,7 @@ struct Parser
         const std::string token(Text.substr(Start, position - Start));
         char* end = nullptr;
         const double Number = std::strtod(token.c_str(), &end);
-        if (end == nullptr || *end != '\0')
+        if (*end != '\0')
         {
             return false;
         }

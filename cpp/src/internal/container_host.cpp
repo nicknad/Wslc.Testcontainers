@@ -7,7 +7,6 @@
 #include "wslc/resource_reaper.hpp"
 
 #include <map>
-#include <memory>
 #include <mutex>
 
 namespace wslc::internal

@@ -70,8 +70,7 @@ std::shared_ptr<ContainerProcessState> ProcessRunner::Prepare(std::function<void
     return std::make_shared<ContainerProcessState>(capture_output, std::move(observer));
 }
 
-void ProcessRunner::CreateNative(WslcContainer container, const ProcessSettings& settings, ContainerProcessState& State,
-                                 ErrorKind error_kind)
+void ProcessRunner::CreateNative(WslcContainer container, const ProcessSettings& settings, ContainerProcessState& State)
 {
     if (settings.CommandLine.empty())
     {
@@ -80,17 +79,17 @@ void ProcessRunner::CreateNative(WslcContainer container, const ProcessSettings&
 
     WslcProcessSettings nativeSettings{};
     HRESULT result = WslcInitProcessSettings(&nativeSettings);
-    check(result, error_kind, "Failed to initialize process settings", nullptr);
+    check(result, ErrorKind::Process, "Failed to initialize process settings", nullptr);
 
     if (settings.WorkingDirectory && !settings.WorkingDirectory->empty())
     {
         result = WslcSetProcessSettingsWorkingDirectory(&nativeSettings, settings.WorkingDirectory->c_str());
-        check(result, error_kind, "Failed to set the process working directory", nullptr);
+        check(result, ErrorKind::Process, "Failed to set the process working directory", nullptr);
     }
 
     const std::vector<PCSTR> argv = build_argv(settings.CommandLine);
     result = WslcSetProcessSettingsCmdLine(&nativeSettings, argv.data(), argv.size());
-    check(result, error_kind, "Failed to set the process command line", nullptr);
+    check(result, ErrorKind::Process, "Failed to set the process command line", nullptr);
 
     // The SDK takes an array of "KEY=VALUE" strings.
     const std::vector<std::string> Environment = BuildEnvironment(settings.Environment);
@@ -99,25 +98,25 @@ void ProcessRunner::CreateNative(WslcContainer container, const ProcessSettings&
     {
         result =
             WslcSetProcessSettingsEnvVariables(&nativeSettings, environmentValues.data(), environmentValues.size());
-        check(result, error_kind, "Failed to set the process environment", nullptr);
+        check(result, ErrorKind::Process, "Failed to set the process environment", nullptr);
     }
 
     if (settings.EnableStandardInput)
     {
         result = WslcSetProcessSettingsFlags(&nativeSettings, WSLC_PROCESS_FLAG_STDIN);
-        check(result, error_kind, "Failed to enable standard input", nullptr);
+        check(result, ErrorKind::Process, "Failed to enable standard input", nullptr);
     }
 
     if (State.NativeCallbacks()->onStdOut != nullptr)
     {
         result = WslcSetProcessSettingsCallbacks(&nativeSettings, State.NativeCallbacks(), State.NativeContext());
-        check(result, error_kind, "Failed to set process callbacks", nullptr);
+        check(result, ErrorKind::Process, "Failed to set process callbacks", nullptr);
     }
 
     WslcProcess process = nullptr;
     PWSTR error = nullptr;
     result = WslcCreateContainerProcess(container, &nativeSettings, &process, &error);
-    check(result, error_kind, "Failed to create the process", &error);
+    check(result, ErrorKind::Process, "Failed to create the process", &error);
     State.SetHandle(process);
 }
 
@@ -132,7 +131,7 @@ ExecResult ProcessRunner::Run(WslcContainer container, const ProcessSettings& se
     }
 
     auto State = Prepare(std::move(observer), true);
-    CreateNative(container, settings, *State, ErrorKind::Process);
+    CreateNative(container, settings, *State);
 
     try
     {
@@ -205,7 +204,7 @@ void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path&
     settings.EnableStandardInput = true;
 
     auto State = Prepare(std::move(observer), true);
-    CreateNative(container, settings, *State, ErrorKind::Process);
+    CreateNative(container, settings, *State);
 
     try
     {
@@ -337,7 +336,7 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
     settings.CommandLine = {"/bin/sh", "-c", "cat -- \"$1\"", "sh", Source};
 
     auto State = Prepare(std::move(observer), false);
-    CreateNative(container, settings, *State, ErrorKind::Process);
+    CreateNative(container, settings, *State);
 
     std::filesystem::path tempFile;
     try

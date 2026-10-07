@@ -40,8 +40,7 @@ public:
     /// Creates (and starts) the native process. Callers register the State before calling this
     /// so a concurrent Stop cannot miss it.
     /// </summary>
-    static void CreateNative(WslcContainer container, const ProcessSettings& settings, ContainerProcessState& State,
-                             ErrorKind error_kind);
+    static void CreateNative(WslcContainer container, const ProcessSettings& settings, ContainerProcessState& State);
 
     /// <summary>Runs a command to completion and captures its exit code, stdout and stderr.</summary>
     static ExecResult Run(WslcContainer container, const ProcessSettings& settings,

@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstring>
 
 namespace wslc::internal
 {

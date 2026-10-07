@@ -6,7 +6,6 @@
 #include "wslc/log_line.hpp"
 #include "wslc/process.hpp"
 
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -98,8 +97,6 @@ public:
     int WaitForExit(std::stop_token token = {}) override;
     void Kill(std::stop_token token = {}) override;
     void Dispose() override;
-
-    ContainerProcessState& State() noexcept { return *m_state; }
 
 private:
     std::shared_ptr<ContainerProcessState> m_state;

@@ -66,16 +66,9 @@ internal abstract record WaitStrategyBase : IWaitStrategy
     protected WslReadinessException CreateTimeout(IWaitTarget target, TimeSpan elapsed)
     {
         var message = $"Timed out after {elapsed.TotalSeconds:0.###}s waiting for {Name} on '{target.Name}'.";
-        var detail = BuildFailureDetail(target);
-        if (!string.IsNullOrWhiteSpace(detail))
-        {
-            message = $"{message}{Environment.NewLine}{detail}";
-        }
 
         return new WslReadinessException(message, Name, Timeout, LogHelpers.TakeLast(target.GetRecentLogs(), MaxLogLines));
     }
-
-    protected virtual string? BuildFailureDetail(IWaitTarget target) => null;
 }
 
 /// <summary>A wait strategy that polls a condition until it holds or the timeout elapses.</summary>

@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <stop_token>
 #include <string>
 #include <utility>
 

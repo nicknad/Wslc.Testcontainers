@@ -1,0 +1,33 @@
+name: Setup MSVC developer environment
+description: >-
+  Initializes the x64 Visual Studio Developer Command Prompt (cl.exe, INCLUDE,
+  LIB, PATH) and exports it to subsequent steps. Local replacement for
+  ilammy/msvc-dev-cmd, which is Node.js 20 based.
+
+runs:
+  using: composite
+  steps:
+    - name: Initialize Visual Studio developer environment
+      shell: pwsh
+      run: |
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (-not (Test-Path -LiteralPath $vswhere)) {
+          throw "vswhere.exe was not found at '$vswhere'."
+        }
+        $installationPath = & $vswhere -latest -products * `
+          -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+          -property installationPath | Select-Object -First 1
+        if (-not $installationPath) {
+          throw 'No Visual Studio installation with the MSVC C++ toolset was found.'
+        }
+        $devCmd = Join-Path $installationPath 'Common7\Tools\VsDevCmd.bat'
+        Write-Host "Initializing the developer environment from '$devCmd'"
+        cmd /s /c "`"$devCmd`" -no_logo -arch=x64 -host_arch=x64 && set" | ForEach-Object {
+          if ($_ -match '^([^=]+)=(.*)$') {
+            $name = $Matches[1]
+            # GITHUB_* variables (including the per-step command files) are owned by the runner.
+            if ($name -notlike 'GITHUB_*') {
+              Add-Content -Path $env:GITHUB_ENV -Value "$name=$($Matches[2])"
+            }
+          }
+        }

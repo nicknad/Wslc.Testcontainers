@@ -41,7 +41,7 @@ jobs:
         with:
           path: cpp/build-analyze/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: ./.github/actions/setup-msvc
       - name: Configure (compile_commands.json)
         shell: pwsh
         env:

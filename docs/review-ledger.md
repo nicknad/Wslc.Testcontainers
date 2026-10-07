@@ -13,6 +13,41 @@ Baseline at `8915340`: C# 254 tests (249 pass, 5 environment skips); C++ `ctest`
 frozen by the `Verify-Package.ps1` promotion gate until the first release promotes
 `PublicAPI.Unshipped.txt` to `Shipped`.
 
+---
+
+## Review 2.0 — Recommendations from 2026-10-07 Repository Review
+
+### Confirmed Slop (HIGH Priority - Fix Before 1.0)
+
+| ID | Finding | Status | Owner | Effort | Notes |
+|----|---------|--------|-------|--------|-------|
+| **REV2-R5** | C++ `TakeLast` duplicated in `wait.cpp` and `wsl_container.cpp` | OPEN | @nicknad | 1-2h | Move to `internal/util.hpp`; C# already centralized in `LogHelpers.cs` |
+| **REV2-CPP-FMT** | Module connection string formatting duplicated across 15 modules | OPEN | @nicknad | 2-3h | Add `FormatEndpoint()`/`FormatConnectionString()` helpers to `WslModuleContainer`; C# already has `FormatHttpEndpoint` from commit 79e2bea |
+
+### Verification Required (MEDIUM Priority)
+
+| ID | Finding | Status | Owner | Effort | Notes |
+|----|---------|--------|-------|--------|-------|
+| **REV2-R6-CHECK** | C++ `IsOwnerAlive(int)` may be unused (removed in C# commit 79e2bea) | UNVERIFIED | @nicknad | 1h | Verify no callers, then remove from `reaper_logic.hpp` |
+
+### Long-term Quality Improvements (Post-1.0)
+
+| ID | Finding | Status | Owner | Effort | Notes |
+|----|---------|--------|-------|--------|-------|
+| **REV2-M12** | Split god classes: `WslContainer.cs` (1023 lines), `wsl_container.cpp` (~1406 lines) | UNVERIFIED | @nicknad | 2-3d | Extract port mapping, process management, log handling into separate classes |
+| **REV2-TEST-STRUCT** | Mirror C++ test structure to match C# (like commit 89f6f50) | UNVERIFIED | @nicknad | 1d | Move tests into `Internal/Networking/Provisioning/Runtime/Waiting` folders |
+| **REV2-SBOM** | Add SBOM generation for C++ dependencies | UNVERIFIED | @nicknad | 1d | gtest fetched at configure time; no Dependabot coverage |
+
+### Quality Metrics Update (2026-10-07)
+
+- **Baseline**: commit 362f1be
+- **C# Tests**: 254 tests (249 pass, 5 environment skips) - unchanged
+- **C++ Tests**: 196 tests (179 pass, 17 skips) - unchanged
+- **New Confirmed Slop**: 2 items, ~64+ lines duplicate code in C++
+- **Overall Quality Grade**: **B+** (Good, with active improvement)
+
+---
+
 ## MED — API / quality
 
 | ID | Theme | Status | Notes |

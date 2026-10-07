@@ -25,6 +25,7 @@
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MailPit\Wslc.Testcontainers.Modules.MailPit.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RustFs\Wslc.Testcontainers.Modules.RustFs.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.WireMock\Wslc.Testcontainers.Modules.WireMock.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Qdrant\Wslc.Testcontainers.Modules.Qdrant.csproj" />
   </ItemGroup>
 
 </Project>

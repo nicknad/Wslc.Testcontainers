@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -70,6 +70,7 @@ dotnet add package Wslc.Testcontainers.Modules.Nats
 dotnet add package Wslc.Testcontainers.Modules.MailPit
 dotnet add package Wslc.Testcontainers.Modules.RustFs
 dotnet add package Wslc.Testcontainers.Modules.WireMock
+dotnet add package Wslc.Testcontainers.Modules.Qdrant
 ```
 
 ## Quickstart
@@ -193,6 +194,15 @@ using Wslc.Testcontainers.Modules.WireMock;
 await using var wiremock = new WireMockBuilder().Build();
 await wiremock.StartAsync();
 var stubs = wiremock.GetEndpoint(); // http://host:port
+Qdrant (vector database HTTP + gRPC APIs):
+
+```csharp
+using Wslc.Testcontainers.Modules.Qdrant;
+
+await using var qdrant = new QdrantBuilder().Build();
+await qdrant.StartAsync();
+var httpApi = qdrant.GetEndpoint(); // http://host:port for the HTTP API
+// gRPC consumers use qdrant.GetConnectEndpoint(QdrantContainer.GrpcPort).
 ```
 
 ## Core concepts
@@ -203,7 +213,7 @@ var stubs = wiremock.GetEndpoint(); // http://host:port
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

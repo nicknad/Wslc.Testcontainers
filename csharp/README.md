@@ -60,6 +60,7 @@ dotnet add package Wslc.Testcontainers.Modules.Nats
 dotnet add package Wslc.Testcontainers.Modules.MailPit
 dotnet add package Wslc.Testcontainers.Modules.RustFs
 dotnet add package Wslc.Testcontainers.Modules.WireMock
+dotnet add package Wslc.Testcontainers.Modules.Qdrant
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -232,6 +233,7 @@ using Wslc.Testcontainers.Modules.Nats;
 using Wslc.Testcontainers.Modules.MailPit;
 using Wslc.Testcontainers.Modules.RustFs;
 using Wslc.Testcontainers.Modules.WireMock;
+using Wslc.Testcontainers.Modules.Qdrant;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -273,6 +275,9 @@ var s3 = rustfs.GetEndpoint(); // http://host:port + AccessKey/SecretKey
 await using var wiremock = new WireMockBuilder().Build();
 await wiremock.StartAsync();
 var stubs = wiremock.GetEndpoint(); // http://host:port
+await using var qdrant = new QdrantBuilder().Build();
+await qdrant.StartAsync();
+var qdrantHttp = qdrant.GetEndpoint(); // http://host:port; gRPC via GetConnectEndpoint(QdrantContainer.GrpcPort)
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

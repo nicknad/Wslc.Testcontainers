@@ -206,6 +206,11 @@ add_library(wslc::wiremock ALIAS wslc_wiremock)
 target_include_directories(wslc_wiremock PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/wiremock/include")
 target_link_libraries(wslc_wiremock PUBLIC wslc)
 wslc_apply_strict_options(wslc_wiremock)
+add_library(wslc_qdrant STATIC modules/qdrant/qdrant.cpp)
+add_library(wslc::qdrant ALIAS wslc_qdrant)
+target_include_directories(wslc_qdrant PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/qdrant/include")
+target_link_libraries(wslc_qdrant PUBLIC wslc)
+wslc_apply_strict_options(wslc_qdrant)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

@@ -8,5 +8,4 @@ Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder.WithAdminUsername(string! a
 Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer
 Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.AdminPassword.get -> string!
 Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.AdminUsername.get -> string!
-override Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.GetEndpoint() -> string!

@@ -28,6 +28,26 @@ public sealed class AtomicFileTests
     }
 
     [Fact]
+    public void WriteAllText_replaces_an_existing_destination()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-atomic");
+        try
+        {
+            var destination = Path.Combine(directory.FullName, "dest.json");
+            File.WriteAllText(destination, "old");
+
+            AtomicFile.WriteAllText(destination, "new");
+
+            Assert.Equal("new", File.ReadAllText(destination));
+            Assert.Empty(Directory.GetFiles(directory.FullName, ".*.wslc-tmp"));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void Discard_leaves_the_existing_destination_untouched()
     {
         var directory = Directory.CreateTempSubdirectory("wslc-atomic");

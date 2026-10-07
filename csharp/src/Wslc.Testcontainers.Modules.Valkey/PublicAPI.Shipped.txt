@@ -4,5 +4,4 @@ Wslc.Testcontainers.Modules.Valkey.ValkeyBuilder
 Wslc.Testcontainers.Modules.Valkey.ValkeyBuilder.Build() -> Wslc.Testcontainers.Modules.Valkey.ValkeyContainer!
 Wslc.Testcontainers.Modules.Valkey.ValkeyBuilder.ValkeyBuilder() -> void
 Wslc.Testcontainers.Modules.Valkey.ValkeyContainer
-override Wslc.Testcontainers.Modules.Valkey.ValkeyContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.Valkey.ValkeyContainer.GetEndpoint() -> string!

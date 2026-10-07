@@ -24,7 +24,7 @@ internal static class WslcProcessRunner
     }
 
     public static ProcessSettings CreateSettings(
-        IReadOnlyList<string> commandLine,
+        List<string> commandLine,
         string? workingDirectory,
         IReadOnlyDictionary<string, string>? environment,
         bool enableStandardInput = false,
@@ -35,18 +35,11 @@ internal static class WslcProcessRunner
             throw new ArgumentException("A command line is required.", nameof(commandLine));
         }
 
-        // Always copy: taking ownership of a caller-provided List<string> would alias mutable
-        // input (the SDK holds the reference), so a later caller mutation would corrupt settings.
-        // One small allocation per exec is negligible next to process startup.
-        var owned = new List<string>(commandLine.Count);
-        for (var i = 0; i < commandLine.Count; i++)
-        {
-            owned.Add(commandLine[i]);
-        }
-
+        // Callers pass the list they just built (BuildCommandLine or a fresh inline list) and
+        // never retain it; the SDK stores this reference, so callers must not mutate it later.
         var settings = new ProcessSettings
         {
-            CommandLine = owned,
+            CommandLine = commandLine,
             OutputMode = outputMode,
         };
 

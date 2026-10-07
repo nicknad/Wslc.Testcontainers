@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Wslc.Testcontainers.Internal;
 
 namespace Wslc.Testcontainers.Provisioning;
 
@@ -68,26 +69,10 @@ internal sealed class WslInstanceStore
 
         lock (_metadataGate)
         {
-            // Write-then-rename so a crash mid-write cannot leave truncated JSON behind.
-            // A unique temp name keeps concurrent writers (state transitions racing cleanup)
-            // from clobbering each other's temp file.
-            var tempPath = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            try
-            {
-                File.WriteAllText(tempPath, json);
-                File.Move(tempPath, path, overwrite: true);
-            }
-            finally
-            {
-                try
-                {
-                    File.Delete(tempPath);
-                }
-                catch
-                {
-                    // Best effort: a failed write must not leave temp litter behind.
-                }
-            }
+            // Write-then-rename (via AtomicFile.WriteAllText) so a crash mid-write cannot leave
+            // truncated JSON behind. The lock serializes the store's own writers; state
+            // transitions racing cleanup share this one store instance.
+            AtomicFile.WriteAllText(path, json);
         }
     }
 

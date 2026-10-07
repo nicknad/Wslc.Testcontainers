@@ -28,18 +28,10 @@ internal sealed class ProcessRegistry
         }
     }
 
-    public IWslProcess[] Snapshot()
-    {
-        lock (_gate)
-        {
-            return _processes.ToArray();
-        }
-    }
-
     /// <summary>
     /// Atomically removes and returns the live processes. Returning and clearing under one lock
     /// guarantees a process added concurrently is kept for the next stop instead of being dropped.
-    /// This is the only drain path; tests assert emptiness through <see cref="Snapshot"/>.
+    /// This is the only way to observe registry contents; there is no read-only peek.
     /// </summary>
     public IWslProcess[] TakeAll()
     {

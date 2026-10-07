@@ -15,8 +15,8 @@ public sealed class WslResourceReaperTests : IDisposable
     [Fact]
     public void Unknown_metadata_is_never_cleaned()
     {
-        Assert.False(WslResourceReaper.ShouldCleanup(null, ownerAlive: false));
-        Assert.False(WslResourceReaper.ShouldCleanup(null, ownerAlive: true));
+        Assert.False(WslResourceReaper.ShouldCleanup(null, ownerAlive: false, includeReuse: false));
+        Assert.False(WslResourceReaper.ShouldCleanup(null, ownerAlive: true, includeReuse: false));
     }
 
     [Fact]
@@ -24,8 +24,8 @@ public sealed class WslResourceReaperTests : IDisposable
     {
         var metadata = CreateMetadata(reuse: false);
 
-        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: true));
-        Assert.True(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false));
+        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: true, includeReuse: false));
+        Assert.True(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false, includeReuse: false));
     }
 
     [Fact]
@@ -33,16 +33,17 @@ public sealed class WslResourceReaperTests : IDisposable
     {
         var metadata = CreateMetadata(reuse: true);
 
-        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: true));
-        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false));
+        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: true, includeReuse: false));
+        Assert.False(WslResourceReaper.ShouldCleanup(metadata, ownerAlive: false, includeReuse: false));
     }
 
     [Fact]
     public void Owner_liveness_is_detected()
     {
-        Assert.True(WslResourceReaper.IsOwnerAlive(Environment.ProcessId));
-        Assert.False(WslResourceReaper.IsOwnerAlive(0));
-        Assert.False(WslResourceReaper.IsOwnerAlive(int.MaxValue));
+        // CreatedAt is "now" so the running PID cannot look recycled (StartTime predates it).
+        Assert.True(WslResourceReaper.IsOwnerAlive(CreateMetadata(reuse: false)));
+        Assert.False(WslResourceReaper.IsOwnerAlive(new WslInstanceMetadata("session", "wslc-test-0000", 0, DateTimeOffset.UtcNow)));
+        Assert.False(WslResourceReaper.IsOwnerAlive(new WslInstanceMetadata("session", "wslc-test-0000", int.MaxValue, DateTimeOffset.UtcNow)));
     }
 
     [Fact]

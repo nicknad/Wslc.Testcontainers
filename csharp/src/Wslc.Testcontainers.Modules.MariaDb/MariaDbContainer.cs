@@ -30,7 +30,4 @@ public sealed class MariaDbContainer : WslModuleContainer
         var endpoint = GetConnectEndpoint(DefaultPort);
         return $"Server={endpoint.Address};Port={endpoint.Port};User ID={_username};Password={_password};Database={_database}";
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

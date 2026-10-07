@@ -7,5 +7,4 @@ Wslc.Testcontainers.Modules.MariaDb.MariaDbBuilder.WithDatabase(string! database
 Wslc.Testcontainers.Modules.MariaDb.MariaDbBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.MariaDb.MariaDbBuilder!
 Wslc.Testcontainers.Modules.MariaDb.MariaDbBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.MariaDb.MariaDbBuilder!
 Wslc.Testcontainers.Modules.MariaDb.MariaDbContainer
-override Wslc.Testcontainers.Modules.MariaDb.MariaDbContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.MariaDb.MariaDbContainer.GetConnectionString() -> string!

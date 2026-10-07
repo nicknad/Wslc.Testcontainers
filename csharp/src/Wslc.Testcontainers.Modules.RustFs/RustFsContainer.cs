@@ -23,18 +23,11 @@ public sealed class RustFsContainer : WslModuleContainer
     }
 
     /// <summary>Renders the S3 service URL (e.g. <c>http://127.0.0.1:49153</c>) for a client's service/endpoint configuration.</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(S3Port);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
+    public string GetEndpoint() => FormatHttpEndpoint(GetConnectEndpoint(S3Port));
 
     /// <summary>The access key clients must authenticate with.</summary>
     public string AccessKey => _accessKey;
 
     /// <summary>The secret key clients must authenticate with.</summary>
     public string SecretKey => _secretKey;
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

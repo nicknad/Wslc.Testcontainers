@@ -35,7 +35,4 @@ public sealed class NatsContainer : WslModuleContainer
         var password = Uri.EscapeDataString(_password!);
         return $"nats://{user}:{password}@{endpoint.Address}:{endpoint.Port}";
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

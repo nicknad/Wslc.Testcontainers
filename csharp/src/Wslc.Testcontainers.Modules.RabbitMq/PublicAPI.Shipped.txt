@@ -6,5 +6,4 @@ Wslc.Testcontainers.Modules.RabbitMq.RabbitMqBuilder.RabbitMqBuilder() -> void
 Wslc.Testcontainers.Modules.RabbitMq.RabbitMqBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.RabbitMq.RabbitMqBuilder!
 Wslc.Testcontainers.Modules.RabbitMq.RabbitMqBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.RabbitMq.RabbitMqBuilder!
 Wslc.Testcontainers.Modules.RabbitMq.RabbitMqContainer
-override Wslc.Testcontainers.Modules.RabbitMq.RabbitMqContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.RabbitMq.RabbitMqContainer.GetConnectionString() -> string!

@@ -291,9 +291,8 @@ TEST(PortMapping, InspectPayloadAcceptsBarePortKeys)
 
 TEST(PortMapping, MalformedInspectPayloadsLeavePortsUnresolved)
 {
-    for (const char* inspect :
-         {"not json", "", "{\"Ports\":\"oops\"}", "{\"Ports\":{\"8080/tcp\":\"oops\"}}",
-          "{\"Ports\":{\"8080/tcp\":[42,\"oops\",null]}}"})
+    for (const char* inspect : {"not json", "", "{\"Ports\":\"oops\"}", "{\"Ports\":{\"8080/tcp\":\"oops\"}}",
+                                "{\"Ports\":{\"8080/tcp\":[42,\"oops\",null]}}"})
     {
         PortMapping mapping = PortMapping::Create({Port(8080)});
         mapping.ResolveFromInspect(inspect);

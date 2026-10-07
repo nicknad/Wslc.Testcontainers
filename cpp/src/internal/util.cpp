@@ -182,8 +182,7 @@ void ValidateContainerPath(std::string_view path)
             const unsigned char byte = static_cast<unsigned char>(character);
             if (byte < 0x20 || byte == 0x7F)
             {
-                throw WslException("Container path '" + std::string(path) +
-                                   "' must not contain control characters.");
+                throw WslException("Container path '" + std::string(path) + "' must not contain control characters.");
             }
         }
 

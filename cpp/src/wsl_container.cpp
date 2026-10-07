@@ -1182,7 +1182,7 @@ std::map<std::string, std::string> WslContainer::Impl::BuildEnvironment(
 {
     for (const auto& pair : overrides)
     {
-        ValidateEnvironmentName(pair.first);
+        internal::RequireEnvironmentName(pair.first);
     }
 
     std::map<std::string, std::string> Environment = configuration.Environment;

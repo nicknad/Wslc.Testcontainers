@@ -241,7 +241,7 @@ var issuer = keycloak.GetEndpoint(); // http://host:port; credentials via AdminU
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `ClickHouseBuilder, `VaultBuilder, `KeycloakBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

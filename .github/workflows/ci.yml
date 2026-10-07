@@ -230,6 +230,16 @@ jobs:
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.MongoDb/Wslc.Testcontainers.Modules.MongoDb.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.WireMock/Wslc.Testcontainers.Modules.WireMock.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Qdrant/Wslc.Testcontainers.Modules.Qdrant.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.ClickHouse/Wslc.Testcontainers.Modules.ClickHouse.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Vault/Wslc.Testcontainers.Modules.Vault.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj -c Release --no-build -o artifacts/packages
       - uses: actions/upload-artifact@v7
         with:
           name: packages

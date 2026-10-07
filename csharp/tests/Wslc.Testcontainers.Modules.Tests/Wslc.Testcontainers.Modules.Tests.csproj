@@ -20,6 +20,16 @@
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Valkey\Wslc.Testcontainers.Modules.Valkey.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MariaDb\Wslc.Testcontainers.Modules.MariaDb.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RabbitMq\Wslc.Testcontainers.Modules.RabbitMq.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MongoDb\Wslc.Testcontainers.Modules.MongoDb.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Nats\Wslc.Testcontainers.Modules.Nats.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MailPit\Wslc.Testcontainers.Modules.MailPit.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RustFs\Wslc.Testcontainers.Modules.RustFs.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.WireMock\Wslc.Testcontainers.Modules.WireMock.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Qdrant\Wslc.Testcontainers.Modules.Qdrant.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.ClickHouse\Wslc.Testcontainers.Modules.ClickHouse.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Vault\Wslc.Testcontainers.Modules.Vault.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Keycloak\Wslc.Testcontainers.Modules.Keycloak.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Elasticsearch\Wslc.Testcontainers.Modules.Elasticsearch.csproj" />
   </ItemGroup>
 
 </Project>

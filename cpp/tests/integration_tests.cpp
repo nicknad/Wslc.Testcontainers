@@ -5,10 +5,20 @@
 #include "internal/util.hpp"
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/clickhouse.hpp"
+#include "wslc/modules/keycloak.hpp"
+#include "wslc/modules/elasticsearch.hpp"
+#include "wslc/modules/mailpit.hpp"
 #include "wslc/modules/mariadb.hpp"
+#include "wslc/modules/mongodb.hpp"
+#include "wslc/modules/nats.hpp"
 #include "wslc/modules/postgresql.hpp"
+#include "wslc/modules/qdrant.hpp"
 #include "wslc/modules/rabbitmq.hpp"
+#include "wslc/modules/rustfs.hpp"
 #include "wslc/modules/valkey.hpp"
+#include "wslc/modules/wiremock.hpp"
+#include "wslc/modules/vault.hpp"
 #include "wslc/wslc.hpp"
 
 #include <algorithm>
@@ -541,4 +551,252 @@ TEST(IntegrationModules, RabbitMqModuleStartsAndAnswersPing)
     }
 
     rabbitmq.Dispose();
+}
+
+TEST(IntegrationModules, MongoDbModuleStartsAndServesPing)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::MongoDbBuilder builder;
+    auto mongodb = builder.Build();
+    try
+    {
+        mongodb.Start();
+
+        EXPECT_NE(mongodb.GetConnectionString().find("mongodb://127.0.0.1:"), std::string::npos);
+        const auto result = mongodb.Exec("mongosh", {"--quiet", "--eval", "db.adminCommand({ping:1}).ok"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        mongodb.Dispose();
+        throw;
+    }
+
+    mongodb.Dispose();
+}
+
+TEST(IntegrationModules, NatsModuleStartsWithJetStream)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::NatsBuilder builder;
+    builder.WithJetStream();
+    auto nats = builder.Build();
+    try
+    {
+        nats.Start();
+
+        EXPECT_NE(nats.GetConnectionString().find("nats://127.0.0.1:"), std::string::npos);
+        const auto result = nats.Exec("/bin/sh", {"-c", "printf 'PING\\r\\n' | nc -w 1 127.0.0.1 4222"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("PONG"), std::string::npos);
+    }
+    catch (...)
+    {
+        nats.Dispose();
+        throw;
+    }
+
+    nats.Dispose();
+}
+
+TEST(IntegrationModules, MailPitModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::MailPitBuilder builder;
+    auto mailpit = builder.Build();
+    try
+    {
+        mailpit.Start();
+
+        EXPECT_NE(mailpit.GetSmtpEndpoint().find("127.0.0.1:"), std::string::npos);
+        EXPECT_NE(mailpit.GetHttpEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        const auto result = mailpit.Exec("/bin/sh", {"-c", "wget -q -O - http://127.0.0.1:8025/livez"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        mailpit.Dispose();
+        throw;
+    }
+
+    mailpit.Dispose();
+}
+
+TEST(IntegrationModules, RustFsModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::RustFsBuilder builder;
+    auto rustfs = builder.Build();
+    try
+    {
+        rustfs.Start();
+
+        EXPECT_NE(rustfs.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        EXPECT_EQ(rustfs.AccessKey(), "rustfsadmin");
+        const auto result = rustfs.Exec("/bin/sh", {"-c", "wget -q -O - http://127.0.0.1:9000/health"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        rustfs.Dispose();
+        throw;
+    }
+
+    rustfs.Dispose();
+}
+
+TEST(IntegrationModules, WireMockModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::WireMockBuilder builder;
+    auto wiremock = builder.Build();
+    try
+    {
+        wiremock.Start();
+
+        EXPECT_NE(wiremock.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        const auto result = wiremock.Exec("/bin/sh", {"-c", "wget -q -O - http://127.0.0.1:8080/__admin/health"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("healthy"), std::string::npos);
+    }
+    catch (...)
+    {
+        wiremock.Dispose();
+        throw;
+    }
+
+    wiremock.Dispose();
+}
+
+TEST(IntegrationModules, QdrantModuleStartsAndAnswersReady)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::QdrantBuilder builder;
+    auto qdrant = builder.Build();
+    try
+    {
+        qdrant.Start();
+
+        EXPECT_NE(qdrant.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        // The image ships no HTTP client; bash's /dev/tcp is the verified in-container check.
+        const auto result =
+            qdrant.Exec("/bin/bash", {"-c", "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /readyz HTTP/1.0\\r\\nHost: "
+                                            "127.0.0.1\\r\\n\\r\\n' >&3; head -n 1 <&3"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("200 OK"), std::string::npos);
+    }
+    catch (...)
+    {
+        qdrant.Dispose();
+        throw;
+    }
+
+    qdrant.Dispose();
+}
+
+TEST(IntegrationModules, ClickHouseModuleStartsAndServesQuery)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::ClickHouseBuilder builder;
+    auto clickhouse = builder.Build();
+    try
+    {
+        clickhouse.Start();
+
+        EXPECT_NE(clickhouse.GetConnectionString().find("Host=127.0.0.1;Port="), std::string::npos);
+        const auto result = clickhouse.Exec("clickhouse-client", {"--query", "SELECT 1"});
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        clickhouse.Dispose();
+        throw;
+    }
+
+    clickhouse.Dispose();
+}
+
+TEST(IntegrationModules, VaultModuleStartsAndWritesASecret)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::VaultBuilder builder;
+    auto vault = builder.Build();
+    try
+    {
+        vault.Start();
+
+        EXPECT_NE(vault.GetAddress().find("http://127.0.0.1:"), std::string::npos);
+        EXPECT_EQ(vault.RootToken(), "root");
+        const auto result = vault.Exec(
+            "/bin/sh", {"-c", "VAULT_ADDR=http://127.0.0.1:8200 VAULT_TOKEN=root vault kv put secret/wslc value=1"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        vault.Dispose();
+        throw;
+    }
+
+    vault.Dispose();
+}
+
+TEST(IntegrationModules, KeycloakModuleStartsAndServesMasterRealm)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::KeycloakBuilder builder;
+    builder.WithWaitTimeout(3min);
+    auto keycloak = builder.Build();
+    try
+    {
+        keycloak.Start();
+
+        EXPECT_NE(keycloak.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        EXPECT_EQ(keycloak.AdminUsername(), "admin");
+        // The image ships no curl/wget, but /bin/sh (bash in POSIX mode) supports /dev/tcp.
+        const auto result =
+            keycloak.Exec("/bin/sh", {"-c", "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/master "
+                                            "HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q master <&3"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        keycloak.Dispose();
+        throw;
+    }
+
+    keycloak.Dispose();
+}
+
+TEST(IntegrationModules, ElasticsearchModuleStartsAndAnswersHealth)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::ElasticsearchBuilder builder;
+    auto elasticsearch = builder.Build();
+    try
+    {
+        elasticsearch.Start();
+
+        EXPECT_NE(elasticsearch.GetEndpoint().find("http://127.0.0.1:"), std::string::npos);
+        const auto result = elasticsearch.Exec("/bin/sh", {"-c", "curl -sf http://127.0.0.1:9200/_cluster/health"});
+        EXPECT_EQ(result.ExitCode, 0);
+    }
+    catch (...)
+    {
+        elasticsearch.Dispose();
+        throw;
+    }
+
+    elasticsearch.Dispose();
 }

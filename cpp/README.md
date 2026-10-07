@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` |
 
 Behavioral notes:
 
@@ -146,11 +146,21 @@ Behavioral notes:
 Typed module builders live in `cpp/modules/`:
 
 ```cpp
+#include <wslc/modules/clickhouse.hpp>
+#include <wslc/modules/keycloak.hpp>
+#include <wslc/modules/elasticsearch.hpp>
+#include <wslc/modules/mailpit.hpp>
 #include <wslc/modules/mariadb.hpp>
+#include <wslc/modules/mongodb.hpp>
+#include <wslc/modules/nats.hpp>
 #include <wslc/modules/postgresql.hpp>
+#include <wslc/modules/qdrant.hpp>
 #include <wslc/modules/rabbitmq.hpp>
 #include <wslc/modules/redis.hpp>
+#include <wslc/modules/rustfs.hpp>
 #include <wslc/modules/valkey.hpp>
+#include <wslc/modules/wiremock.hpp>
+#include <wslc/modules/vault.hpp>
 
 wslc::modules::PostgreSqlBuilder postgresBuilder;
 auto postgres = postgresBuilder.WithPassword("secret").Build();
@@ -176,6 +186,55 @@ wslc::modules::RabbitMqBuilder rabbitMqBuilder;
 auto rabbitmq = rabbitMqBuilder.Build();
 rabbitmq.Start();
 const std::string amqp = rabbitmq.GetConnectionString();
+
+wslc::modules::MongoDbBuilder mongoBuilder;
+auto mongodb = mongoBuilder.Build();
+mongodb.Start();
+const std::string mongo = mongodb.GetConnectionString();
+
+wslc::modules::NatsBuilder natsBuilder;
+natsBuilder.WithJetStream();
+auto nats = natsBuilder.Build();
+nats.Start();
+const std::string natsUrl = nats.GetConnectionString();
+
+wslc::modules::MailPitBuilder mailPitBuilder;
+auto mailpit = mailPitBuilder.Build();
+mailpit.Start();
+const std::string smtp = mailpit.GetSmtpEndpoint();
+const std::string mailUi = mailpit.GetHttpEndpoint();
+
+wslc::modules::RustFsBuilder rustFsBuilder;
+auto rustfs = rustFsBuilder.Build();
+rustfs.Start();
+const std::string s3 = rustfs.GetEndpoint();
+
+wslc::modules::WireMockBuilder wireMockBuilder;
+auto wiremock = wireMockBuilder.Build();
+wiremock.Start();
+const std::string stubs = wiremock.GetEndpoint();
+wslc::modules::QdrantBuilder qdrantBuilder;
+auto qdrant = qdrantBuilder.Build();
+qdrant.Start();
+const std::string qdrantHttp = qdrant.GetEndpoint(); // gRPC via GetConnectEndpoint(QdrantContainer::GrpcPort)
+wslc::modules::ClickHouseBuilder clickHouseBuilder;
+auto clickhouse = clickHouseBuilder.Build();
+clickhouse.Start();
+const std::string clickHouseClient = clickhouse.GetConnectionString();
+wslc::modules::VaultBuilder vaultBuilder;
+auto vault = vaultBuilder.Build();
+vault.Start();
+const std::string vaultAddress = vault.GetAddress();
+const std::string vaultRootToken = vault.RootToken();
+wslc::modules::KeycloakBuilder keycloakBuilder;
+auto keycloak = keycloakBuilder.Build();
+keycloak.Start();
+const std::string issuer = keycloak.GetEndpoint();
+const std::string keycloakUser = keycloak.AdminUsername();
+wslc::modules::ElasticsearchBuilder elasticsearchBuilder;
+auto elasticsearch = elasticsearchBuilder.Build();
+elasticsearch.Start();
+const std::string rest = elasticsearch.GetEndpoint();
 ```
 
 ## Configuration

@@ -1,0 +1,12 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.DefaultPort = 8080 -> int
+Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder
+Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder.Build() -> Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer!
+Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder.KeycloakBuilder() -> void
+Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder.WithAdminPassword(string! adminPassword) -> Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder!
+Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder.WithAdminUsername(string! adminUsername) -> Wslc.Testcontainers.Modules.Keycloak.KeycloakBuilder!
+Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer
+Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.AdminPassword.get -> string!
+Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.AdminUsername.get -> string!
+override Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.Keycloak.KeycloakContainer.GetEndpoint() -> string!

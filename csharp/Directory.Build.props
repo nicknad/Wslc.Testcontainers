@@ -13,7 +13,7 @@
     <AnalysisMode>Recommended</AnalysisMode>
     <!-- Lets the ubuntu guard job build Windows-targeted TFMs to prove early failure. No-op on Windows. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <VersionPrefix>0.2.0</VersionPrefix>
+    <VersionPrefix>0.3.0</VersionPrefix>
     <!-- Tag releases (v*) pass /p:Version= to override VersionPrefix. -->
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Authors>Nick Nadolski</Authors>

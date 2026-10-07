@@ -71,9 +71,14 @@ public abstract class WslModuleBuilder<TBuilder>
 
     /// <summary>
     /// How many times <c>_readyMessage</c> must appear before the module is considered ready.
-    /// Modules whose entrypoint starts a temporary server (Postgres) override this.
+    /// Modules whose entrypoint starts a temporary server (Postgres, MariaDB, MongoDB with
+    /// credentials) override this. Return 0 for services without a stable readiness log line;
+    /// such modules add their own wait (e.g. HTTP) in <see cref="Configure"/>.
     /// </summary>
     protected virtual int ReadyMessageOccurrences => 1;
+
+    /// <summary>Per-wait readiness timeout configured by <see cref="WithWaitTimeout"/>, for module waits added in <see cref="Configure"/>.</summary>
+    protected TimeSpan WaitTimeout => _timeout;
 
     /// <summary>Builds the core container with the module readiness waits applied.</summary>
     protected IWslContainer BuildContainer()
@@ -83,8 +88,13 @@ public abstract class WslModuleBuilder<TBuilder>
             .WithImage(_image)
             .WithPort(_port)
             .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilTcpPortIsOpen(_port))
-            .WithWaitStrategy(Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage, ReadyMessageOccurrences))
             .WithReadinessTimeout(startupTimeout);
+        if (ReadyMessageOccurrences > 0)
+        {
+            builder = builder.WithWaitStrategy(
+                Wait.ForWsl().WithTimeout(_timeout).UntilMessageIsLogged(_readyMessage, ReadyMessageOccurrences));
+        }
+
         builder = Configure(builder);
         if (_customizer is not null)
         {

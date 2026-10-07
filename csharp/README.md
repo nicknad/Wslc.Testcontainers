@@ -55,6 +55,16 @@ dotnet add package Wslc.Testcontainers.Modules.Redis
 dotnet add package Wslc.Testcontainers.Modules.Valkey
 dotnet add package Wslc.Testcontainers.Modules.MariaDb
 dotnet add package Wslc.Testcontainers.Modules.RabbitMq
+dotnet add package Wslc.Testcontainers.Modules.MongoDb
+dotnet add package Wslc.Testcontainers.Modules.Nats
+dotnet add package Wslc.Testcontainers.Modules.MailPit
+dotnet add package Wslc.Testcontainers.Modules.RustFs
+dotnet add package Wslc.Testcontainers.Modules.WireMock
+dotnet add package Wslc.Testcontainers.Modules.Qdrant
+dotnet add package Wslc.Testcontainers.Modules.ClickHouse
+dotnet add package Wslc.Testcontainers.Modules.Vault
+dotnet add package Wslc.Testcontainers.Modules.Keycloak
+dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -222,6 +232,16 @@ using Wslc.Testcontainers.Modules.Redis;
 using Wslc.Testcontainers.Modules.Valkey;
 using Wslc.Testcontainers.Modules.MariaDb;
 using Wslc.Testcontainers.Modules.RabbitMq;
+using Wslc.Testcontainers.Modules.MongoDb;
+using Wslc.Testcontainers.Modules.Nats;
+using Wslc.Testcontainers.Modules.MailPit;
+using Wslc.Testcontainers.Modules.RustFs;
+using Wslc.Testcontainers.Modules.WireMock;
+using Wslc.Testcontainers.Modules.Qdrant;
+using Wslc.Testcontainers.Modules.ClickHouse;
+using Wslc.Testcontainers.Modules.Vault;
+using Wslc.Testcontainers.Modules.Keycloak;
+using Wslc.Testcontainers.Modules.Elasticsearch;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -242,6 +262,42 @@ var mySql = mariadb.GetConnectionString(); // MySqlConnector format
 await using var rabbitmq = new RabbitMqBuilder().Build();
 await rabbitmq.StartAsync();
 var amqp = rabbitmq.GetConnectionString(); // amqp://user:pass@host:port/
+
+await using var mongodb = new MongoDbBuilder().Build();
+await mongodb.StartAsync();
+var mongo = mongodb.GetConnectionString(); // mongodb://host:port
+
+await using var nats = new NatsBuilder().WithJetStream().Build();
+await nats.StartAsync();
+var natsUrl = nats.GetConnectionString(); // nats://host:port
+
+await using var mailpit = new MailPitBuilder().Build();
+await mailpit.StartAsync();
+var smtp = mailpit.GetSmtpEndpoint();  // host:port
+var mailUi = mailpit.GetHttpEndpoint(); // http://host:port
+
+await using var rustfs = new RustFsBuilder().Build();
+await rustfs.StartAsync();
+var s3 = rustfs.GetEndpoint(); // http://host:port + AccessKey/SecretKey
+
+await using var wiremock = new WireMockBuilder().Build();
+await wiremock.StartAsync();
+var stubs = wiremock.GetEndpoint(); // http://host:port
+await using var qdrant = new QdrantBuilder().Build();
+await qdrant.StartAsync();
+var qdrantHttp = qdrant.GetEndpoint(); // http://host:port; gRPC via GetConnectEndpoint(QdrantContainer.GrpcPort)
+await using var clickhouse = new ClickHouseBuilder().Build();
+await clickhouse.StartAsync();
+var clickHouseClient = clickhouse.GetConnectionString(); // Host=...;Port=...;Username=...;Password=...;Database=...
+await using var vault = new VaultBuilder().Build();
+await vault.StartAsync();
+var vaultAddress = vault.GetAddress(); // http://host:port; RootToken defaults to "root"
+await using var keycloak = new KeycloakBuilder().Build();
+await keycloak.StartAsync();
+var issuer = keycloak.GetEndpoint(); // http://host:port; credentials via AdminUsername/AdminPassword
+await using var elasticsearch = new ElasticsearchBuilder().Build();
+await elasticsearch.StartAsync();
+var rest = elasticsearch.GetEndpoint(); // http://host:port
 ```
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit

@@ -54,6 +54,28 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `GetConnectionString()` for MySqlConnector.
 - `Wslc.Testcontainers.Modules.RabbitMq`: TCP 5672 + log `Server startup complete`,
   `GetConnectionString()` as an `amqp://` URI.
+- `Wslc.Testcontainers.Modules.MongoDb`: TCP 27017 + log `Waiting for connections`
+  (twice when root credentials are configured), `GetConnectionString()` for the driver.
+- `Wslc.Testcontainers.Modules.Nats`: TCP 4222 + log `Server is ready`, `GetConnectionString()`
+  as `nats://`; `WithJetStream()` opts into persistence.
+- `Wslc.Testcontainers.Modules.MailPit`: SMTP 1025 + HTTP 8025, readiness via `/livez`,
+  `GetSmtpEndpoint()` / `GetHttpEndpoint()`.
+- `Wslc.Testcontainers.Modules.RustFs`: S3 API 9000 + console 9001, readiness via `/health`,
+  `GetEndpoint()` plus `AccessKey`/`SecretKey`.
+- `Wslc.Testcontainers.Modules.WireMock`: HTTP 8080, readiness via `/__admin/health`,
+  `GetEndpoint()` for the stub and admin API base URL.
+- `Wslc.Testcontainers.Modules.Qdrant`: HTTP 6333 + gRPC 6334, readiness via `/readyz`,
+  `GetEndpoint()` for the HTTP API (gRPC via `GetConnectEndpoint(GrpcPort)`).
+- `Wslc.Testcontainers.Modules.ClickHouse`: HTTP 8123 + native 9000, readiness via `/ping`
+  (the entrypoint's user/database setup runs before the real server starts),
+  `GetConnectionString()` for ClickHouse.Client.
+- `Wslc.Testcontainers.Modules.Vault`: HTTP 8200 in dev mode, readiness via `/v1/sys/health`,
+  `GetAddress()` plus `RootToken`.
+- `Wslc.Testcontainers.Modules.Keycloak`: HTTP 8080, readiness via `/realms/master`,
+  `GetEndpoint()` plus `AdminUsername`/`AdminPassword`.
+- `Wslc.Testcontainers.Modules.Elasticsearch`: HTTP 9200, readiness via
+  `/_cluster/health?wait_for_status=yellow`, `GetEndpoint()`; single-node, security off,
+  512 MB heap, niofs storage.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

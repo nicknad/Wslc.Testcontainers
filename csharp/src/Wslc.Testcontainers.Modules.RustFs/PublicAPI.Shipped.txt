@@ -1,0 +1,13 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.RustFs.RustFsContainer.ConsolePort = 9001 -> int
+const Wslc.Testcontainers.Modules.RustFs.RustFsContainer.S3Port = 9000 -> int
+Wslc.Testcontainers.Modules.RustFs.RustFsBuilder
+Wslc.Testcontainers.Modules.RustFs.RustFsBuilder.Build() -> Wslc.Testcontainers.Modules.RustFs.RustFsContainer!
+Wslc.Testcontainers.Modules.RustFs.RustFsBuilder.RustFsBuilder() -> void
+Wslc.Testcontainers.Modules.RustFs.RustFsBuilder.WithAccessKey(string! accessKey) -> Wslc.Testcontainers.Modules.RustFs.RustFsBuilder!
+Wslc.Testcontainers.Modules.RustFs.RustFsBuilder.WithSecretKey(string! secretKey) -> Wslc.Testcontainers.Modules.RustFs.RustFsBuilder!
+Wslc.Testcontainers.Modules.RustFs.RustFsContainer
+Wslc.Testcontainers.Modules.RustFs.RustFsContainer.AccessKey.get -> string!
+override Wslc.Testcontainers.Modules.RustFs.RustFsContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Modules.RustFs.RustFsContainer.GetEndpoint() -> string!
+Wslc.Testcontainers.Modules.RustFs.RustFsContainer.SecretKey.get -> string!

@@ -1,7 +1,7 @@
 using Wslc.Testcontainers.Internal;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Internal;
 
 public sealed class ProcessRegistryTests
 {

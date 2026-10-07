@@ -4,7 +4,7 @@ using Wslc.Testcontainers.Tests.Support;
 using Wslc.Testcontainers.Waiting;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Waiting;
 
 public sealed class WaitStrategyTests
 {

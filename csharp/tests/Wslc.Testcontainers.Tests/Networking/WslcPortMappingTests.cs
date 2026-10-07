@@ -5,7 +5,7 @@ using Wslc.Testcontainers.Networking;
 using Wslc.Testcontainers.Provisioning;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Networking;
 
 public sealed class WslcPortMappingTests
 {

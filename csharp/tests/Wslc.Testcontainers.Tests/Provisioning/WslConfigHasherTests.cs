@@ -3,7 +3,7 @@ using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Provisioning;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Provisioning;
 
 public sealed class WslConfigHasherTests
 {

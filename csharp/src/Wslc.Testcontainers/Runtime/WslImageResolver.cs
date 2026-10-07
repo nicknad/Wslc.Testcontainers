@@ -66,8 +66,7 @@ internal sealed class WslImageResolver
     /// <summary>
     /// Compares two image references after Docker-style canonicalization: an implicit
     /// <c>docker.io</c> registry, an implicit <c>library/</c> namespace and an implicit
-    /// <c>:latest</c> tag. The previous suffix heuristic matched across registries, so a
-    /// cached image from an unrelated registry could satisfy the wrong reference.
+    /// <c>:latest</c> tag, so references from different registries never match.
     /// </summary>
     internal static bool MatchesImage(string candidate, string image) =>
         TryParseReference(candidate, out var candidateRepository, out var candidateTag) &&
@@ -113,6 +112,6 @@ internal sealed class WslImageResolver
             repository = hasRegistry ? reference : "docker.io/" + reference;
         }
 
-        return repository.Length > 0;
+        return true;
     }
 }

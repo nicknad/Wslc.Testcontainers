@@ -1,16 +1,13 @@
 #pragma once
 
 #include <chrono>
-#include <condition_variable>
 #include <cstdint>
 #include <filesystem>
-#include <mutex>
 #include <optional>
 #include <span>
 #include <stop_token>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 namespace wslc::internal
@@ -153,9 +150,6 @@ std::string join(const std::vector<std::string>& values, std::string_view separa
 
 /// <summary>Parses and canonicalizes an IPv4/IPv6 literal; nullopt when invalid.</summary>
 std::optional<std::string> NormalizeIpAddress(std::string_view value);
-
-/// <summary>Returns true for the IPv4/IPv6 unspecified (wildcard) addresses.</summary>
-bool IsWildcardAddress(std::string_view value);
 
 /// <summary>Throws when a copy destination is a directory or a reparse point (symlink/junction).</summary>
 void EnsureReplaceableDestination(const std::filesystem::path& destination);

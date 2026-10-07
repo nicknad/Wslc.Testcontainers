@@ -19,11 +19,12 @@
 
 #include <windows.h>
 
-#include <algorithm>
+#include <atomic>
 #include <condition_variable>
 #include <cctype>
 #include <format>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <vector>
 
@@ -293,7 +294,7 @@ private:
     void UpdateState(const std::string& State);
     void UpdateImageMetadata(const std::string& Image);
     void StopAndDeleteContainer(std::vector<std::string>& failures);
-    void TerminateSession(std::vector<std::string>& failures);
+    void TerminateSession();
     void DisposeMainProcess(std::vector<std::string>& failures);
     void TranslateAndThrow(std::stop_token caller, const std::stop_source& startup_source);
     WslReadinessException enrich(const WslReadinessException& readiness);
@@ -638,7 +639,6 @@ void WslContainer::Impl::CreateAndStartContainer(const std::string& Image)
         container = std::make_shared<internal::ContainerHandle>(Handle);
     }
 
-    error = nullptr;
     StartContainerAttached(Handle, Image);
 
     WslcProcess initProcess = nullptr;
@@ -899,7 +899,7 @@ void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool
 
     DisposeMainProcess(failures);
     StopAndDeleteContainer(failures);
-    TerminateSession(failures);
+    TerminateSession();
 
     {
         std::lock_guard lock(state_gate);
@@ -978,7 +978,7 @@ void WslContainer::Impl::StopAndDeleteContainer(std::vector<std::string>& failur
     container.reset();
 }
 
-void WslContainer::Impl::TerminateSession([[maybe_unused]] std::vector<std::string>& failures)
+void WslContainer::Impl::TerminateSession()
 {
     auto sessionHandle = get_session();
     if (!sessionHandle)
@@ -1297,7 +1297,7 @@ std::unique_ptr<IWslProcess> WslContainer::Impl::StartProcess(std::string comman
     processes.Add(State);
     try
     {
-        internal::ProcessRunner::CreateNative(containerHandle->get(), settings, *State, internal::ErrorKind::Process);
+        internal::ProcessRunner::CreateNative(containerHandle->get(), settings, *State);
     }
     catch (...)
     {

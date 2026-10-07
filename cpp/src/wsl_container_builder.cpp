@@ -8,9 +8,7 @@
 #include "wslc/exceptions.hpp"
 #include "wslc/platform.hpp"
 
-#include <algorithm>
 #include <cctype>
-#include <limits>
 #include <system_error>
 
 namespace wslc

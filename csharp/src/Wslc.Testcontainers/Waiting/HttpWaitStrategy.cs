@@ -8,15 +8,13 @@ internal sealed record HttpWaitStrategy(string Path, int Port) : PollingWaitStra
     private static readonly HttpClient Client =
         new(new SocketsHttpHandler { AllowAutoRedirect = false }) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
 
-    private readonly string _normalizedPath = Path.StartsWith('/') ? Path : "/" + Path;
-
     public override string Name => $"HTTP request to '{Path}' on port {Port} to succeed";
 
     protected override async Task<bool> CheckAsync(IWaitTarget target, CancellationToken cancellationToken)
     {
         // IPEndPoint.ToString() brackets IPv6 literals for the URI authority.
         var endpoint = target.GetConnectEndpoint(Port);
-        if (!Uri.TryCreate($"http://{endpoint}{_normalizedPath}", UriKind.Absolute, out var uri))
+        if (!Uri.TryCreate($"http://{endpoint}{Path}", UriKind.Absolute, out var uri))
         {
             // A path that cannot form a valid URI can never be satisfied.
             return false;

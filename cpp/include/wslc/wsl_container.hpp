@@ -6,7 +6,6 @@
 #include "wslc/process.hpp"
 #include "wslc/waiting/i_wait_target.hpp"
 
-#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <optional>

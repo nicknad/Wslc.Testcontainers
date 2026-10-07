@@ -33,16 +33,10 @@ std::unique_ptr<WslException> CreateException(ErrorKind Kind, std::string messag
 {
     switch (Kind)
     {
-    case ErrorKind::Runtime:
-        return std::make_unique<WslRuntimeException>(std::move(message));
     case ErrorKind::Provisioning:
         return std::make_unique<WslProvisioningException>(std::move(message));
-    case ErrorKind::Network:
-        return std::make_unique<WslNetworkException>(std::move(message));
     case ErrorKind::Process:
         return std::make_unique<WslProcessException>(std::move(message));
-    case ErrorKind::Cleanup:
-        return std::make_unique<WslCleanupException>(std::move(message));
     }
 
     std::unreachable();

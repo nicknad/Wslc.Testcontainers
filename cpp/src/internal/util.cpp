@@ -10,9 +10,11 @@
 
 #include <array>
 #include <cctype>
+#include <condition_variable>
 #include <ctime>
 #include <format>
-#include <limits>
+#include <mutex>
+#include <thread>
 
 #pragma comment(lib, "bcrypt.lib")
 
@@ -834,12 +836,6 @@ std::optional<std::string> NormalizeIpAddress(std::string_view value)
     }
 
     return std::nullopt;
-}
-
-bool IsWildcardAddress(std::string_view value)
-{
-    const auto normalized = NormalizeIpAddress(value);
-    return normalized && (*normalized == "0.0.0.0" || *normalized == "::");
 }
 
 void EnsureReplaceableDestination(const std::filesystem::path& destination)

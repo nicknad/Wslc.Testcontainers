@@ -119,10 +119,9 @@ internal static class WslConfigHasher
 {
     public static string Compute(WslContainerConfiguration configuration)
     {
-        // Length-prefixed binary encoding: the previous newline/separator text encoding was
-        // not injective, so a value containing a delimiter could hash the same as two
-        // separate fields and reuse the wrong instance. Prefixing every field with its byte
-        // count removes that ambiguity, and null is encoded distinctly from an empty string.
+        // Length-prefixed binary encoding: prefixing every field with its byte count keeps the
+        // hash injective, so a value containing a delimiter cannot hash the same as two
+        // separate fields. Null is encoded distinctly from an empty string.
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
 
         WriteString(hash, configuration.Image);

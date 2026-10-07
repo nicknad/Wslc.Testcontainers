@@ -77,11 +77,7 @@ void LogStream::Cancel()
     }
 
     m_impl->canceled = true;
-    if (m_impl->broadcaster != nullptr && m_impl->subscriber != nullptr)
-    {
-        m_impl->broadcaster->Unsubscribe(m_impl->subscriber);
-    }
-
+    m_impl->broadcaster->Unsubscribe(m_impl->subscriber);
     m_impl->subscriber.reset();
 }
 

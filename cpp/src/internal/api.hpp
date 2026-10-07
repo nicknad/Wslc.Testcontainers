@@ -23,11 +23,8 @@ void EnsureComInitialized();
 /// <summary>Selects the exception family a native failure is reported as.</summary>
 enum class ErrorKind
 {
-    Runtime,
     Provisioning,
-    Network,
     Process,
-    Cleanup,
 };
 
 /// <summary>Formats an HRESULT as 0xXXXXXXXX.</summary>
@@ -78,13 +75,6 @@ public:
         }
     }
 
-    WslcSession release() noexcept
-    {
-        WslcSession result = m_handle;
-        m_handle = nullptr;
-        return result;
-    }
-
 private:
     WslcSession m_handle = nullptr;
 };
@@ -120,13 +110,6 @@ public:
             WslcReleaseContainer(m_handle);
             m_handle = nullptr;
         }
-    }
-
-    WslcContainer release() noexcept
-    {
-        WslcContainer result = m_handle;
-        m_handle = nullptr;
-        return result;
     }
 
 private:
@@ -166,13 +149,6 @@ public:
         }
     }
 
-    WslcProcess release() noexcept
-    {
-        WslcProcess result = m_handle;
-        m_handle = nullptr;
-        return result;
-    }
-
 private:
     WslcProcess m_handle = nullptr;
 };
@@ -196,14 +172,6 @@ public:
             other.m_value = nullptr;
         }
         return *this;
-    }
-
-    T* get() const noexcept { return m_value; }
-    T* release() noexcept
-    {
-        T* result = m_value;
-        m_value = nullptr;
-        return result;
     }
 
     void reset()

@@ -32,12 +32,6 @@ public:
 
     HANDLE get() const noexcept { return m_handle; }
     explicit operator bool() const noexcept { return m_handle != nullptr && m_handle != INVALID_HANDLE_VALUE; }
-    HANDLE release() noexcept
-    {
-        HANDLE result = m_handle;
-        m_handle = INVALID_HANDLE_VALUE;
-        return result;
-    }
 
     void reset() noexcept
     {

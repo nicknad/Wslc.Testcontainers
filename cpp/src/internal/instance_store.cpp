@@ -1,14 +1,14 @@
 #include "internal/instance_store.hpp"
 
-#include "internal/json.hpp"
 #include "internal/util.hpp"
 #include "wslc/environment.hpp"
 #include "wslc/exceptions.hpp"
 
+#include <nlohmann/json.hpp>
+
 #include <windows.h>
 
 #include <cctype>
-#include <format>
 #include <fstream>
 #include <sstream>
 
@@ -35,64 +35,97 @@ std::optional<std::string> ReadTextFile(const std::filesystem::path& path)
 
 std::string RenderMetadata(const InstanceMetadata& metadata)
 {
-    std::string json =
-        std::format("{{\n  \"sessionId\": \"{}\",\n  \"instanceId\": \"{}\",\n  \"ownerProcessId\": {}",
-                    json::Escape(metadata.SessionId), json::Escape(metadata.InstanceId), metadata.OwnerProcessId);
+    // ordered_json preserves insertion order so wslc.json keeps its historical key layout.
+    nlohmann::ordered_json document;
+    document["sessionId"] = metadata.SessionId;
+    document["instanceId"] = metadata.InstanceId;
+    document["ownerProcessId"] = metadata.OwnerProcessId;
     if (metadata.CreatedAt)
     {
-        json += std::format(",\n  \"createdAt\": \"{}\"", FormatIso8601(*metadata.CreatedAt));
+        document["createdAt"] = FormatIso8601(*metadata.CreatedAt);
     }
 
-    json += std::format(",\n  \"state\": \"{}\"", json::Escape(metadata.State));
+    document["state"] = metadata.State;
     if (metadata.Owner)
     {
-        json += std::format(",\n  \"owner\": \"{}\"", json::Escape(*metadata.Owner));
+        document["owner"] = *metadata.Owner;
     }
 
     if (metadata.Image)
     {
-        json += std::format(",\n  \"image\": \"{}\"", json::Escape(*metadata.Image));
+        document["image"] = *metadata.Image;
     }
 
-    json += std::format(",\n  \"reuse\": {}\n}}\n", metadata.Reuse ? "true" : "false");
-    return json;
+    document["reuse"] = metadata.Reuse;
+    return document.dump(2) + "\n";
 }
 
-std::optional<int> ReadInt(const json::Value* value)
+std::optional<int> ReadInt(const nlohmann::ordered_json& value)
 {
-    if (value == nullptr)
-    {
-        return std::nullopt;
-    }
-
-    if (value->IsNumber())
-    {
-        return static_cast<int>(value->Number);
-    }
-
-    if (value->IsString())
+    if (value.is_number_integer() || value.is_number_unsigned())
     {
         try
         {
-            return std::stoi(value->String);
+            return value.get<int>();
         }
-        catch (...)
+        catch (const nlohmann::json::exception&)
         {
             return std::nullopt;
         }
     }
 
+    if (value.is_string())
+    {
+        try
+        {
+            std::size_t consumed = 0;
+            const int parsed = std::stoi(value.get_ref<const std::string&>(), &consumed);
+            if (consumed == value.get_ref<const std::string&>().size())
+            {
+                return parsed;
+            }
+        }
+        catch (...)
+        {
+        }
+
+        return std::nullopt;
+    }
+
     return std::nullopt;
 }
 
-std::optional<std::string> ReadString(const json::Value* value)
+std::optional<std::string> ReadString(const nlohmann::ordered_json& value)
 {
-    if (value == nullptr || !value->IsString())
+    if (!value.is_string())
     {
         return std::nullopt;
     }
 
-    return value->String;
+    return value.get_ref<const std::string&>();
+}
+
+const nlohmann::ordered_json* FindProperty(const nlohmann::ordered_json& document, const char* key)
+{
+    if (!document.is_object())
+    {
+        return nullptr;
+    }
+
+    const auto it = document.find(key);
+    return it != document.end() ? &*it : nullptr;
+}
+
+std::optional<int> ReadIntProperty(const nlohmann::ordered_json& document, const char* key)
+{
+    const nlohmann::ordered_json* value = FindProperty(document, key);
+    return value != nullptr ? ReadInt(*value) : std::nullopt;
+}
+
+std::optional<std::string> ReadStringProperty(const nlohmann::ordered_json& document, const char* key)
+{
+    const nlohmann::ordered_json* value = FindProperty(document, key);
+    return value != nullptr ? ReadString(*value) : std::nullopt;
 }
 
 } // namespace
@@ -211,21 +244,30 @@ std::optional<InstanceMetadata> InstanceStore::TryReadMetadata(const std::string
         return std::nullopt;
     }
 
-    const auto document = json::Parse(*Text);
-    if (!document || !document->IsObject())
+    nlohmann::ordered_json document;
+    try
+    {
+        document = nlohmann::ordered_json::parse(Text->begin(), Text->end());
+    }
+    catch (const nlohmann::json::exception&)
+    {
+        return std::nullopt;
+    }
+
+    if (!document.is_object())
     {
         return std::nullopt;
     }
 
     InstanceMetadata metadata;
-    metadata.SessionId = ReadString(document->Find("sessionId")).value_or("");
-    metadata.InstanceId = ReadString(document->Find("instanceId")).value_or("");
-    metadata.OwnerProcessId = ReadInt(document->Find("ownerProcessId")).value_or(0);
-    metadata.State = ReadString(document->Find("state")).value_or("Created");
-    metadata.Owner = ReadString(document->Find("owner"));
-    metadata.Image = ReadString(document->Find("image"));
+    metadata.SessionId = ReadStringProperty(document, "sessionId").value_or("");
+    metadata.InstanceId = ReadStringProperty(document, "instanceId").value_or("");
+    metadata.OwnerProcessId = ReadIntProperty(document, "ownerProcessId").value_or(0);
+    metadata.State = ReadStringProperty(document, "state").value_or("Created");
+    metadata.Owner = ReadStringProperty(document, "owner");
+    metadata.Image = ReadStringProperty(document, "image");
 
-    const auto created = ReadString(document->Find("createdAt"));
+    const auto created = ReadStringProperty(document, "createdAt");
     if (created)
     {
         const auto parsed = ParseIso8601(*created);
@@ -237,8 +279,8 @@ std::optional<InstanceMetadata> InstanceStore::TryReadMetadata(const std::string
         metadata.CreatedAt = *parsed;
     }
 
-    const json::Value* Reuse = document->Find("reuse");
-    metadata.Reuse = Reuse != nullptr && Reuse->IsBoolean() && Reuse->Boolean;
+    const nlohmann::ordered_json* reuse = FindProperty(document, "reuse");
+    metadata.Reuse = reuse != nullptr && reuse->is_boolean() && reuse->get<bool>();
     if (metadata.InstanceId.empty())
     {
         return std::nullopt;

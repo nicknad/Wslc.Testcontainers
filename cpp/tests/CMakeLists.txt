@@ -43,6 +43,7 @@ add_executable(wslc_tests
   exceptions_tests.cpp
   image_resolver_tests.cpp
   instance_store_tests.cpp
+  iso8601_tests.cpp
   line_assembler_tests.cpp
   log_broadcaster_tests.cpp
   log_line_tests.cpp
@@ -63,7 +64,7 @@ target_include_directories(wslc_tests PRIVATE
 # The shared golden-vector fixture lives at the repository root, outside the CMake tree.
 get_filename_component(_wslc_repo_root "${CMAKE_SOURCE_DIR}/.." ABSOLUTE)
 target_compile_definitions(wslc_tests PRIVATE WSLC_REPO_ROOT="${_wslc_repo_root}")
-target_link_libraries(wslc_tests PRIVATE wslc wslc_postgresql wslc_redis wslc_valkey wslc_mariadb wslc_rabbitmq wslc_mongodb wslc_nats wslc_mailpit wslc_rustfs wslc_wiremock wslc_qdrant wslc_clickhouse wslc_vault wslc_keycloak wslc_elasticsearch GTest::gtest_main)
+target_link_libraries(wslc_tests PRIVATE wslc wslc_postgresql wslc_redis wslc_valkey wslc_mariadb wslc_rabbitmq wslc_mongodb wslc_nats wslc_mailpit wslc_rustfs wslc_wiremock wslc_qdrant wslc_clickhouse wslc_vault wslc_keycloak wslc_elasticsearch nlohmann_json::nlohmann_json wil::headers GTest::gtest_main)
 wslc_apply_strict_options(wslc_tests)
 wslc_copy_sdk_runtime(wslc_tests)
 

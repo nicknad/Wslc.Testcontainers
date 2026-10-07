@@ -3,6 +3,8 @@
 #include "internal/pipe_reader.hpp"
 #include "wslc/exceptions.hpp"
 
+#include <wil/resource.h>
+
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -10,8 +12,8 @@
 #include <string>
 #include <thread>
 
+using wil::unique_handle;
 using wslc::OperationCanceledException;
-using wslc::internal::IoHandle;
 using wslc::internal::ReadPipeAvailable;
 
 namespace
@@ -19,8 +21,8 @@ namespace
 
 struct PipePair
 {
-    IoHandle read;
-    IoHandle write;
+    unique_handle read;
+    unique_handle write;
 };
 
 PipePair CreatePipePair()
@@ -28,7 +30,7 @@ PipePair CreatePipePair()
     HANDLE read = INVALID_HANDLE_VALUE;
     HANDLE write = INVALID_HANDLE_VALUE;
     EXPECT_NE(CreatePipe(&read, &write, nullptr, 0), 0) << "CreatePipe failed: " << GetLastError();
-    return PipePair{IoHandle(read), IoHandle(write)};
+    return PipePair{unique_handle(read), unique_handle(write)};
 }
 
 } // namespace

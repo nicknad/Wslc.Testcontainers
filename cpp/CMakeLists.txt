@@ -54,6 +54,47 @@ endif()
 find_package(Microsoft.WSL.Containers REQUIRED CONFIG PATHS "${WSLC_SDK_ROOT}" NO_DEFAULT_PATH)
 
 # ---------------------------------------------------------------------------
+# Third-party header libraries via FetchContent (pinned tarballs, like GTest).
+# CI restores fetched sources from actions/cache via WSLC_JSON_SOURCE_DIR /
+# WSLC_WIL_SOURCE_DIR; a cache miss downloads instead.
+# ---------------------------------------------------------------------------
+include(FetchContent)
+
+if(EXISTS "$ENV{WSLC_JSON_SOURCE_DIR}/single_include/nlohmann/json.hpp")
+  set(FETCHCONTENT_SOURCE_DIR_NLOHMANN_JSON "$ENV{WSLC_JSON_SOURCE_DIR}")
+  message(STATUS "Using cached nlohmann/json source at $ENV{WSLC_JSON_SOURCE_DIR}")
+else()
+  message(STATUS "Fetching nlohmann/json v3.12.0")
+endif()
+set(JSON_BuildTests OFF CACHE BOOL "" FORCE)
+set(JSON_Install OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(nlohmann_json
+  URL https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz
+  URL_HASH SHA512=6CC1E86261F8FAC21CC17A33DA3B6B3C3CD5C116755651642AF3C9E99BB3538FD42C1BD50397A77C8FB6821BC62D90E6B91BCDDE77A78F58F2416C62FC53B97D
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(nlohmann_json)
+
+# WIL ships its own test/packaging targets; populate without adding them and
+# expose only the headers (WIL is header-only) as an interface target.
+if(EXISTS "$ENV{WSLC_WIL_SOURCE_DIR}/include/wil/resource.h")
+  set(FETCHCONTENT_SOURCE_DIR_WIL "$ENV{WSLC_WIL_SOURCE_DIR}")
+  message(STATUS "Using cached WIL source at $ENV{WSLC_WIL_SOURCE_DIR}")
+else()
+  message(STATUS "Fetching WIL v1.0.250325.1")
+endif()
+FetchContent_Declare(wil
+  URL https://github.com/microsoft/wil/archive/refs/tags/v1.0.250325.1.tar.gz
+  URL_HASH SHA512=9691939BFA1229AD1890E72BEA801DF60EE46F307591AEE816ED771D225ED62B4CAAF5D2ECEFCBF200A41EE68F53823EC43A97C3A2D1A632AA3FCF18B35E4996
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_GetProperties(wil)
+if(NOT wil_POPULATED)
+  FetchContent_Populate(wil)
+endif()
+add_library(wil_headers INTERFACE)
+target_include_directories(wil_headers INTERFACE "${wil_SOURCE_DIR}/include")
+add_library(wil::headers ALIAS wil_headers)
+
+# ---------------------------------------------------------------------------
 # Strict compiler rules (zero warnings, ADR-0005) shared by every target.
 # ---------------------------------------------------------------------------
 function(wslc_apply_strict_options target)
@@ -129,7 +170,6 @@ add_library(wslc STATIC
   src/internal/container_process.cpp
   src/internal/image_resolver.cpp
   src/internal/instance_store.cpp
-  src/internal/json.cpp
   src/internal/log_broadcaster.cpp
   src/internal/pipe_reader.cpp
   src/internal/port_mapping.cpp
@@ -141,7 +181,8 @@ add_library(wslc STATIC
 add_library(wslc::wslc ALIAS wslc)
 target_include_directories(wslc PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_compile_definitions(wslc PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-target_link_libraries(wslc PUBLIC Microsoft.WSL.Containers::SDK PRIVATE bcrypt ws2_32 ole32)
+# nlohmann/json and WIL are header-only; PRIVATE keeps them out of consumers' include paths.
+target_link_libraries(wslc PUBLIC Microsoft.WSL.Containers::SDK PRIVATE bcrypt ws2_32 ole32 nlohmann_json::nlohmann_json wil::headers)
 wslc_apply_strict_options(wslc)
 
 # ---------------------------------------------------------------------------

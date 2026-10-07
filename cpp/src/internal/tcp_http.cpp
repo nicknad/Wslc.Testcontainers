@@ -7,6 +7,8 @@
 #include <ws2tcpip.h>
 #include <windows.h>
 
+#include <wil/resource.h>
+
 #include <algorithm>
 #include <array>
 #include <cctype>
@@ -36,45 +38,9 @@ constexpr std::chrono::milliseconds c_connectTimeout{2000};
 constexpr std::chrono::milliseconds c_ioTimeout{5000};
 constexpr std::chrono::milliseconds c_selectSlice{50};
 
-class Socket
-{
-public:
-    Socket() = default;
-    explicit Socket(SOCKET Handle) : m_handle(Handle) {}
-    ~Socket() { reset(); }
-    Socket(const Socket&) = delete;
-    Socket& operator=(const Socket&) = delete;
-    Socket(Socket&& other) noexcept : m_handle(other.m_handle) { other.m_handle = INVALID_SOCKET; }
-    Socket& operator=(Socket&& other) noexcept
-    {
-        if (this != &other)
-        {
-            reset();
-            m_handle = other.m_handle;
-            other.m_handle = INVALID_SOCKET;
-        }
-        return *this;
-    }
-
-    SOCKET get() const noexcept { return m_handle; }
-    explicit operator bool() const noexcept { return std::cmp_not_equal(m_handle, INVALID_SOCKET); }
-
-    void reset() noexcept
-    {
-        if (std::cmp_not_equal(m_handle, INVALID_SOCKET))
-        {
-            closesocket(m_handle);
-            m_handle = INVALID_SOCKET;
-        }
-    }
-
-private:
-    SOCKET m_handle = INVALID_SOCKET;
-};
-
 /// <summary>Connects to a numeric Host; nullopt socket and false on connect failure/Timeout.</summary>
 bool ConnectSocket(const std::string& Host, int port, std::chrono::milliseconds Timeout, std::stop_token token,
-                   Socket& out_socket)
+                   wil::unique_socket& out_socket)
 {
     EnsureWinsock();
     ThrowIfStopped(token);
@@ -97,7 +63,7 @@ bool ConnectSocket(const std::string& Host, int port, std::chrono::milliseconds 
 
     for (addrinfo* address = addresses; address != nullptr && !connected; address = address->ai_next)
     {
-        Socket candidate(::socket(address->ai_family, address->ai_socktype, address->ai_protocol));
+        wil::unique_socket candidate(::socket(address->ai_family, address->ai_socktype, address->ai_protocol));
         if (!candidate)
         {
             continue;
@@ -204,13 +170,13 @@ bool WaitReadable(SOCKET socket, std::chrono::steady_clock::time_point deadline,
 
 bool TcpProbe(const std::string& Host, int port, std::chrono::milliseconds Timeout, std::stop_token token)
 {
-    Socket socket;
+    wil::unique_socket socket;
     return ConnectSocket(Host, port, Timeout, token, socket);
 }
 
 bool HttpGetSucceeds(const std::string& Host, int port, const std::string& pathAndQuery, std::stop_token token)
 {
-    Socket socket;
+    wil::unique_socket socket;
     if (!ConnectSocket(Host, port, c_connectTimeout, token, socket))
     {
         return false;

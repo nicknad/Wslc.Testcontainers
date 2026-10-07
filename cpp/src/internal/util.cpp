@@ -709,22 +709,20 @@ std::optional<std::chrono::system_clock::time_point> ParseIso8601(std::string_vi
         return std::nullopt;
     }
 
-    std::tm utc{};
-    utc.tm_year = year - 1900;
-    utc.tm_mon = month - 1;
-    utc.tm_mday = day;
-    utc.tm_hour = hour;
-    utc.tm_min = minute;
-    utc.tm_sec = second;
-    const std::time_t time = _mkgmtime64(&utc);
-    if (time == -1)
+    // std::chrono calendar types instead of std::tm + _mkgmtime64: year_month_day::ok()
+    // validates the date (month/day ranges, leap years) instead of silently normalizing it,
+    // and sys_days arithmetic keeps everything in UTC without CRT time functions.
+    const std::chrono::year_month_day date{std::chrono::year{year}, std::chrono::month{static_cast<unsigned>(month)},
+                                           std::chrono::day{static_cast<unsigned>(day)}};
+    if (!date.ok() || hour > 23 || minute > 59 || second > 59)
     {
         return std::nullopt;
     }
 
     using namespace std::chrono;
-    const auto clock_offset = seconds(-offset_minutes * 60) + nanoseconds(fraction_ns);
-    return system_clock::from_time_t(time) + duration_cast<system_clock::duration>(clock_offset);
+    const sys_time<nanoseconds> utc = sys_days{date} + hours{hour} + minutes{minute} + seconds{second} +
+                                      nanoseconds{fraction_ns} - minutes{offset_minutes};
+    return time_point_cast<system_clock::duration>(utc);
 }
 
 std::string FormatMilliseconds(std::chrono::milliseconds value)

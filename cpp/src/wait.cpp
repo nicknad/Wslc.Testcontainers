@@ -301,23 +301,9 @@ std::shared_ptr<IWaitStrategy> WaitStrategyBase::And(std::shared_ptr<IWaitStrate
     return composite;
 }
 
-int ValidatePort(int port)
-{
-    if (port < 1 || port > 65535)
-    {
-        throw WslException("Port must be between 1 and 65535.");
-    }
-
-    return port;
-}
-
 std::string RequireText(std::string value, const char* what)
 {
-    if (internal::IsBlank(value))
-    {
-        throw WslException(std::string(what) + " must not be empty.");
-    }
-
+    internal::RequireText(value, what);
     return value;
 }
 
@@ -347,7 +333,7 @@ WslWaitBuilder& WslWaitBuilder::WithRetryInterval(std::chrono::milliseconds retr
 
 std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilTcpPortIsOpen(int port) const
 {
-    const int validated = ValidatePort(port);
+    const int validated = internal::ValidatePort(port);
     return Configure(std::make_shared<PollingStrategy>(
         "TCP port " + std::to_string(validated) + " to be available",
         [validated](IWaitTarget& target, std::stop_token token) { return target.IsTcpPortOpen(validated, token); },
@@ -358,7 +344,7 @@ std::shared_ptr<IWaitStrategy> WslWaitBuilder::UntilHttpRequestSucceeds(std::str
 {
     internal::ValidateHttpPath(pathAndQuery);
     const std::string path = std::move(pathAndQuery);
-    const int validated = ValidatePort(port);
+    const int validated = internal::ValidatePort(port);
     return Configure(std::make_shared<PollingStrategy>(
         "HTTP request to '" + path + "' on port " + std::to_string(validated) + " to succeed",
         [path, validated](IWaitTarget& target, std::stop_token token)

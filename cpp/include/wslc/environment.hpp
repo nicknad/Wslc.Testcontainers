@@ -76,7 +76,11 @@ public:
     /// <summary>Parses a truthy/falsy value; nullopt when the value is unset or unrecognized.</summary>
     static std::optional<bool> ParseBool(const std::optional<std::string>& value);
 
-    /// <summary>Parses a Timeout (plain seconds or [-]d.hh:mm:ss[.fff] clock string); nullopt when invalid.</summary>
+    /// <summary>
+    /// Parses a Timeout: invariant seconds as a double (&gt; 0, e.g. "60", "1.5") or a
+    /// [d.]hh:mm:ss[.fff] clock string. Matches the C# contract; anything else (including
+    /// zero/negative) yields nullopt so callers fall back to defaults.
+    /// </summary>
     static std::optional<std::chrono::milliseconds> ParseTimeout(const std::optional<std::string>& value);
 };
 

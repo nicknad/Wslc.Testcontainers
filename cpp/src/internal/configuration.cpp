@@ -91,21 +91,7 @@ std::string WslNaming::CreateReuseName(const std::string& configHash)
 bool WslNaming::IsManaged(std::string_view Name)
 {
     constexpr std::string_view managedPrefix = "wslc-";
-    if (Name.size() < managedPrefix.size())
-    {
-        return false;
-    }
-
-    for (std::size_t i = 0; i < managedPrefix.size(); i++)
-    {
-        const char left = static_cast<char>(std::tolower(static_cast<unsigned char>(Name[i])));
-        if (left != managedPrefix[i])
-        {
-            return false;
-        }
-    }
-
-    return true;
+    return Name.size() >= managedPrefix.size() && EqualsIgnoreCase(Name.substr(0, managedPrefix.size()), managedPrefix);
 }
 
 std::string WslNaming::Slug(std::string_view value, std::size_t maxLength)

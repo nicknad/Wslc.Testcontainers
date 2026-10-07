@@ -39,6 +39,7 @@ internal sealed class ProcessRegistry
     /// <summary>
     /// Atomically removes and returns the live processes. Returning and clearing under one lock
     /// guarantees a process added concurrently is kept for the next stop instead of being dropped.
+    /// This is the only drain path; tests assert emptiness through <see cref="Snapshot"/>.
     /// </summary>
     public IWslProcess[] TakeAll()
     {
@@ -48,14 +49,6 @@ internal sealed class ProcessRegistry
             var processes = _processes.ToArray();
             _processes.Clear();
             return processes;
-        }
-    }
-
-    public void Clear()
-    {
-        lock (_gate)
-        {
-            _processes.Clear();
         }
     }
 

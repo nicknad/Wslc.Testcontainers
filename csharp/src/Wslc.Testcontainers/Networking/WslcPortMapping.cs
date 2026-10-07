@@ -24,9 +24,36 @@ internal sealed class WslcPortMapping
     private sealed class Entry
     {
         public string? BindAddress { get; }
+        // Probe address resolved once at Create so readiness polls (every ~250 ms) do not
+        // re-parse the bind address per probe. Matches the C++ PortMapping::ProbeHost cache.
+        public IPAddress ProbeAddress { get; }
         public int MappedPort { get; set; }
 
-        public Entry(string? bindAddress) => BindAddress = bindAddress;
+        public Entry(string? bindAddress)
+        {
+            BindAddress = bindAddress;
+            ProbeAddress = ResolveProbeAddress(bindAddress);
+        }
+
+        private static IPAddress ResolveProbeAddress(string? bindAddress)
+        {
+            if (bindAddress is null || !IPAddress.TryParse(bindAddress, out var address))
+            {
+                return IPAddress.Loopback;
+            }
+
+            if (address.Equals(IPAddress.Any))
+            {
+                return IPAddress.Loopback;
+            }
+
+            if (address.Equals(IPAddress.IPv6Any))
+            {
+                return IPAddress.IPv6Loopback;
+            }
+
+            return address;
+        }
     }
 
     private WslcPortMapping(Dictionary<int, Entry> entries) => _entries = entries;
@@ -116,31 +143,46 @@ internal sealed class WslcPortMapping
     /// <summary>Reads the dynamically assigned host ports from <c>Container.Inspect()</c>.</summary>
     internal void ResolveFromInspect(string inspectJson)
     {
-        using var document = JsonDocument.Parse(inspectJson);
-        if (!document.RootElement.TryGetProperty(InspectPortsProperty, out var ports) || ports.ValueKind != JsonValueKind.Object)
+        // The runtime may return partial JSON while ports are being assigned; like the C++ port,
+        // treat unparsable payloads as "not yet resolved" so the poll loop retries instead of failing startup.
+        JsonDocument document;
+        try
+        {
+            document = JsonDocument.Parse(inspectJson);
+        }
+        catch (JsonException)
         {
             return;
         }
 
-        foreach (var property in ports.EnumerateObject())
+        using (document)
         {
-            if (!TryParseInspectPort(property.Name, out var containerPort))
+            if (!document.RootElement.TryGetProperty(InspectPortsProperty, out var ports) || ports.ValueKind != JsonValueKind.Object)
             {
-                continue;
+                return;
             }
 
-            if (!_entries.TryGetValue(containerPort, out var entry) || property.Value.ValueKind != JsonValueKind.Array)
+            foreach (var property in ports.EnumerateObject())
             {
-                continue;
-            }
-
-            foreach (var item in property.Value.EnumerateArray())
-            {
-                if (item.TryGetProperty("HostPort", out var hostPortElement) &&
-                    TryReadMappedPort(hostPortElement, out var hostPort))
+                if (!TryParseInspectPort(property.Name, out var containerPort))
                 {
-                    entry.MappedPort = hostPort;
-                    break;
+                    continue;
+                }
+
+                if (!_entries.TryGetValue(containerPort, out var entry) || property.Value.ValueKind != JsonValueKind.Array)
+                {
+                    continue;
+                }
+
+                foreach (var item in property.Value.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Object &&
+                        item.TryGetProperty("HostPort", out var hostPortElement) &&
+                        TryReadMappedPort(hostPortElement, out var hostPort))
+                    {
+                        entry.MappedPort = hostPort;
+                        break;
+                    }
                 }
             }
         }
@@ -214,32 +256,13 @@ internal sealed class WslcPortMapping
     /// <c>0.0.0.0</c> and IPv6 <c>::1</c> for <c>::</c>.
     /// </summary>
     public IPEndPoint GetConnectEndpoint(int containerPort) =>
-        new(ResolveProbeAddress(containerPort), GetMappedPort(containerPort));
+        new(GetProbeAddress(containerPort), GetMappedPort(containerPort));
 
     /// <summary>
-    /// Connects to the address the mapping is actually bound to. Wildcard bindings
-    /// resolve to their loopback (<c>0.0.0.0</c> to IPv4, <c>::</c> to IPv6); an unbound or
-    /// unparsable entry falls back to the SDK default (IPv4 loopback).
+    /// Returns the cached probe address for a mapped port. Wildcard bindings resolve to their
+    /// loopback (<c>0.0.0.0</c> to IPv4, <c>::</c> to IPv6); an unbound or unparsable entry falls
+    /// back to the SDK default (IPv4 loopback).
     /// </summary>
-    private IPAddress ResolveProbeAddress(int containerPort)
-    {
-        if (!_entries.TryGetValue(containerPort, out var entry) ||
-            entry.BindAddress is not { } bindAddress ||
-            !IPAddress.TryParse(bindAddress, out var address))
-        {
-            return IPAddress.Loopback;
-        }
-
-        if (address.Equals(IPAddress.Any))
-        {
-            return IPAddress.Loopback;
-        }
-
-        if (address.Equals(IPAddress.IPv6Any))
-        {
-            return IPAddress.IPv6Loopback;
-        }
-
-        return address;
-    }
+    private IPAddress GetProbeAddress(int containerPort) =>
+        _entries.TryGetValue(containerPort, out var entry) ? entry.ProbeAddress : IPAddress.Loopback;
 }

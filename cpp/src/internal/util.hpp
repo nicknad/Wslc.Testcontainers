@@ -22,8 +22,20 @@ std::string ToUtf8(std::wstring_view value);
 /// <summary>Returns true when the string is empty or contains only whitespace.</summary>
 bool IsBlank(std::string_view value);
 
+/// <summary>Requires non-blank text (images, commands, wait names, file sources).</summary>
+void RequireText(std::string_view value, const char* what);
+
+/// <summary>Requires a valid ASCII environment variable name ([A-Za-z_][A-Za-z0-9_]*).</summary>
+void RequireEnvironmentName(const std::string& name);
+
+/// <summary>Requires a TCP port in [1, 65535].</summary>
+int ValidatePort(int port);
+
+/// <summary>Requires a scratch volume name (non-empty, no path separators or whitespace).</summary>
+void RequireVolumeName(const std::string& name);
+
 /// <summary>Trims leading/trailing whitespace.</summary>
-std::string trim(std::string_view value);
+std::string Trim(std::string_view value);
 
 /// <summary>Maximum size of a single exec standard input payload.</summary>
 inline constexpr std::size_t c_maxStandardInputBytes = 64u * 1024u * 1024u;

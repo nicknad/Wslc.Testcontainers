@@ -9,7 +9,12 @@
 namespace wslc::internal::json
 {
 
-/// <summary>Minimal immutable JSON value used for inspect payloads and instance metadata.</summary>
+/// <summary>
+/// Minimal immutable JSON value for inspect payloads and instance metadata only.
+/// Deliberately not a general parser: Ports.HostPort extraction and the metadata store are the
+/// only consumers. Do not extend it (e.g. with new number formats) without port-mapping and
+/// metadata round-trip tests; prefer a tested library if a third use case appears.
+/// </summary>
 struct Value
 {
     enum class Kind
@@ -40,7 +45,10 @@ struct Value
     const Value* Find(std::string_view key) const;
 };
 
-/// <summary>Parses a JSON document; nullopt on syntax errors.</summary>
+/// <summary>
+/// Parses a JSON document; nullopt on syntax errors. Callers treat nullopt as "not yet
+/// available" (e.g. transient inspect payloads during port assignment) rather than failing.
+/// </summary>
 std::optional<Value> Parse(std::string_view Text);
 
 /// <summary>Escapes a string for embedding in a JSON document.</summary>

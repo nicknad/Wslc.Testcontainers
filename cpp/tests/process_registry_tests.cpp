@@ -54,7 +54,7 @@ TEST(ProcessRegistry, SnapshotIsACopy)
     registry.Add(state);
 
     const auto snapshot = registry.Snapshot();
-    registry.Clear();
+    static_cast<void>(registry.TakeAll());
 
     EXPECT_EQ(snapshot.size(), 1u);
     EXPECT_TRUE(registry.Snapshot().empty());

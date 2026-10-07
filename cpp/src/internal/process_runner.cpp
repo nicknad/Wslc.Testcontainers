@@ -315,7 +315,7 @@ void ProcessRunner::CopyTo(WslcContainer container, const std::filesystem::path&
         if (State->ExitCode() != 0)
         {
             throw WslProcessException("Copying '" + ToUtf8(Source.wstring()) + "' to '" + Destination +
-                                      "' failed: " + trim(State->StderrText()));
+                                      "' failed: " + Trim(State->StderrText()));
         }
 
         State->Dispose();
@@ -397,7 +397,7 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
         if (State->ExitCode() != 0)
         {
             throw WslProcessException("Copying '" + Source + "' to '" + ToUtf8(fullDestination.wstring()) +
-                                      "' failed: " + trim(State->StderrText()));
+                                      "' failed: " + Trim(State->StderrText()));
         }
 
         CommitFileReplace(tempFile, fullDestination);

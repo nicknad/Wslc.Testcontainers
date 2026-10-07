@@ -35,20 +35,13 @@ internal static class WslcProcessRunner
             throw new ArgumentException("A command line is required.", nameof(commandLine));
         }
 
-        // When the caller passes a freshly built List<string> (WslContainer path) take
-        // ownership to avoid a second copy; otherwise copy once with known capacity.
-        List<string> owned;
-        if (commandLine is List<string> list)
+        // Always copy: taking ownership of a caller-provided List<string> would alias mutable
+        // input (the SDK holds the reference), so a later caller mutation would corrupt settings.
+        // One small allocation per exec is negligible next to process startup.
+        var owned = new List<string>(commandLine.Count);
+        for (var i = 0; i < commandLine.Count; i++)
         {
-            owned = list;
-        }
-        else
-        {
-            owned = new List<string>(commandLine.Count);
-            for (var i = 0; i < commandLine.Count; i++)
-            {
-                owned.Add(commandLine[i]);
-            }
+            owned.Add(commandLine[i]);
         }
 
         var settings = new ProcessSettings

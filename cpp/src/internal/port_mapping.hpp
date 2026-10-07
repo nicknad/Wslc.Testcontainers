@@ -50,8 +50,14 @@ private:
     struct Entry
     {
         std::optional<std::string> BindAddress;
+        // Probe host resolved once at Create: wildcard bindings map to loopback, invalid or
+        // absent bindings fall back to 127.0.0.1. Cached so readiness polls (every ~250 ms) do
+        // not repeat InetPton/InetNtop per probe.
+        std::string ProbeHost = "127.0.0.1";
         int MappedPort = 0;
     };
+
+    static std::string ResolveProbeHost(const std::optional<std::string>& bindAddress);
 
     std::map<int, Entry> m_entries;
 };

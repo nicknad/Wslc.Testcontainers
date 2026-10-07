@@ -72,7 +72,7 @@ bool IsBlank(std::string_view value)
     return true;
 }
 
-std::string trim(std::string_view value)
+std::string Trim(std::string_view value)
 {
     std::size_t Start = 0;
     std::size_t end = value.size();
@@ -97,47 +97,62 @@ void ValidateStandardInputSize(std::size_t byteCount)
     }
 }
 
-namespace
+void RequireText(std::string_view value, const char* what)
 {
-
-bool HasControlCharacter(std::string_view value)
-{
-    for (const char character : value)
+    if (IsBlank(value))
     {
-        const unsigned char byte = static_cast<unsigned char>(character);
-        if (byte < 0x20 || byte == 0x7F)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/// <summary>First segment that names a real directory, skipping leading '/' runs and '.' entries.</summary>
-std::string_view FirstPathSegment(std::string_view path)
-{
-    std::size_t index = 0;
-    for (;;)
-    {
-        const std::size_t next = path.find('/', index);
-        const std::size_t end = next == std::string_view::npos ? path.size() : next;
-        const std::string_view segment = path.substr(index, end - index);
-        if (!segment.empty() && segment != ".")
-        {
-            return segment;
-        }
-
-        if (next == std::string_view::npos)
-        {
-            return {};
-        }
-
-        index = next + 1;
+        throw WslException(std::string(what) + " must not be empty.");
     }
 }
 
-} // namespace
+void RequireEnvironmentName(const std::string& name)
+{
+    if (IsBlank(name))
+    {
+        throw WslException("Environment variable name must not be empty.");
+    }
+
+    const char first = name[0];
+    if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
+    {
+        throw WslException("Environment variable name '" + name + "' must start with a letter or underscore.");
+    }
+
+    for (const char character : name)
+    {
+        if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
+        {
+            throw WslException(std::string("Environment variable name '") + name + "' contains invalid character '" +
+                               character + "'.");
+        }
+    }
+}
+
+int ValidatePort(int port)
+{
+    if (port < 1 || port > 65535)
+    {
+        throw WslException("Port must be between 1 and 65535.");
+    }
+
+    return port;
+}
+
+void RequireVolumeName(const std::string& name)
+{
+    if (IsBlank(name))
+    {
+        throw WslException("Volume Name must not be empty.");
+    }
+
+    for (const char character : name)
+    {
+        if (character == '/' || character == '\\' || std::isspace(static_cast<unsigned char>(character)) != 0)
+        {
+            throw WslException("Volume Name '" + name + "' must not contain path separators or whitespace.");
+        }
+    }
+}
 
 void ValidateContainerPath(std::string_view path)
 {
@@ -152,19 +167,33 @@ void ValidateContainerPath(std::string_view path)
                            "' must be an absolute Linux path starting with '/'.");
     }
 
-    if (HasControlCharacter(path))
-    {
-        throw WslException("Container path '" + std::string(path) + "' must not contain control characters.");
-    }
-
+    // Single pass over segments: reject ASCII controls, '..' escapes, and protected roots.
+    // Matches the C# Validation.RequireContainerPath check.
+    std::string_view first;
     std::size_t index = 0;
     for (;;)
     {
         const std::size_t next = path.find('/', index);
         const std::size_t end = next == std::string_view::npos ? path.size() : next;
-        if (path.substr(index, end - index) == "..")
+        const std::string_view segment = path.substr(index, end - index);
+
+        for (const char character : segment)
+        {
+            const unsigned char byte = static_cast<unsigned char>(character);
+            if (byte < 0x20 || byte == 0x7F)
+            {
+                throw WslException("Container path '" + std::string(path) + "' must not contain control characters.");
+            }
+        }
+
+        if (segment == "..")
         {
             throw WslException("Container path '" + std::string(path) + "' must not contain '..' segments.");
+        }
+
+        if (first.empty() && !segment.empty() && segment != ".")
+        {
+            first = segment;
         }
 
         if (next == std::string_view::npos)
@@ -175,7 +204,6 @@ void ValidateContainerPath(std::string_view path)
         index = next + 1;
     }
 
-    const std::string_view first = FirstPathSegment(path);
     if (first == "proc" || first == "sys" || first == "dev")
     {
         throw WslException("Container path '" + std::string(path) + "' targets the protected '/" + std::string(first) +
@@ -201,6 +229,8 @@ void ValidateHttpPath(std::string_view value)
         throw WslException("HTTP wait path '" + std::string(value) + "' must start with '/'.");
     }
 
+    // Reject HTTP CTLs (0x00-0x1F), SP (0x20) and DEL (0x7F) per RFC 9110, matching the C#
+    // Validation.RequireHttpPath check. UTF-8 continuation bytes are >= 0x80 and never equal CTLs.
     for (const char character : value)
     {
         const unsigned char byte = static_cast<unsigned char>(character);
@@ -754,7 +784,7 @@ void ThrowIfStopped(std::stop_token token)
 
 std::optional<bool> ParseBoolValue(std::string_view value)
 {
-    const std::string lowered = ToLower(trim(value));
+    const std::string lowered = ToLower(Trim(value));
     if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on")
     {
         return true;
@@ -806,7 +836,7 @@ std::string join(const std::vector<std::string>& values, std::string_view separa
 
 std::optional<std::string> NormalizeIpAddress(std::string_view value)
 {
-    const std::string Text = trim(value);
+    const std::string Text = Trim(value);
     if (Text.empty())
     {
         return std::nullopt;

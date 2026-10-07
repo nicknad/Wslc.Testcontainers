@@ -48,6 +48,7 @@ public:
     /// <summary>
     /// Atomically removes and returns the live processes. Returning and clearing under one lock
     /// guarantees a process added concurrently is kept for the next Stop instead of being dropped.
+    /// This is the only drain path; tests assert emptiness through Snapshot().
     /// </summary>
     std::vector<std::shared_ptr<ContainerProcessState>> TakeAll()
     {
@@ -56,12 +57,6 @@ public:
         auto result = SnapshotLocked();
         m_processes.clear();
         return result;
-    }
-
-    void Clear()
-    {
-        std::lock_guard lock(m_gate);
-        m_processes.clear();
     }
 
 private:

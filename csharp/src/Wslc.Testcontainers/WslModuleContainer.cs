@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 
 namespace Wslc.Testcontainers;
 
@@ -77,12 +78,27 @@ public abstract class WslModuleContainer : IWslContainer
         _inner.GetRecentLogs(maxLines);
 
     /// <summary>
-    /// Disposes the wrapped container. Derived module containers implement this by calling
-    /// <see cref="DisposeInnerAsync"/>; the abstract shape keeps the unsealed base free of a
-    /// <c>GC.SuppressFinalize</c> pattern it has no finalizer for (CA1816).
+    /// Disposes the wrapped container. Derived module containers may override this only when the
+    /// module itself owns extra resources; by default it disposes the inner container. The base
+    /// class is unsealed, so disposal suppresses finalization per CA1816.
     /// </summary>
-    public abstract ValueTask DisposeAsync();
+    public virtual async ValueTask DisposeAsync()
+    {
+        GC.SuppressFinalize(this);
+        await _inner.DisposeAsync().ConfigureAwait(false);
+    }
 
-    /// <summary>Disposes the wrapped container on behalf of a derived <see cref="DisposeAsync"/>.</summary>
-    protected ValueTask DisposeInnerAsync() => _inner.DisposeAsync();
+    /// <summary>Brackets IPv6 literals so host:port stays a valid URL authority.</summary>
+    protected static string FormatHost(IPAddress address) =>
+        address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString();
+
+    /// <summary>Renders an endpoint as host:port, e.g. <c>127.0.0.1:49153</c>.</summary>
+    protected static string FormatEndpoint(IPEndPoint endpoint) => $"{FormatHost(endpoint.Address)}:{endpoint.Port}";
+
+    /// <summary>Renders an HTTP base URL for the given endpoint, e.g. <c>http://127.0.0.1:49153</c>.</summary>
+    protected static string FormatHttpEndpoint(IPEndPoint endpoint) => $"http://{FormatEndpoint(endpoint)}";
+
+    /// <summary>Renders a connection string with host, port, username, password, and database.</summary>
+    protected static string FormatConnectionString(IPEndPoint endpoint, string username, string password, string database) =>
+        $"Host={endpoint.Address};Port={endpoint.Port};Username={username};Password={password};Database={database}";
 }

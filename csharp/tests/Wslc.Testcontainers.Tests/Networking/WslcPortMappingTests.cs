@@ -5,7 +5,7 @@ using Wslc.Testcontainers.Networking;
 using Wslc.Testcontainers.Provisioning;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Networking;
 
 public sealed class WslcPortMappingTests
 {
@@ -104,7 +104,7 @@ public sealed class WslcPortMappingTests
     {
         var mapping = WslcPortMapping.Create(new[] { Port(8080) });
         mapping.ResolveFromInspect(
-            """{"Ports":{"8080/tcp":[{"HostPort":4514.9},{"HostPort":-1},{"HostPort":65536.0},{"HostPort":4515}]}}""");
+            """{"Ports":{"8080/tcp":[{"HostPort":4514.9},{"HostPort":-1},{"HostPort":65536.0},{"HostPort":1e999},{"HostPort":4515}]}}""");
 
         Assert.Equal(4515, mapping.GetMappedPort(8080));
     }
@@ -163,6 +163,20 @@ public sealed class WslcPortMappingTests
         mapping.ResolveFromInspect("""{"Ports":{"8080":[{"HostPort":"4514"}]}}""");
 
         Assert.Equal(4514, mapping.GetMappedPort(8080));
+    }
+
+    [Theory]
+    [InlineData("not json")]
+    [InlineData("")]
+    [InlineData("""{"Ports":"oops"}""")]
+    [InlineData("""{"Ports":{"8080/tcp":"oops"}}""")]
+    [InlineData("""{"Ports":{"8080/tcp":[42,"oops",null]}}""")]
+    public void Malformed_inspect_payloads_leave_ports_unresolved(string inspectJson)
+    {
+        var mapping = WslcPortMapping.Create(new[] { Port(8080) });
+        mapping.ResolveFromInspect(inspectJson);
+
+        Assert.Throws<WslNetworkException>(() => mapping.GetMappedPort(8080));
     }
 
     [Fact]

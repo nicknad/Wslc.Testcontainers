@@ -20,18 +20,11 @@ public sealed class KeycloakContainer : WslModuleContainer
     }
 
     /// <summary>Renders the Keycloak HTTP base URL (e.g. <c>http://127.0.0.1:49153</c>).</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
+    public string GetEndpoint() => FormatHttpEndpoint(GetConnectEndpoint(DefaultPort));
 
     /// <summary>The bootstrap admin username clients must authenticate with.</summary>
     public string AdminUsername => _adminUsername;
 
     /// <summary>The bootstrap admin password clients must authenticate with.</summary>
     public string AdminPassword => _adminPassword;
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

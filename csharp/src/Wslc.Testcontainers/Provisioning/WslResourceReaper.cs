@@ -146,10 +146,6 @@ public static class WslResourceReaper
         return removed;
     }
 
-    /// <summary>Decides whether WSLC-owned storage may be deleted automatically.</summary>
-    internal static bool ShouldCleanup(WslInstanceMetadata? metadata, bool ownerAlive) =>
-        ShouldCleanup(metadata, ownerAlive, includeReuse: false);
-
     /// <summary>Decides whether WSLC-owned storage may be deleted, optionally including reuse.</summary>
     internal static bool ShouldCleanup(WslInstanceMetadata? metadata, bool ownerAlive, bool includeReuse)
     {
@@ -165,33 +161,6 @@ public static class WslResourceReaper
         }
 
         return !ownerAlive;
-    }
-
-    internal static bool IsOwnerAlive(int processId)
-    {
-        if (processId <= 0)
-        {
-            return false;
-        }
-
-        try
-        {
-            using var process = Process.GetProcessById(processId);
-            return !process.HasExited;
-        }
-        catch (ArgumentException)
-        {
-            return false;
-        }
-        catch (InvalidOperationException)
-        {
-            return false;
-        }
-        catch (System.ComponentModel.Win32Exception)
-        {
-            // Access denied querying another user's process: assume alive to avoid deleting live storage.
-            return true;
-        }
     }
 
     /// <summary>Returns true when another process currently holds the instance reuse lock.</summary>

@@ -1,69 +1,76 @@
 # Review ledger — open work
 
-Remaining findings only. Completed work (all F1-F27 findings, the API review slices
-S1-S4/M1-M11/M13/M19, redundancy R1/R3/R8, migration MIG1-MIG7, and new findings N2-N4) is in
-git history from `18c89c1` through `8915340`; do not re-litigate it here.
+Remaining findings only. Completed work lives in git history: the F1-F27/API/migration
+series through `8915340`, Review 2.0 slop (REV2-R5 `TakeLast`/`JoinLast`, REV2-CPP-FMT
+endpoint helpers, REV2-R6-CHECK) in `129cda4`, and the Review 3.0 bug/dedup batch on
+`chore/slop-cleanup-2.0` (reuse-lock release on stop, `CopyFrom` write check, detached
+start-thread handle lifetime, timeout parse guards, metadata-write visibility,
+`PortMapping` locking, IPv6 bracketing, shared `PercentEncode`/format helpers, 1 GiB
+constant, duplicate validation passes, argv/env marshalling, CI-variable list,
+`BuilderLimits` helper, registry prune disposal). Do not re-litigate those.
 
-Statuses: **OPEN** (reproduced, not fixed), **UNVERIFIED** (needs reproduction), **PARTIAL**
-(some of the item landed), **PROCESS** (planning/observability gap), **ACCEPTED** (recorded
-residual, no action planned).
+Statuses: **OPEN** (reproduced, not fixed), **UNVERIFIED** (needs reproduction),
+**PARTIAL** (some of the item landed), **PROCESS** (planning/observability gap),
+**ACCEPTED** (recorded residual, no action planned).
 
-Baseline at `8915340`: C# 254 tests (249 pass, 5 environment skips); C++ `ctest` 196 (179 pass,
-17 skips); clang-format and the CI-equivalent clang-tidy build clean; the public surface is
-frozen by the `Verify-Package.ps1` promotion gate until the first release promotes
-`PublicAPI.Unshipped.txt` to `Shipped`.
+Baseline at 2026-10-08 (post-Review-3.0): C# 265 unit tests pass (5 environment skips)
+plus 25 module tests pass (15 integration skips); C++ `ctest` 218/218 (26 integration
+and reparse skips); clang-format clean. The ASan job runs in CI (locally the ASan
+binary needs the runtime DLL).
 
-## MED — API / quality
+---
 
-| ID | Theme | Status | Notes |
-|----|-------|--------|-------|
-| M2 | Argument vs runtime exception taxonomy; platform exception nesting | UNVERIFIED | Confirm which failures should be `Argument*` vs `WslException`, and whether the C++ platform exception should nest the original error like C#. |
-| M8 | TimeSpan/ms, dict/map, Version parity | PARTIAL | `Inner` removed; remaining: verify C# `TimeSpan`/`IReadOnlyDictionary`/`System.Version` behavior matches C++ `chrono::milliseconds`/`std::map`/`WslVersion` (goldens cover config hashes only). |
-| M9 | Reversible builders; `RequireNetwork` | PARTIAL | `SuppressFinalize` resolved via the abstract `DisposeAsync` + `DisposeInnerAsync` shape; reversible builders and the `RequireNetwork` concept remain unverified. |
-| M12 | Split god classes (1043/1406 lines) | UNVERIFIED | `WslContainer.cs` / `wsl_container.cpp` are still monolithic; decide whether to split before 1.0. |
-| M14 | Catch audit; re-enable clang-tidy checks | UNVERIFIED | Review broad catches (`Ignore()`/`Debug`) and whether any disabled clang-tidy checks can return. |
-| M15 | Module constants; Doxygen casing; `reserve`; WSLC_ env validation | UNVERIFIED | Module constant extraction, XML/doc param casing, container `reserve` calls, and validation of `WSLC_*` values. |
-| M16 | Tarball name/size caps; volume regex; args/cwd caps | PARTIAL | Args/cwd and tarball size caps landed with F18; remaining: validate the tarball image name and the volume-name regex `^[A-Za-z0-9][-_]{0,63}$`. |
-| M17 | Inspect isfinite/1 MiB cap; log-auth docs; reuse mutex/jitter/TTL; PID checks; version/HRESULT centralization | UNVERIFIED | Harden Inspect JSON parsing, document log authorization, review reuse locking/jitter/TTL, PID checks in both directions, and centralize version/HRESULT formatting. |
-| M18 | README/docs updates | PARTIAL | Root router README, `cpp/README` install notes, Quickstart 3-arg example, version banner in `CHANGELOG.md`; the S1 promotion gate and `Verify-Package` wiring are done. |
+## Review 3.0 — remaining
 
-## LOW — polish
+| ID | Finding | Status | Notes |
+|----|---------|--------|-------|
+| R3-1 | C# `CleanupSynchronously` diverges from `StopCoreAsync`: 2s vs 10s SIGTERM grace, does not drain `_processes` or clear `_network`, separate `UpdateState` | OPEN | `WslContainer.cs:297-339` vs `:800-834`; unify or document the exit-hook differences |
+| R3-2 | C++ `ReadTextFile` reads `wslc.json` with no size cap | OPEN | `instance_store.cpp:23-34`; bound it like the other caps |
+| R3-3 | C# sync-over-async on the `StartProcess` failure path | OPEN | `WslContainer.cs:158`; benign today, blocks if dispose ever becomes truly async |
+| R3-4 | `WslInstanceMetadata.Owner` is write-only | OPEN | set at `WslContainer.cs:427`, never read; drop or surface |
+| R3-5 | `"wslc.lock"` and lifecycle state strings duplicated | OPEN | `WslContainer.cs:445` / `WslResourceReaper.cs:169`; `"Creating"/"Running"/"Stopped"` literals |
+| R3-6 | C# `WslcHost` fetches version and install-error text twice | OPEN | `WslcHost.cs:16-25` vs `:53-65` |
+| R3-7 | Dead branches/parameters: `CleanupAsync(throwOnError: true)` unreachable (`:226/:383` → `:794`); `StopCoreAsync` CT and C++ `StopLocked` token unused; `WslPlatform` revision fallback | OPEN | former R9/R13 |
+| R3-8 | Test-only seams in production types: `WslContainer` internal ctor/`Configuration`; reaper store overloads | OPEN | former R10 residual |
+| R3-9 | `EnsureStorageAndMetadata` ignores `create_directories` failure but marks storage created | OPEN | `wsl_container.cpp:335-337`; mirror C# which throws |
+| R3-10 | God classes: `WslContainer.cs` (~1026 lines), `wsl_container.cpp` (~1476 lines) | OPEN | former M12/REV2-M12; decide before 1.0 |
+| R3-11 | MariaDB/PostgreSQL builders near-clones; Redis/Valkey clones (both languages) | OPEN | ADR-0006 covers containers; builder duplication remains |
+| R3-12 | C# MariaDB connection string stays hand-rolled (`Server=`/`User ID=`) | ACCEPTED | genuine format difference from `FormatConnectionString` (`Host=`/`Username=`) |
+| R3-13 | C++ test structure not mirrored to the C# folder layout | OPEN | former REV2-TEST-STRUCT |
+| R3-14 | No SBOM/dependency-update coverage for C++ gtest | OPEN | former REV2-SBOM/N5 |
+| R3-15 | `IntegrationFactAttribute` duplicated across test projects; `mklink /J` helper duplicated | OPEN | `Support/IntegrationFactAttribute.cs` ×2; `HostFileTests.cs:131-151`, `WslInstanceStoreTests.cs:149-163` |
+| R3-16 | Seven module tests copy-paste HttpClient/CancellationTokenSource setup | OPEN | ClickHouse/Elasticsearch/Keycloak/MailPit/Qdrant/Vault/WireMock |
+| R3-17 | Redis is the only module with no test in either language | OPEN | at least a builder/connection-string test |
+| R3-18 | Several wait-strategy tests assert only "did not throw" | OPEN | add probe/handler call counts |
+| R3-19 | Fixed 3s log-drain windows in integration tests | OPEN | can truncate on slow CI |
+
+## Carried over — unverified
 
 | ID | Finding | Status |
 |----|---------|--------|
+| M2 | Argument vs runtime exception taxonomy; platform exception nesting | UNVERIFIED |
+| M8 | TimeSpan/ms, dict/map, Version parity beyond config-hash goldens | PARTIAL |
+| M9 | Reversible builders; `RequireNetwork` concept | PARTIAL |
+| M14 | Catch audit; re-enable disabled clang-tidy checks | UNVERIFIED |
+| M15 | Module constants; Doxygen casing; `reserve`; `WSLC_*` env validation | UNVERIFIED |
+| M16 | Tarball image-name and volume-name regex validation | PARTIAL |
+| M17 | Inspect JSON hardening; log auth docs; reuse locking/jitter/TTL; PID checks; version/HRESULT centralization | UNVERIFIED |
+| M18 | README/docs updates; version banner in `CHANGELOG.md` | PARTIAL |
 | L1 | Interpolate duplicate-port values | UNVERIFIED |
-| L2 | Fixture gate + Describe/GetRecentLogs sample | UNVERIFIED |
-| L3 | `.editorconfig` max_line_length, warnings, split e2e | UNVERIFIED |
-| L4 | Shared `FormatMilliseconds`, parity tests, casing, digest/Stop notes | UNVERIFIED (F12 fixed the unit bug; the shared helper/parity tests remain) |
+| L2 | Fixture gate + `Describe`/`GetRecentLogs` sample | UNVERIFIED |
+| L3 | `.editorconfig` max_line_length; warnings; split e2e | UNVERIFIED |
+| L4 | Shared `FormatMilliseconds`; parity tests; casing; digest/Stop notes | UNVERIFIED |
 | L5 | Accepted-risk docs (RW volumes, LAN binds, secrets, tags) | UNVERIFIED |
-
-## Redundancy / dead code
-
-| ID | Finding | Status | Notes |
-|----|---------|--------|-------|
-| R2 | Env-var name validator duplicated verbatim | OPEN | `WslContainer.cs` vs `WslContainerBuilder.cs`; `wsl_container.cpp` vs `wsl_container_builder.cpp`. |
-| R4 | Environment dictionary validated twice per exec/start | UNVERIFIED | `WslContainer.cs` then again in the runner; same in C++. |
-| R5 | C++ `TakeLast`/`JoinLast` copied | OPEN | `wait.cpp` and `wsl_container.cpp`; a verifier also saw a dead duplicate `JoinLast` in `wait.cpp` under standalone clang-tidy. |
-| R6 | Five near-identical C++ RAII handle wrappers | OPEN | `internal/api.hpp`, `process_runner.cpp` (`IoHandle` moved to `pipe_reader.hpp`), `tcp_http.cpp`. |
-| R7 | `WaitForExit` vs `WaitForExitFor` duplicate wait machinery | OPEN | `container_process.cpp`. |
-| R9 | `CleanupAsync` failure path unreachable; unused CT in `StopCoreAsync` | UNVERIFIED | `WslContainer.cs`. |
-| R10 | Unused CT / test-only reaper methods | PARTIAL | `Inner` removed; `WslImageResolver.ResolveAsync` CT and the test-only `WslResourceReaper` methods remain. |
-| R11 | Other C++ "dead" members | UNVERIFIED | `LogDumper` is intentional public testing surface; `release()` methods, JSON members, etc. still need symbol-level confirmation. |
-| R12 | Example dead code | UNVERIFIED | `CustomerService.Create/GetCustomers`, `DbConnectionProvider.ConnectionString`, `PostgresFixture.ConnectionString`. |
-| R13 | Redundant state/branches | UNVERIFIED | `_disposed`, `_normalizedPath`, platform revision fallback, empty-list branch. |
-| R14 | Broadcaster `m_hasSnapshot` duplicate state | UNVERIFIED | `log_broadcaster.cpp`. |
-| R15 | Test boilerplate duplication | PARTIAL | Low value until the suite is restructured. |
-
-## New findings / residuals
-
-| ID | Finding | Status | Notes |
-|----|---------|--------|-------|
-| N1 | `dotnet test <slnx>` runs zero tests (exit 5) while per-project works | OPEN | Document or fix the local invocation; CI already uses the per-project command. |
-| N5 | No SBOM or C++ dependency update coverage | OPEN | Dependabot covers NuGet only; gtest is fetched at configure time. |
-| N6 | No threat model, PR slicing, or effort/owner sizing | PROCESS | Useful before the remaining UNVERIFIED rows. |
-| N7 | Present-but-absurd `createdAt` (e.g. 1970) still trips the PID-recycle check | OPEN | Same class as F9; sanity-bound the timestamp against directory creation time. |
-| N8 | A process registered after the final `TakeAll` during a disposing stop is never drained | OPEN | Narrow window; wrapper leak rather than data loss. |
-| N9 | Version-lockstep gate ignores the tag version | OPEN | `release.yml` packs with `/p:Version=<tag>` while the gate compares `VersionPrefix` to CMake; pass the tag version in or derive both from one source. |
+| R6 | Five near-identical C++ RAII handle wrappers | OPEN |
+| R7 | `WaitForExit` vs `WaitForExitFor` duplicate wait machinery | OPEN |
+| R11 | Other C++ dead members (symbol-level confirmation) | UNVERIFIED |
+| R12 | Example dead code (`CustomerService`, `DbConnectionProvider`, `PostgresFixture`) | UNVERIFIED |
+| R14 | Broadcaster `m_hasSnapshot` duplicate state | UNVERIFIED |
+| N1 | `dotnet test <slnx>` runs zero tests (exit 5) while per-project works | OPEN |
+| N6 | No threat model, PR slicing, or effort/owner sizing | PROCESS |
+| N7 | Present-but-absurd `createdAt` (e.g. 1970) trips the PID-recycle check | OPEN |
+| N8 | A process registered after the final `TakeAll` during a disposing stop is never drained | OPEN |
+| N9 | Version-lockstep gate ignores the tag version | OPEN |
 
 ## Accepted risks (no action planned)
 

@@ -4,7 +4,7 @@ using System.Text;
 using Wslc.Testcontainers.Runtime;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Runtime;
 
 public sealed class LineAssemblerTests
 {

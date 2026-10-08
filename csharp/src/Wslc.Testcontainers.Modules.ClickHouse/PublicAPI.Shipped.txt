@@ -9,4 +9,3 @@ Wslc.Testcontainers.Modules.ClickHouse.ClickHouseBuilder.WithPassword(string! pa
 Wslc.Testcontainers.Modules.ClickHouse.ClickHouseBuilder.WithUsername(string! username) -> Wslc.Testcontainers.Modules.ClickHouse.ClickHouseBuilder!
 Wslc.Testcontainers.Modules.ClickHouse.ClickHouseContainer
 Wslc.Testcontainers.Modules.ClickHouse.ClickHouseContainer.GetConnectionString() -> string!
-override Wslc.Testcontainers.Modules.ClickHouse.ClickHouseContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask

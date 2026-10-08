@@ -1,8 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "internal/configuration.hpp"
-#include "internal/json.hpp"
 #include "internal/util.hpp"
+
+#include <nlohmann/json.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -14,6 +15,7 @@
 #include <string_view>
 #include <vector>
 
+using nlohmann::json;
 using wslc::ContainerNetworkMode;
 using wslc::VhdAllocationType;
 using wslc::internal::Configuration;
@@ -23,7 +25,6 @@ using wslc::internal::WslFileCopy;
 using wslc::internal::WslPortMappingRecord;
 using wslc::internal::WslScratchVolume;
 using wslc::internal::WslVolumeMount;
-using wslc::internal::json::Value;
 
 #ifndef WSLC_REPO_ROOT
 #error "WSLC_REPO_ROOT must be defined by the build to locate tests/fixtures."
@@ -39,63 +40,75 @@ struct GoldenVector
     std::string Sha256;
 };
 
-const Value& RequireProperty(const Value& object, std::string_view key)
+const json& RequireProperty(const json& object, std::string_view key)
 {
-    const Value* value = object.Find(key);
-    if (value == nullptr)
+    if (!object.is_object())
+    {
+        throw std::runtime_error("expected a JSON object");
+    }
+
+    const auto it = object.find(key);
+    if (it == object.end())
     {
         throw std::runtime_error("missing property '" + std::string(key) + "'");
     }
 
-    return *value;
+    return *it;
 }
 
-std::optional<std::string> ReadOptionalString(const Value& object, std::string_view key)
+std::optional<std::string> ReadOptionalString(const json& object, std::string_view key)
 {
-    const Value& value = RequireProperty(object, key);
-    if (value.IsNull())
+    const json& value = RequireProperty(object, key);
+    if (value.is_null())
     {
         return std::nullopt;
     }
 
-    if (!value.IsString())
+    if (!value.is_string())
     {
         throw std::runtime_error("property '" + std::string(key) + "' is not a string");
     }
 
-    return value.String;
+    return value.get_ref<const std::string&>();
 }
 
-std::optional<std::uint32_t> ReadOptionalUInt32(const Value& object, std::string_view key)
+std::optional<std::uint32_t> ReadOptionalUInt32(const json& object, std::string_view key)
 {
-    const Value& value = RequireProperty(object, key);
-    if (value.IsNull())
+    const json& value = RequireProperty(object, key);
+    if (value.is_null())
     {
         return std::nullopt;
     }
 
-    if (!value.IsNumber())
+    if (!value.is_number())
     {
         throw std::runtime_error("property '" + std::string(key) + "' is not a number");
     }
 
-    return static_cast<std::uint32_t>(value.Number);
+    try
+    {
+        return value.get<std::uint32_t>();
+    }
+    catch (const json::exception& error)
+    {
+        throw std::runtime_error("property '" + std::string(key) + "' is out of range: " + error.what());
+    }
 }
 
-std::optional<bool> ReadOptionalBool(const Value& object, std::string_view key)
+std::optional<bool> ReadOptionalBool(const json& object, std::string_view key)
 {
-    const Value& value = RequireProperty(object, key);
-    if (value.IsNull())
+    const json& value = RequireProperty(object, key);
+    if (value.is_null())
     {
         return std::nullopt;
     }
 
-    if (!value.IsBoolean())
+    if (!value.is_boolean())
     {
         throw std::runtime_error("property '" + std::string(key) + "' is not a boolean");
     }
 
-    return value.Boolean;
+    return value.get<bool>();
 }
 
 std::filesystem::path ToPath(std::string_view value)
@@ -103,7 +116,7 @@ std::filesystem::path ToPath(std::string_view value)
     return std::filesystem::path(ToUtf16(value));
 }
 
-Configuration ToConfiguration(const Value& element)
+Configuration ToConfiguration(const json& element)
 {
     Configuration configuration;
 
@@ -111,42 +124,44 @@ Configuration ToConfiguration(const Value& element)
     configuration.Command = ReadOptionalString(element, "command");
     configuration.WorkingDirectory = ReadOptionalString(element, "workingDirectory");
 
-    for (const Value& argument : RequireProperty(element, "args").Array)
+    for (const json& argument : RequireProperty(element, "args"))
     {
-        configuration.CommandArguments.push_back(argument.String);
+        configuration.CommandArguments.push_back(argument.get_ref<const std::string&>());
     }
 
-    for (const auto& pair : RequireProperty(element, "env").Object)
+    for (const auto& [name, value] : RequireProperty(element, "env").items())
     {
-        configuration.Environment.emplace(pair.first, pair.second.String);
+        configuration.Environment.emplace(name, value.get_ref<const std::string&>());
     }
 
-    for (const Value& item : RequireProperty(element, "files").Array)
+    for (const json& item : RequireProperty(element, "files"))
     {
-        configuration.Files.push_back(
-            WslFileCopy{ToPath(RequireProperty(item, "host").String), RequireProperty(item, "container").String});
+        configuration.Files.push_back(WslFileCopy{ToPath(RequireProperty(item, "host").get_ref<const std::string&>()),
+                                                  RequireProperty(item, "container").get_ref<const std::string&>()});
     }
 
-    for (const Value& item : RequireProperty(element, "volumes").Array)
+    for (const json& item : RequireProperty(element, "volumes"))
     {
-        configuration.Volumes.push_back(WslVolumeMount{ToPath(RequireProperty(item, "host").String),
-                                                       RequireProperty(item, "container").String,
-                                                       RequireProperty(item, "readOnly").Boolean});
+        configuration.Volumes.push_back(
+            WslVolumeMount{ToPath(RequireProperty(item, "host").get_ref<const std::string&>()),
+                           RequireProperty(item, "container").get_ref<const std::string&>(),
+                           RequireProperty(item, "readOnly").get<bool>()});
     }
 
-    for (const Value& item : RequireProperty(element, "sessionVolumes").Array)
+    for (const json& item : RequireProperty(element, "sessionVolumes"))
     {
-        const std::string type = RequireProperty(item, "type").String;
+        const std::string type = RequireProperty(item, "type").get_ref<const std::string&>();
         configuration.ScratchVolumes.push_back(WslScratchVolume{
-            RequireProperty(item, "name").String, RequireProperty(item, "container").String,
-            RequireProperty(item, "readOnly").Boolean, static_cast<std::uint64_t>(RequireProperty(item, "size").Number),
+            RequireProperty(item, "name").get_ref<const std::string&>(),
+            RequireProperty(item, "container").get_ref<const std::string&>(),
+            RequireProperty(item, "readOnly").get<bool>(), RequireProperty(item, "size").get<std::uint64_t>(),
             type == "fixed" ? VhdAllocationType::Fixed : VhdAllocationType::Dynamic});
     }
 
-    for (const Value& item : RequireProperty(element, "ports").Array)
+    for (const json& item : RequireProperty(element, "ports"))
     {
-        configuration.PortMappings.push_back(WslPortMappingRecord{
-            static_cast<int>(RequireProperty(item, "container").Number), ReadOptionalString(item, "bind")});
+        configuration.PortMappings.push_back(
+            WslPortMappingRecord{RequireProperty(item, "container").get<int>(), ReadOptionalString(item, "bind")});
     }
 
     configuration.NetworkingMode = [&]() -> std::optional<ContainerNetworkMode>
@@ -193,17 +208,27 @@ std::vector<GoldenVector> LoadGoldenVectors()
     stream.seekg(0, std::ios::beg);
     stream.read(text.data(), static_cast<std::streamsize>(text.size()));
 
-    const std::optional<Value> document = wslc::internal::json::Parse(text);
-    if (!document || !document->IsArray())
+    json document;
+    try
+    {
+        document = json::parse(text);
+    }
+    catch (const json::exception& error)
+    {
+        throw std::runtime_error(std::string("fixture is not valid JSON: ") + error.what());
+    }
+
+    if (!document.is_array())
     {
         throw std::runtime_error("fixture is not a JSON array");
     }
 
     std::vector<GoldenVector> vectors;
-    for (const Value& element : document->Array)
+    for (const json& element : document)
     {
-        vectors.push_back(GoldenVector{RequireProperty(element, "name").String, ToConfiguration(element),
-                                       RequireProperty(element, "sha256").String});
+        vectors.push_back(GoldenVector{RequireProperty(element, "name").get_ref<const std::string&>(),
+                                       ToConfiguration(element),
+                                       RequireProperty(element, "sha256").get_ref<const std::string&>()});
     }
 
     return vectors;

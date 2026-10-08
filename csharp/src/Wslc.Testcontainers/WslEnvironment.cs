@@ -217,6 +217,11 @@ public static class WslEnvironment
         };
     }
 
+    /// <summary>
+    /// Parses a timeout value: invariant seconds as a double (&gt; 0, e.g. "60", "1.5") or a
+    /// <see cref="TimeSpan"/> string ([d.]hh:mm:ss[.fffffff]). Matches the C++ contract; anything
+    /// else (including zero/negative) yields null so callers fall back to defaults.
+    /// </summary>
     internal static TimeSpan? ParseTimeout(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -224,7 +229,10 @@ public static class WslEnvironment
             return null;
         }
 
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+        // Reject non-finite and out-of-range values so TimeSpan.FromSeconds cannot throw;
+        // the contract is that unparseable values fall back to defaults.
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) &&
+            double.IsFinite(seconds) && seconds > 0 && seconds <= TimeSpan.MaxValue.TotalSeconds)
         {
             return TimeSpan.FromSeconds(seconds);
         }

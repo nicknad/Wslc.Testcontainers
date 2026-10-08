@@ -82,9 +82,7 @@ ClickHouseContainer::ClickHouseContainer(WslContainer inner, std::string usernam
 
 std::string ClickHouseContainer::GetConnectionString() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(HttpPort);
-    return "Host=" + endpoint.Host + ";Port=" + std::to_string(endpoint.Port) + ";Username=" + m_username +
-           ";Password=" + m_password + ";Database=" + m_database;
+    return FormatConnectionString(GetConnectEndpoint(HttpPort), m_username, m_password, m_database);
 }
 
 } // namespace wslc::modules

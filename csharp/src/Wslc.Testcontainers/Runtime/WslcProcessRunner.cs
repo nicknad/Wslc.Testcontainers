@@ -24,7 +24,7 @@ internal static class WslcProcessRunner
     }
 
     public static ProcessSettings CreateSettings(
-        IReadOnlyList<string> commandLine,
+        List<string> commandLine,
         string? workingDirectory,
         IReadOnlyDictionary<string, string>? environment,
         bool enableStandardInput = false,
@@ -35,25 +35,11 @@ internal static class WslcProcessRunner
             throw new ArgumentException("A command line is required.", nameof(commandLine));
         }
 
-        // When the caller passes a freshly built List<string> (WslContainer path) take
-        // ownership to avoid a second copy; otherwise copy once with known capacity.
-        List<string> owned;
-        if (commandLine is List<string> list)
-        {
-            owned = list;
-        }
-        else
-        {
-            owned = new List<string>(commandLine.Count);
-            for (var i = 0; i < commandLine.Count; i++)
-            {
-                owned.Add(commandLine[i]);
-            }
-        }
-
+        // Callers pass the list they just built (BuildCommandLine or a fresh inline list) and
+        // never retain it; the SDK stores this reference, so callers must not mutate it later.
         var settings = new ProcessSettings
         {
-            CommandLine = owned,
+            CommandLine = commandLine,
             OutputMode = outputMode,
         };
 
@@ -111,13 +97,8 @@ internal static class WslcProcessRunner
         CancellationToken cancellationToken,
         Action<LogLine>? observer)
     {
-        if (standardInput is not null)
-        {
-            // Count first so an oversized payload fails before a process is started or a
-            // second copy is allocated; the cap bounds the array built below.
-            ValidateStandardInputSize(Encoding.UTF8.GetByteCount(standardInput));
-        }
-
+        // The caller validates the standard-input size before calling (and before
+        // RequireContainer), so the process is not started for an oversized payload.
         var process = Start(container, settings, observer);
 
         try
@@ -262,7 +243,7 @@ internal static class WslcProcessRunner
 
         // Per ADR bounded loops we don't allow while(true): copy the container stdout
         // in fixed 64 KiB chunks up to 1 GiB, then fail. The cap bounds both bytes and iterations.
-        const ulong MaxBytes = 1024u * 1024u * 1024u;
+        const ulong MaxBytes = (ulong)HostFile.MaxCopyBytes;
         const uint ChunkSize = 64 * 1024;
         const int MaxChunks = (int)(MaxBytes / ChunkSize) + 1;
         ulong total = 0;

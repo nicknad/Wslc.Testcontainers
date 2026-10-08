@@ -26,8 +26,7 @@ ValkeyContainer::ValkeyContainer(WslContainer inner) : WslModuleContainer(std::m
 
 std::string ValkeyContainer::GetEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(DefaultPort);
-    return endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatEndpoint(GetConnectEndpoint(DefaultPort));
 }
 
 } // namespace wslc::modules

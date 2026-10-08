@@ -124,7 +124,7 @@ std::string InspectPayload(int port)
 
 TEST(PortMapping, MappingsAreDynamicUntilResolved)
 {
-    const PortMapping mapping = PortMapping::Create({Port(5432), Port(8080), Port(5432)});
+    const PortMapping mapping = PortMapping({Port(5432), Port(8080), Port(5432)});
 
     EXPECT_THROW(mapping.GetMappedPort(5432), WslNetworkException);
 
@@ -140,7 +140,7 @@ TEST(PortMapping, MappingsAreDynamicUntilResolved)
 
 TEST(PortMapping, BindAddressIsForwardedToTheContainerMapping)
 {
-    const PortMapping mapping = PortMapping::Create({Port(8080, "127.0.0.1"), Port(9090)});
+    const PortMapping mapping = PortMapping({Port(8080, "127.0.0.1"), Port(9090)});
 
     std::vector<sockaddr_storage> storage;
     const std::vector<WslcContainerPortMapping> mappings = mapping.ToNativeMappings(storage);
@@ -171,7 +171,7 @@ TEST(PortMapping, ConnectEndpointFollowsTheBindAddress)
     const std::string inspect = "{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"4514\"}]}}";
     const auto endpointFor = [&inspect](std::optional<std::string> bindAddress)
     {
-        PortMapping mapping = PortMapping::Create({Port(8080, std::move(bindAddress))});
+        PortMapping mapping = PortMapping({Port(8080, std::move(bindAddress))});
         mapping.ResolveFromInspect(inspect);
         return mapping.GetConnectEndpoint(8080);
     };
@@ -190,7 +190,7 @@ TEST(PortMapping, InspectPayloadResolvesDynamicPorts)
     const std::string inspect = "{\"Ports\":{\"8080/tcp\":[{\"HostIp\":\"127.0.0.1\",\"HostPort\":\"4514\"}],"
                                 "\"5432/tcp\":[{\"HostIp\":\"127.0.0.1\",\"HostPort\":\"4515\"}]}}";
 
-    PortMapping mapping = PortMapping::Create({Port(8080), Port(5432), Port(9090)});
+    PortMapping mapping = PortMapping({Port(8080), Port(5432), Port(9090)});
     mapping.ResolveFromInspect(inspect);
 
     EXPECT_EQ(mapping.GetMappedPort(8080), 4514);
@@ -202,7 +202,7 @@ TEST(PortMapping, InspectPayloadResolvesDynamicPorts)
 
 TEST(PortMapping, InspectPayloadAcceptsNumericHostPorts)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080)});
+    PortMapping mapping = PortMapping({Port(8080)});
     mapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":4514}]}}");
 
     EXPECT_EQ(mapping.GetMappedPort(8080), 4514);
@@ -210,7 +210,7 @@ TEST(PortMapping, InspectPayloadAcceptsNumericHostPorts)
 
 TEST(PortMapping, InspectPayloadIgnoresInvalidHostPorts)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080)});
+    PortMapping mapping = PortMapping({Port(8080)});
     mapping.ResolveFromInspect(
         "{\"Ports\":{\"8080/"
         "tcp\":[{\"HostPort\":{}},{\"HostPort\":\"abc\"},{\"HostPort\":\"70000\"},{\"HostPort\":\"4515\"}]}}");
@@ -220,7 +220,7 @@ TEST(PortMapping, InspectPayloadIgnoresInvalidHostPorts)
 
 TEST(PortMapping, InspectPayloadRejectsLaxPortStrings)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080)});
+    PortMapping mapping = PortMapping({Port(8080)});
     mapping.ResolveFromInspect("{\"Ports\":{\"8080/"
                                "tcp\":[{\"HostPort\":\" 8080\"},{\"HostPort\":\"+8080\"},{\"HostPort\":\"4514.9\"},"
                                "{\"HostPort\":\"8080.0\"},{\"HostPort\":\"0\"},{\"HostPort\":\"65536\"},"
@@ -231,17 +231,29 @@ TEST(PortMapping, InspectPayloadRejectsLaxPortStrings)
 
 TEST(PortMapping, InspectPayloadRejectsFractionalNumericHostPorts)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080)});
+    PortMapping mapping = PortMapping({Port(8080)});
     mapping.ResolveFromInspect(
         "{\"Ports\":{\"8080/tcp\":[{\"HostPort\":4514.9},{\"HostPort\":-1},{\"HostPort\":65536.0},"
-        "{\"HostPort\":1e999},{\"HostPort\":4515}]}}");
+        "{\"HostPort\":4515}]}}");
 
     EXPECT_EQ(mapping.GetMappedPort(8080), 4515);
 }
 
+TEST(PortMapping, OutOfRangeDoublePoisonsTheWholePayload)
+{
+    // nlohmann/json throws out_of_range.406 on exponents that overflow double (e.g. 1e999),
+    // discarding the entire document: even the valid entry stays unresolved and the poll loop
+    // retries. The C# port (lazy System.Text.Json numbers) still skips per value; the runtime
+    // only ever emits small integers and strings, so both agree on realistic payloads.
+    PortMapping mapping = PortMapping({Port(8080)});
+    mapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":1e999},{\"HostPort\":\"4515\"}]}}");
+
+    EXPECT_THROW(mapping.GetMappedPort(8080), WslNetworkException);
+}
+
 TEST(PortMapping, InspectPayloadAcceptsLeadingZeros)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080), Port(9090)});
+    PortMapping mapping = PortMapping({Port(8080), Port(9090)});
     mapping.ResolveFromInspect("{\"Ports\":{\"08080/tcp\":[{\"HostPort\":\"04514\"}],"
                                "\"9090\":[{\"HostPort\":\" 9090\"},{\"HostPort\":\"9095\"}]}}");
 
@@ -251,7 +263,7 @@ TEST(PortMapping, InspectPayloadAcceptsLeadingZeros)
 
 TEST(PortMapping, InspectPayloadRejectsLaxPortKeys)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080), Port(8081), Port(8082), Port(8083), Port(8084), Port(8085)});
+    PortMapping mapping = PortMapping({Port(8080), Port(8081), Port(8082), Port(8083), Port(8084), Port(8085)});
     mapping.ResolveFromInspect(
         "{\"Ports\":{\" 8080/tcp\":[{\"HostPort\":\"4514\"}],\"+8081/tcp\":[{\"HostPort\":\"4515\"}],"
         "\"8082.0/tcp\":[{\"HostPort\":\"4516\"}],\"0/tcp\":[{\"HostPort\":\"4517\"}],"
@@ -265,14 +277,14 @@ TEST(PortMapping, InspectPayloadRejectsLaxPortKeys)
 
 TEST(PortMapping, UnknownPortsThrow)
 {
-    const PortMapping mapping = PortMapping::Create({Port(8080)});
+    const PortMapping mapping = PortMapping({Port(8080)});
 
     EXPECT_THROW(mapping.GetMappedPort(9090), WslNetworkException);
 }
 
 TEST(PortMapping, InspectPayloadHandlesProtocolSuffixVariants)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080), Port(8081), Port(8082)});
+    PortMapping mapping = PortMapping({Port(8080), Port(8081), Port(8082)});
     mapping.ResolveFromInspect("{\"Ports\":{\"8080/\":[{\"HostPort\":\"4514\"}],\"8081/UDP\":[{\"HostPort\":\"4515\"}],"
                                "\"8082/sctp\":[{\"HostPort\":\"4516\"}]}}");
 
@@ -283,15 +295,27 @@ TEST(PortMapping, InspectPayloadHandlesProtocolSuffixVariants)
 
 TEST(PortMapping, InspectPayloadAcceptsBarePortKeys)
 {
-    PortMapping mapping = PortMapping::Create({Port(8080)});
+    PortMapping mapping = PortMapping({Port(8080)});
     mapping.ResolveFromInspect("{\"Ports\":{\"8080\":[{\"HostPort\":\"4514\"}]}}");
 
     EXPECT_EQ(mapping.GetMappedPort(8080), 4514);
 }
 
+TEST(PortMapping, MalformedInspectPayloadsLeavePortsUnresolved)
+{
+    for (const char* inspect : {"not json", "", "{\"Ports\":\"oops\"}", "{\"Ports\":{\"8080/tcp\":\"oops\"}}",
+                                "{\"Ports\":{\"8080/tcp\":[42,\"oops\",null]}}"})
+    {
+        PortMapping mapping = PortMapping({Port(8080)});
+        mapping.ResolveFromInspect(inspect);
+
+        EXPECT_THROW(mapping.GetMappedPort(8080), WslNetworkException) << inspect;
+    }
+}
+
 TEST(PortMapping, DuplicateMappingsKeepTheFirstBindAddress)
 {
-    const PortMapping mapping = PortMapping::Create({Port(8080, "127.0.0.1"), Port(8080, "0.0.0.0")});
+    const PortMapping mapping = PortMapping({Port(8080, "127.0.0.1"), Port(8080, "0.0.0.0")});
 
     std::vector<sockaddr_storage> storage;
     const std::vector<WslcContainerPortMapping> mappings = mapping.ToNativeMappings(storage);
@@ -304,7 +328,7 @@ TEST(PortMapping, OpenHostPortsAreDetectedAndClosedPortsAreNot)
 {
     LoopbackListener listener(AF_INET);
     {
-        PortMapping mapping = PortMapping::Create({Port(8080)});
+        PortMapping mapping = PortMapping({Port(8080)});
         mapping.ResolveFromInspect(InspectPayload(listener.Port()));
         EXPECT_TRUE(mapping.IsPortOpen(8080, std::stop_token{}));
     }
@@ -312,7 +336,7 @@ TEST(PortMapping, OpenHostPortsAreDetectedAndClosedPortsAreNot)
     // Hold an IPv6 listener open and probe its port over IPv4 loopback: the port is never
     // freed for reuse, so the "closed" assertion cannot race another process.
     LoopbackListener closedListener(AF_INET6);
-    PortMapping closedMapping = PortMapping::Create({Port(8080)});
+    PortMapping closedMapping = PortMapping({Port(8080)});
     closedMapping.ResolveFromInspect(InspectPayload(closedListener.Port()));
     EXPECT_FALSE(closedMapping.IsPortOpen(8080, std::stop_token{}));
 }

@@ -2,45 +2,7 @@
 
 #include "wslc/exceptions.hpp"
 
-#include <string_view>
 #include <utility>
-
-namespace
-{
-
-constexpr char c_HexDigits[] = "0123456789ABCDEF";
-
-// RFC 3986 unreserved characters; everything else is percent-encoded so credentials with
-// separators (':', '@', '/') survive the userinfo section of the AMQP URI. The C# module
-// matches this with Uri.EscapeDataString.
-bool IsUnreserved(const unsigned char value)
-{
-    return (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z') || (value >= '0' && value <= '9') ||
-           value == '-' || value == '_' || value == '.' || value == '~';
-}
-
-std::string PercentEncode(const std::string_view value)
-{
-    std::string encoded;
-    encoded.reserve(value.size());
-    for (const char character : value)
-    {
-        const auto byte = static_cast<unsigned char>(character);
-        if (IsUnreserved(byte))
-        {
-            encoded.push_back(character);
-        }
-        else
-        {
-            encoded.push_back('%');
-            encoded.push_back(c_HexDigits[byte >> 4]);
-            encoded.push_back(c_HexDigits[byte & 0x0F]);
-        }
-    }
-    return encoded;
-}
-
-} // namespace
 
 namespace wslc::modules
 {
@@ -91,8 +53,8 @@ RabbitMqContainer::RabbitMqContainer(WslContainer inner, std::string username, s
 std::string RabbitMqContainer::GetConnectionString() const
 {
     const WslEndpoint endpoint = GetConnectEndpoint(DefaultPort);
-    return "amqp://" + PercentEncode(m_username) + ":" + PercentEncode(m_password) + "@" + endpoint.Host + ":" +
-           std::to_string(endpoint.Port) + "/";
+    return "amqp://" + PercentEncode(m_username) + ":" + PercentEncode(m_password) + "@" + FormatEndpoint(endpoint) +
+           "/";
 }
 
 } // namespace wslc::modules

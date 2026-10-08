@@ -1,5 +1,7 @@
 #pragma once
 
+#include "wslc/log_line.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -22,8 +24,20 @@ std::string ToUtf8(std::wstring_view value);
 /// <summary>Returns true when the string is empty or contains only whitespace.</summary>
 bool IsBlank(std::string_view value);
 
+/// <summary>Requires non-blank text (images, commands, wait names, file sources).</summary>
+void RequireText(std::string_view value, const char* what);
+
+/// <summary>Requires a valid ASCII environment variable name ([A-Za-z_][A-Za-z0-9_]*).</summary>
+void RequireEnvironmentName(const std::string& name);
+
+/// <summary>Requires a TCP port in [1, 65535].</summary>
+int ValidatePort(int port);
+
+/// <summary>Requires a scratch volume name (non-empty, no path separators or whitespace).</summary>
+void RequireVolumeName(const std::string& name);
+
 /// <summary>Trims leading/trailing whitespace.</summary>
-std::string trim(std::string_view value);
+std::string Trim(std::string_view value);
 
 /// <summary>Maximum size of a single exec standard input payload.</summary>
 inline constexpr std::size_t c_maxStandardInputBytes = 64u * 1024u * 1024u;
@@ -138,6 +152,9 @@ std::optional<bool> ParseBoolValue(std::string_view value);
 /// </summary>
 bool IsContinuousIntegrationVariable(std::string_view name, std::string_view value);
 
+/// <summary>True when any well-known CI environment variable marks a CI host.</summary>
+bool IsContinuousIntegration();
+
 /// <summary>
 /// Resolves whether Reuse is effective for a container: configured (or default) Reuse only
 /// counts when the Environment allows it. Pure so callers can test both the configured and the
@@ -165,5 +182,14 @@ void BestEffortDeleteFile(const std::filesystem::path& path);
 
 /// <summary>Returns true when the path exists and is a reparse point (symlink/junction).</summary>
 bool IsReparsePoint(const std::filesystem::path& path);
+
+/// <summary>Returns the last maxLines from the provided logs.</summary>
+std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines);
+
+/// <summary>
+/// Joins the last maxLines from the provided logs for the specified source,
+/// using newlines as separators.
+/// </summary>
+std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines);
 
 } // namespace wslc::internal

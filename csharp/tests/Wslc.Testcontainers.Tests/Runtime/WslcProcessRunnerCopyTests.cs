@@ -3,7 +3,7 @@ using Windows.Storage.Streams;
 using Wslc.Testcontainers.Runtime;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Runtime;
 
 public sealed class WslcProcessRunnerCopyTests
 {

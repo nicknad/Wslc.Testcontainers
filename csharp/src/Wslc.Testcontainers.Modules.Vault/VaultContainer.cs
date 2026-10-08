@@ -18,15 +18,8 @@ public sealed class VaultContainer : WslModuleContainer
     }
 
     /// <summary>Renders the Vault server address (e.g. <c>http://127.0.0.1:49153</c>) for <c>VAULT_ADDR</c>.</summary>
-    public string GetAddress()
-    {
-        var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
+    public string GetAddress() => FormatHttpEndpoint(GetConnectEndpoint(DefaultPort));
 
     /// <summary>The dev-mode root token clients must authenticate with.</summary>
     public string RootToken => _rootToken;
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

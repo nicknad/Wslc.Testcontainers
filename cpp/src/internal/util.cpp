@@ -72,7 +72,7 @@ bool IsBlank(std::string_view value)
     return true;
 }
 
-std::string trim(std::string_view value)
+std::string Trim(std::string_view value)
 {
     std::size_t Start = 0;
     std::size_t end = value.size();
@@ -97,47 +97,62 @@ void ValidateStandardInputSize(std::size_t byteCount)
     }
 }
 
-namespace
+void RequireText(std::string_view value, const char* what)
 {
-
-bool HasControlCharacter(std::string_view value)
-{
-    for (const char character : value)
+    if (IsBlank(value))
     {
-        const unsigned char byte = static_cast<unsigned char>(character);
-        if (byte < 0x20 || byte == 0x7F)
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/// <summary>First segment that names a real directory, skipping leading '/' runs and '.' entries.</summary>
-std::string_view FirstPathSegment(std::string_view path)
-{
-    std::size_t index = 0;
-    for (;;)
-    {
-        const std::size_t next = path.find('/', index);
-        const std::size_t end = next == std::string_view::npos ? path.size() : next;
-        const std::string_view segment = path.substr(index, end - index);
-        if (!segment.empty() && segment != ".")
-        {
-            return segment;
-        }
-
-        if (next == std::string_view::npos)
-        {
-            return {};
-        }
-
-        index = next + 1;
+        throw WslException(std::string(what) + " must not be empty.");
     }
 }
 
-} // namespace
+void RequireEnvironmentName(const std::string& name)
+{
+    if (IsBlank(name))
+    {
+        throw WslException("Environment variable name must not be empty.");
+    }
+
+    const char first = name[0];
+    if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
+    {
+        throw WslException("Environment variable name '" + name + "' must start with a letter or underscore.");
+    }
+
+    for (const char character : name)
+    {
+        if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
+        {
+            throw WslException(std::string("Environment variable name '") + name + "' contains invalid character '" +
+                               character + "'.");
+        }
+    }
+}
+
+int ValidatePort(int port)
+{
+    if (port < 1 || port > 65535)
+    {
+        throw WslException("Port must be between 1 and 65535.");
+    }
+
+    return port;
+}
+
+void RequireVolumeName(const std::string& name)
+{
+    if (IsBlank(name))
+    {
+        throw WslException("Volume Name must not be empty.");
+    }
+
+    for (const char character : name)
+    {
+        if (character == '/' || character == '\\' || std::isspace(static_cast<unsigned char>(character)) != 0)
+        {
+            throw WslException("Volume Name '" + name + "' must not contain path separators or whitespace.");
+        }
+    }
+}
 
 void ValidateContainerPath(std::string_view path)
 {
@@ -152,19 +167,33 @@ void ValidateContainerPath(std::string_view path)
                            "' must be an absolute Linux path starting with '/'.");
     }
 
-    if (HasControlCharacter(path))
-    {
-        throw WslException("Container path '" + std::string(path) + "' must not contain control characters.");
-    }
-
+    // Single pass over segments: reject ASCII controls, '..' escapes, and protected roots.
+    // Matches the C# Validation.RequireContainerPath check.
+    std::string_view first;
     std::size_t index = 0;
     for (;;)
     {
         const std::size_t next = path.find('/', index);
         const std::size_t end = next == std::string_view::npos ? path.size() : next;
-        if (path.substr(index, end - index) == "..")
+        const std::string_view segment = path.substr(index, end - index);
+
+        for (const char character : segment)
+        {
+            const unsigned char byte = static_cast<unsigned char>(character);
+            if (byte < 0x20 || byte == 0x7F)
+            {
+                throw WslException("Container path '" + std::string(path) + "' must not contain control characters.");
+            }
+        }
+
+        if (segment == "..")
         {
             throw WslException("Container path '" + std::string(path) + "' must not contain '..' segments.");
+        }
+
+        if (first.empty() && !segment.empty() && segment != ".")
+        {
+            first = segment;
         }
 
         if (next == std::string_view::npos)
@@ -175,7 +204,6 @@ void ValidateContainerPath(std::string_view path)
         index = next + 1;
     }
 
-    const std::string_view first = FirstPathSegment(path);
     if (first == "proc" || first == "sys" || first == "dev")
     {
         throw WslException("Container path '" + std::string(path) + "' targets the protected '/" + std::string(first) +
@@ -201,6 +229,8 @@ void ValidateHttpPath(std::string_view value)
         throw WslException("HTTP wait path '" + std::string(value) + "' must start with '/'.");
     }
 
+    // Reject HTTP CTLs (0x00-0x1F), SP (0x20) and DEL (0x7F) per RFC 9110, matching the C#
+    // Validation.RequireHttpPath check. UTF-8 continuation bytes are >= 0x80 and never equal CTLs.
     for (const char character : value)
     {
         const unsigned char byte = static_cast<unsigned char>(character);
@@ -679,22 +709,20 @@ std::optional<std::chrono::system_clock::time_point> ParseIso8601(std::string_vi
         return std::nullopt;
     }
 
-    std::tm utc{};
-    utc.tm_year = year - 1900;
-    utc.tm_mon = month - 1;
-    utc.tm_mday = day;
-    utc.tm_hour = hour;
-    utc.tm_min = minute;
-    utc.tm_sec = second;
-    const std::time_t time = _mkgmtime64(&utc);
-    if (time == -1)
+    // std::chrono calendar types instead of std::tm + _mkgmtime64: year_month_day::ok()
+    // validates the date (month/day ranges, leap years) instead of silently normalizing it,
+    // and sys_days arithmetic keeps everything in UTC without CRT time functions.
+    const std::chrono::year_month_day date{std::chrono::year{year}, std::chrono::month{static_cast<unsigned>(month)},
+                                           std::chrono::day{static_cast<unsigned>(day)}};
+    if (!date.ok() || hour > 23 || minute > 59 || second > 59)
     {
         return std::nullopt;
     }
 
     using namespace std::chrono;
-    const auto clock_offset = seconds(-offset_minutes * 60) + nanoseconds(fraction_ns);
-    return system_clock::from_time_t(time) + duration_cast<system_clock::duration>(clock_offset);
+    const sys_time<nanoseconds> utc = sys_days{date} + hours{hour} + minutes{minute} + seconds{second} +
+                                      nanoseconds{fraction_ns} - minutes{offset_minutes};
+    return time_point_cast<system_clock::duration>(utc);
 }
 
 std::string FormatMilliseconds(std::chrono::milliseconds value)
@@ -754,7 +782,7 @@ void ThrowIfStopped(std::stop_token token)
 
 std::optional<bool> ParseBoolValue(std::string_view value)
 {
-    const std::string lowered = ToLower(trim(value));
+    const std::string lowered = ToLower(Trim(value));
     if (lowered == "1" || lowered == "true" || lowered == "yes" || lowered == "on")
     {
         return true;
@@ -783,6 +811,21 @@ bool IsContinuousIntegrationVariable(std::string_view name, std::string_view val
     return false;
 }
 
+bool IsContinuousIntegration()
+{
+    static constexpr const char* c_variables[] = {"CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL",
+                                                  "TEAMCITY_VERSION"};
+    for (const char* Name : c_variables)
+    {
+        if (IsContinuousIntegrationVariable(Name, ReadEnvironmentVariable(Name)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool IsReuseEffective(std::optional<bool> configuredReuse, bool reuseByDefault, bool reuseAllowed)
 {
     return configuredReuse.value_or(reuseByDefault) && reuseAllowed;
@@ -806,7 +849,7 @@ std::string join(const std::vector<std::string>& values, std::string_view separa
 
 std::optional<std::string> NormalizeIpAddress(std::string_view value)
 {
-    const std::string Text = trim(value);
+    const std::string Text = Trim(value);
     if (Text.empty())
     {
         return std::nullopt;
@@ -893,4 +936,58 @@ bool IsReparsePoint(const std::filesystem::path& path)
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 }
 
+std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
+{
+    if (Logs.size() <= maxLines)
+    {
+        return Logs;
+    }
+
+    return std::vector<LogLine>(Logs.end() - static_cast<std::ptrdiff_t>(maxLines), Logs.end());
+}
+
+std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines)
+{
+    // Two passes, O(n) total: count matches first, then join only the trailing window.
+    // The previous vector-erase-front version was O(n*m).
+    std::size_t total = 0;
+    for (const auto& line : Logs)
+    {
+        if (line.Source == Source)
+        {
+            total++;
+        }
+    }
+
+    if (total == 0)
+    {
+        return std::nullopt;
+    }
+
+    const std::size_t skip = total > maxLines ? total - maxLines : 0;
+    std::string result;
+    std::size_t seen = 0;
+    std::size_t emitted = 0;
+    for (const auto& line : Logs)
+    {
+        if (line.Source != Source)
+        {
+            continue;
+        }
+
+        if (seen++ < skip)
+        {
+            continue;
+        }
+
+        if (emitted++ > 0)
+        {
+            result.push_back('\n');
+        }
+
+        result += line.Text;
+    }
+
+    return result;
+}
 } // namespace wslc::internal

@@ -56,5 +56,8 @@ Checks: >
   -cppcoreguidelines-owning-memory
 WarningsAsErrors: "*"
 HeaderFilterRegex: '(include|src|modules|tests)[\\/].*\.hpp$'
+# Fetched third-party sources (FetchContent _deps) must never be analyzed: their headers
+# live under .../include/... and would otherwise match HeaderFilterRegex.
+ExcludeHeaderFilterRegex: '_deps[\\/]'
 FormatStyle: file
 UseColor: false

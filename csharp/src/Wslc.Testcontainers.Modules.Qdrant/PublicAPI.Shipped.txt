@@ -5,5 +5,4 @@ Wslc.Testcontainers.Modules.Qdrant.QdrantBuilder
 Wslc.Testcontainers.Modules.Qdrant.QdrantBuilder.Build() -> Wslc.Testcontainers.Modules.Qdrant.QdrantContainer!
 Wslc.Testcontainers.Modules.Qdrant.QdrantBuilder.QdrantBuilder() -> void
 Wslc.Testcontainers.Modules.Qdrant.QdrantContainer
-override Wslc.Testcontainers.Modules.Qdrant.QdrantContainer.DisposeAsync() -> System.Threading.Tasks.ValueTask
 Wslc.Testcontainers.Modules.Qdrant.QdrantContainer.GetEndpoint() -> string!

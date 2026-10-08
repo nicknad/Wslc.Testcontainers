@@ -28,9 +28,6 @@ public sealed class PostgreSqlContainer : WslModuleContainer
     public string GetConnectionString()
     {
         var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"Host={endpoint.Address};Port={endpoint.Port};Username={_username};Password={_password};Database={_database}";
+        return FormatConnectionString(endpoint, _username, _password, _database);
     }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
 }

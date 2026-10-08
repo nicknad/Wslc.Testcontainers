@@ -15,12 +15,5 @@ public sealed class ValkeyContainer : WslModuleContainer
     }
 
     /// <summary>Renders the <c>host:port</c> endpoint for StackExchange.Redis (e.g. <c>127.0.0.1:49153</c>).</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"{endpoint.Address}:{endpoint.Port}";
-    }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
+    public string GetEndpoint() => FormatEndpoint(GetConnectEndpoint(DefaultPort));
 }

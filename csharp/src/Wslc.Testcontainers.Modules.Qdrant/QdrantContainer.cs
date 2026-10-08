@@ -18,12 +18,5 @@ public sealed class QdrantContainer : WslModuleContainer
     }
 
     /// <summary>Renders the Qdrant HTTP API base URL (e.g. <c>http://127.0.0.1:49153</c>).</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(HttpPort);
-        return $"http://{endpoint.Address}:{endpoint.Port}";
-    }
-
-    /// <inheritdoc />
-    public override ValueTask DisposeAsync() => DisposeInnerAsync();
+    public string GetEndpoint() => FormatHttpEndpoint(GetConnectEndpoint(HttpPort));
 }

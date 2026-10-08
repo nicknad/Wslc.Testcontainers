@@ -70,7 +70,7 @@ private:
     void mark_exited_from_native();
 
     mutable std::mutex m_mutex;
-    std::condition_variable m_condition;
+    std::condition_variable_any m_condition;
     bool m_exited = false;
     int m_exitCode = 0;
     bool m_captureOutput = false;

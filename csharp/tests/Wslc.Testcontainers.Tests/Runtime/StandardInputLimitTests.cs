@@ -2,7 +2,7 @@ using Wslc.Testcontainers.Provisioning;
 using Wslc.Testcontainers.Runtime;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Runtime;
 
 public sealed class StandardInputLimitTests
 {

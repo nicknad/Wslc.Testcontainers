@@ -713,22 +713,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     private Dictionary<string, string> BuildEnvironment(IReadOnlyDictionary<string, string>? overrides)
     {
-        if (overrides is not null)
-        {
-            foreach (var key in overrides.Keys)
-            {
-                ValidateEnvironmentName(key);
-            }
-
-            foreach (var pair in overrides)
-            {
-                if (pair.Value is null)
-                {
-                    throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(overrides));
-                }
-            }
-        }
-
+        // Overrides are validated by ValidateProcessOptions before this point.
         var baseEnv = _configuration.Environment;
         var environment = new Dictionary<string, string>(
             baseEnv.Count + 4 + (overrides?.Count ?? 0),
@@ -820,6 +805,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         await DisposeMainProcessAsync(failures).ConfigureAwait(false);
         StopAndDeleteContainer(failures);
         TerminateSession(failures);
+
+        // The instance is torn down, so a later StartAsync must be able to re-acquire the lock.
+        ReleaseReuseLock();
 
         _network = null;
         _started = false;
@@ -960,8 +948,10 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         {
             _store.WriteMetadata(_metadata);
         }
-        catch
+        catch (Exception exception)
         {
+            // Best-effort per ADR-0004, but a stale wslc.json must be visible in the logs.
+            _logs.Publish(LogLine.Diagnostic($"failed to persist instance metadata: {exception.Message}"));
         }
     }
 
@@ -1000,7 +990,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 options.Environment.Count, BuilderLimits.MaxEnvironmentVariables, "exec environment variables");
             foreach (var pair in options.Environment)
             {
-                ValidateEnvironmentName(pair.Key);
+                Validation.RequireEnvironmentName(pair.Key, nameof(options));
                 if (pair.Value is null)
                 {
                     throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(options));
@@ -1018,33 +1008,6 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     private static void ValidateCommandArguments(string[] arguments) =>
         BuilderLimits.RequireCount(arguments.Length, BuilderLimits.MaxCommandArguments, "command arguments");
-
-    private static void ValidateEnvironmentName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException("Environment variable name must not be empty.", nameof(name));
-        }
-
-        if (!IsAsciiLetter(name[0]) && name[0] != '_')
-        {
-            throw new ArgumentException($"Environment variable name '{name}' must start with a letter or underscore.", nameof(name));
-        }
-
-        foreach (var character in name)
-        {
-            if (!IsAsciiLetterOrDigit(character) && character != '_')
-            {
-                throw new ArgumentException($"Environment variable name '{name}' contains invalid character '{character}'.", nameof(name));
-            }
-        }
-    }
-
-    private static bool IsAsciiLetter(char character) =>
-        character is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
-
-    private static bool IsAsciiLetterOrDigit(char character) =>
-        IsAsciiLetter(character) || character is >= '0' and <= '9';
 
     private static bool IsBenignRuntimeError(Exception exception) =>
         exception.HResult is (int)Error.ContainerNotRunning

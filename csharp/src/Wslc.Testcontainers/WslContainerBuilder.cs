@@ -33,7 +33,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithImage(string image)
     {
-        RequireText(image, nameof(image));
+        Validation.RequireText(image, nameof(image));
         _configuration = _configuration with
         {
             Image = image,
@@ -51,7 +51,7 @@ public sealed class WslContainerBuilder
     /// <param name="imageName">Image reference to assign. Defaults to a WSLC-generated local name.</param>
     public WslContainerBuilder FromTarball(string tarballPath, string? imageName = null)
     {
-        RequireText(tarballPath, nameof(tarballPath));
+        Validation.RequireText(tarballPath, nameof(tarballPath));
         if (!File.Exists(tarballPath))
         {
             throw new WslException($"Tarball '{tarballPath}' does not exist.");
@@ -76,7 +76,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithCommand(string command, params string[] arguments)
     {
-        RequireText(command, nameof(command));
+        Validation.RequireText(command, nameof(command));
         ArgumentNullException.ThrowIfNull(arguments);
         _configuration = _configuration with
         {
@@ -100,7 +100,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithEnvironment(string name, string value)
     {
-        RequireEnvironmentName(name);
+        Validation.RequireEnvironmentName(name, nameof(name));
         ArgumentNullException.ThrowIfNull(value);
         BuilderLimits.RequireEnvironmentValue(name, value, nameof(value));
         var environment = CopyEnvironment(_configuration.Environment, additionalCapacity: 1);
@@ -116,7 +116,7 @@ public sealed class WslContainerBuilder
         var environment = CopyEnvironment(_configuration.Environment, variables.Count);
         foreach (var pair in variables)
         {
-            RequireEnvironmentName(pair.Key);
+            Validation.RequireEnvironmentName(pair.Key, nameof(variables));
             if (pair.Value is null)
             {
                 throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(variables));
@@ -136,7 +136,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithPort(int port)
     {
-        ValidatePort(port);
+        Validation.ValidatePort(port);
         return AddPortMapping(port, bindAddress: null);
     }
 
@@ -163,7 +163,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithPort(int port, IPAddress address)
     {
-        ValidatePort(port);
+        Validation.ValidatePort(port);
         ArgumentNullException.ThrowIfNull(address);
         return AddPortMapping(port, address.ToString());
     }
@@ -188,12 +188,6 @@ public sealed class WslContainerBuilder
         return this;
     }
 
-    private static void ValidatePort(int port)
-    {
-        ArgumentOutOfRangeException.ThrowIfLessThan(port, 1);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(port, 65535);
-    }
-
     /// <summary>Adds a readiness strategy. All configured strategies must pass before startup completes. At most 16 strategies may be configured.</summary>
     public WslContainerBuilder WithWaitStrategy(IWaitStrategy strategy)
     {
@@ -214,7 +208,7 @@ public sealed class WslContainerBuilder
     /// </summary>
     public WslContainerBuilder WithFile(string hostPath, string containerPath)
     {
-        RequireText(hostPath, nameof(hostPath));
+        Validation.RequireText(hostPath, nameof(hostPath));
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (!File.Exists(hostPath))
         {
@@ -226,9 +220,8 @@ public sealed class WslContainerBuilder
             throw new WslException($"File source '{hostPath}' is a reparse point (symlink or junction); refusing to follow it.");
         }
 
-        const long MaxCopyBytes = 1024L * 1024L * 1024L;
         var length = new FileInfo(hostPath).Length;
-        if (length > MaxCopyBytes)
+        if (length > HostFile.MaxCopyBytes)
         {
             throw new WslException($"File '{hostPath}' exceeds 1 GiB limit ({length} bytes) and cannot be copied into the container.");
         }
@@ -253,7 +246,7 @@ public sealed class WslContainerBuilder
     /// <summary>Mounts a Windows directory into the container with an explicit access mode.</summary>
     public WslContainerBuilder WithVolume(string hostPath, string containerPath, VolumeAccess access)
     {
-        RequireText(hostPath, nameof(hostPath));
+        Validation.RequireText(hostPath, nameof(hostPath));
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
         if (!Directory.Exists(hostPath))
         {
@@ -292,7 +285,7 @@ public sealed class WslContainerBuilder
         VolumeAccess access = VolumeAccess.ReadWrite,
         VhdAllocationType type = VhdAllocationType.Dynamic)
     {
-        RequireVolumeName(name, nameof(name));
+        Validation.RequireVolumeName(name, nameof(name));
         Validation.RequireContainerPath(containerPath, nameof(containerPath));
         BuilderLimits.RequireScratchVolumeSize(sizeBytes);
 
@@ -434,7 +427,7 @@ public sealed class WslContainerBuilder
             var totalWaits = TimeSpan.Zero;
             foreach (var strategy in configuration.WaitStrategies)
             {
-                totalWaits = SaturatingAdd(totalWaits, strategy.Timeout);
+                totalWaits = BuilderLimits.SaturatingAdd(totalWaits, strategy.Timeout);
             }
 
             if (totalWaits > configuration.StartupTimeout)
@@ -445,9 +438,6 @@ public sealed class WslContainerBuilder
             }
         }
     }
-
-    private static TimeSpan SaturatingAdd(TimeSpan left, TimeSpan right) =>
-        right > TimeSpan.MaxValue - left ? TimeSpan.MaxValue : left + right;
 
     private static Dictionary<string, string> CopyEnvironment(
         IReadOnlyDictionary<string, string> environment,
@@ -483,30 +473,6 @@ public sealed class WslContainerBuilder
         return null;
     }
 
-    private static void RequireVolumeName(string value, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("Volume name must not be empty.", parameterName);
-        }
-
-        foreach (var character in value)
-        {
-            if (character is '/' or '\\' || char.IsWhiteSpace(character))
-            {
-                throw new ArgumentException($"Volume name '{value}' must not contain path separators or whitespace.", parameterName);
-            }
-        }
-    }
-
-    private static void RequireText(string value, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("Value must not be empty.", parameterName);
-        }
-    }
-
     private static T[] Append<T>(IReadOnlyList<T> source, T item)
     {
         var result = new T[source.Count + 1];
@@ -518,31 +484,4 @@ public sealed class WslContainerBuilder
         result[source.Count] = item;
         return result;
     }
-
-    private static void RequireEnvironmentName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            throw new ArgumentException("Environment variable name must not be empty.", nameof(name));
-        }
-
-        if (!IsAsciiLetter(name[0]) && name[0] != '_')
-        {
-            throw new ArgumentException($"Environment variable name '{name}' must start with a letter or underscore.", nameof(name));
-        }
-
-        foreach (var character in name)
-        {
-            if (!IsAsciiLetterOrDigit(character) && character != '_')
-            {
-                throw new ArgumentException($"Environment variable name '{name}' contains invalid character '{character}'.", nameof(name));
-            }
-        }
-    }
-
-    private static bool IsAsciiLetter(char character) =>
-        character is >= 'A' and <= 'Z' or >= 'a' and <= 'z';
-
-    private static bool IsAsciiLetterOrDigit(char character) =>
-        IsAsciiLetter(character) || character is >= '0' and <= '9';
 }

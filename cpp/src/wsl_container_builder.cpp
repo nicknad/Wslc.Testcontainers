@@ -24,63 +24,6 @@ namespace
 
 constexpr std::uint64_t c_maxCopyBytes = 1024ull * 1024ull * 1024ull;
 
-void RequireText(const std::string& value, const char* what)
-{
-    if (internal::IsBlank(value))
-    {
-        throw WslException(std::string(what) + " must not be empty.");
-    }
-}
-
-void RequireEnvironmentName(const std::string& Name)
-{
-    if (internal::IsBlank(Name))
-    {
-        throw WslException("Environment variable name must not be empty.");
-    }
-
-    const char first = Name[0];
-    if (std::isalpha(static_cast<unsigned char>(first)) == 0 && first != '_')
-    {
-        throw WslException("Environment variable name '" + Name + "' must start with a letter or underscore.");
-    }
-
-    for (const char character : Name)
-    {
-        if (std::isalnum(static_cast<unsigned char>(character)) == 0 && character != '_')
-        {
-            throw WslException(std::string("Environment variable name '") + Name + "' contains invalid character '" +
-                               character + "'.");
-        }
-    }
-}
-
-void RequireVolumeName(const std::string& Name)
-{
-    if (internal::IsBlank(Name))
-    {
-        throw WslException("Volume Name must not be empty.");
-    }
-
-    for (const char character : Name)
-    {
-        if (character == '/' || character == '\\' || std::isspace(static_cast<unsigned char>(character)) != 0)
-        {
-            throw WslException("Volume Name '" + Name + "' must not contain path separators or whitespace.");
-        }
-    }
-}
-
-int ValidatePort(int port)
-{
-    if (port < 1 || port > 65535)
-    {
-        throw WslException("Port must be between 1 and 65535.");
-    }
-
-    return port;
-}
-
 std::string ValidateBindAddress(const std::string& BindAddress)
 {
     if (internal::IsBlank(BindAddress))
@@ -109,7 +52,7 @@ WslContainerBuilder& WslContainerBuilder::operator=(WslContainerBuilder&&) noexc
 
 WslContainerBuilder& WslContainerBuilder::WithImage(std::string Image)
 {
-    RequireText(Image, "Image");
+    internal::RequireText(Image, "Image");
     m_state->configuration.Image = std::move(Image);
     m_state->configuration.TarballPath.reset();
     m_state->configuration.TarballImageName.reset();
@@ -120,7 +63,7 @@ WslContainerBuilder& WslContainerBuilder::FromTarball(std::filesystem::path Tarb
                                                       std::optional<std::string> imageName)
 {
     const std::string pathText = internal::ToUtf8(TarballPath.wstring());
-    RequireText(pathText, "Tarball path");
+    internal::RequireText(pathText, "Tarball path");
     std::error_code error;
     if (!std::filesystem::exists(TarballPath, error))
     {
@@ -141,7 +84,7 @@ WslContainerBuilder& WslContainerBuilder::FromTarball(std::filesystem::path Tarb
 
 WslContainerBuilder& WslContainerBuilder::WithCommand(std::string command, std::vector<std::string> arguments)
 {
-    RequireText(command, "Command");
+    internal::RequireText(command, "Command");
     m_state->configuration.Command = std::move(command);
     m_state->configuration.CommandArguments = std::move(arguments);
     return *this;
@@ -156,7 +99,7 @@ WslContainerBuilder& WslContainerBuilder::WithWorkingDirectory(std::string Worki
 
 WslContainerBuilder& WslContainerBuilder::WithEnvironment(std::string Name, std::string value)
 {
-    RequireEnvironmentName(Name);
+    internal::RequireEnvironmentName(Name);
     internal::RequireEnvironmentValue(Name, value);
     m_state->configuration.Environment[std::move(Name)] = std::move(value);
     return *this;
@@ -166,7 +109,7 @@ WslContainerBuilder& WslContainerBuilder::WithEnvironmentVariables(std::map<std:
 {
     for (const auto& pair : variables)
     {
-        RequireEnvironmentName(pair.first);
+        internal::RequireEnvironmentName(pair.first);
         internal::RequireEnvironmentValue(pair.first, pair.second);
     }
 
@@ -180,7 +123,7 @@ WslContainerBuilder& WslContainerBuilder::WithEnvironmentVariables(std::map<std:
 
 WslContainerBuilder& WslContainerBuilder::WithPort(int port)
 {
-    ValidatePort(port);
+    internal::ValidatePort(port);
     for (const auto& existing : m_state->configuration.PortMappings)
     {
         if (existing.ContainerPort == port)
@@ -201,7 +144,7 @@ WslContainerBuilder& WslContainerBuilder::WithPort(int port)
 
 WslContainerBuilder& WslContainerBuilder::WithPort(int port, std::string BindAddress)
 {
-    ValidatePort(port);
+    internal::ValidatePort(port);
     const std::string normalized = ValidateBindAddress(BindAddress);
     for (const auto& existing : m_state->configuration.PortMappings)
     {
@@ -236,7 +179,7 @@ WslContainerBuilder& WslContainerBuilder::WithWaitStrategy(std::shared_ptr<waiti
 WslContainerBuilder& WslContainerBuilder::WithFile(std::filesystem::path HostPath, std::string ContainerPath)
 {
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
-    RequireText(hostText, "File Source");
+    internal::RequireText(hostText, "File Source");
     internal::ValidateContainerPath(ContainerPath);
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || std::filesystem::is_directory(HostPath, error))
@@ -271,7 +214,7 @@ WslContainerBuilder& WslContainerBuilder::WithVolume(std::filesystem::path HostP
                                                      VolumeAccess access)
 {
     const std::string hostText = internal::ToUtf8(HostPath.wstring());
-    RequireText(hostText, "Volume Host path");
+    internal::RequireText(hostText, "Volume Host path");
     internal::ValidateContainerPath(ContainerPath);
     std::error_code error;
     if (!std::filesystem::exists(HostPath, error) || !std::filesystem::is_directory(HostPath, error))
@@ -294,7 +237,7 @@ WslContainerBuilder& WslContainerBuilder::WithScratchVolume(std::string Name, st
                                                             std::uint64_t SizeBytes, VolumeAccess access,
                                                             VhdAllocationType type)
 {
-    RequireVolumeName(Name);
+    internal::RequireVolumeName(Name);
     internal::ValidateContainerPath(ContainerPath);
     internal::RequireScratchVolumeSize(SizeBytes);
 

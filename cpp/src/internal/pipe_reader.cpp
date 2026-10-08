@@ -16,7 +16,7 @@ constexpr std::chrono::milliseconds c_waitSlice{100};
 
 } // namespace
 
-std::size_t ReadPipeAvailable(const IoHandle& handle, std::span<char> buffer, std::stop_token token)
+std::size_t ReadPipeAvailable(const wil::unique_handle& handle, std::span<char> buffer, std::stop_token token)
 {
     for (;;)
     {

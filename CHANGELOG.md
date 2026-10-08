@@ -2,6 +2,37 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.3.1
+
+### Fixed
+
+- Reuse instances can be restarted: `StopAsync`/`Stop` now releases the reuse lock, so the
+  documented `Stop` then `Start` sequence no longer stalls 30s and fails (C# and C++).
+- C++ `CopyFrom` checks the temporary file's write state before replacing the destination, so a
+  disk-full write can no longer commit a truncated file.
+- C++ teardown no longer deletes the runtime container while a detached attached-start call may
+  still be using it; the session teardown reclaims it and a diagnostic is logged.
+- `WSLC_TIMEOUT` (and clock-time values) with non-finite or out-of-range numbers now falls back to
+  the default instead of throwing `OverflowException` (C#) or invoking undefined behavior (C++).
+- C# `IWslProcess.WaitForExitAsync` no longer hangs when the process is disposed while awaited:
+  the `Exited` subscription stays active so the SIGKILL completes the exit task.
+- C++ `WaitForExit` and `LogStream::Next` no longer miss a stop notification (stop-token aware
+  condition waits).
+- Instance metadata write failures are no longer silent: C++ `WriteMetadata` throws and both
+  ports log the failure when a state update cannot be persisted.
+- Module endpoint and connection-URL helpers bracket IPv6 hosts (e.g. `http://[::1]:49153`) in
+  both languages.
+- C++ port-mapping resolution is synchronized with concurrent readiness probes.
+
+### Changed
+
+- Internal dedup only (no public API changes beyond additive protected module helpers): shared
+  `PercentEncode` and endpoint-formatting helpers, a single 1 GiB copy cap, removal of duplicate
+  environment/stdin validation passes, shared argv/environment marshalling, a single CI-variable
+  list, a common `BuilderLimits` range helper, and registry prune disposal.
+- Docs: removed the stale session handover/workflow/review artifacts; `docs/review-ledger.md` now
+  tracks the remaining findings.
+
 ## 0.3.0
 
 ### Added

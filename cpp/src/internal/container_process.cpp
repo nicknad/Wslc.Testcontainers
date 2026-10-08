@@ -129,8 +129,9 @@ int ContainerProcessState::WaitForExit(std::stop_token token)
 
         if (!m_exited)
         {
-            std::stop_callback callback(token, [this] { m_condition.notify_all(); });
-            m_condition.wait(lock, [this, &token] { return m_exited || token.stop_requested(); });
+            // condition_variable_any's stop_token overload closes the missed-wakeup race
+            // between a stop request and the predicate check.
+            m_condition.wait(lock, token, [this] { return m_exited; });
         }
 
         if (!m_exited)

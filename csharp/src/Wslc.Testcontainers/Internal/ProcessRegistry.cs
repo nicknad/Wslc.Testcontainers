@@ -28,17 +28,10 @@ internal sealed class ProcessRegistry
         }
     }
 
-    public IWslProcess[] Snapshot()
-    {
-        lock (_gate)
-        {
-            return _processes.ToArray();
-        }
-    }
-
     /// <summary>
     /// Atomically removes and returns the live processes. Returning and clearing under one lock
     /// guarantees a process added concurrently is kept for the next stop instead of being dropped.
+    /// This is the only way to observe registry contents; there is no read-only peek.
     /// </summary>
     public IWslProcess[] TakeAll()
     {
@@ -51,29 +44,35 @@ internal sealed class ProcessRegistry
         }
     }
 
-    public void Clear()
-    {
-        lock (_gate)
-        {
-            _processes.Clear();
-        }
-    }
-
     private void PruneLocked()
     {
         for (var i = _processes.Count - 1; i >= 0; i--)
         {
+            var process = _processes[i];
+            bool gone;
             try
             {
-                if (_processes[i].HasExited)
-                {
-                    _processes.RemoveAt(i);
-                }
+                gone = process.HasExited;
             }
             catch
             {
                 // A faulted HasExited probe (e.g. a torn-down native handle) is treated as gone.
-                _processes.RemoveAt(i);
+                gone = true;
+            }
+
+            if (!gone)
+            {
+                continue;
+            }
+
+            _processes.RemoveAt(i);
+            try
+            {
+                // Best-effort release of the native handle when the owner forgot to dispose.
+                process.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
             }
         }
     }

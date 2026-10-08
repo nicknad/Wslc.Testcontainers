@@ -19,6 +19,7 @@
     <ProjectReference Include="..\..\src\Wslc.Testcontainers\Wslc.Testcontainers.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Valkey\Wslc.Testcontainers.Modules.Valkey.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MariaDb\Wslc.Testcontainers.Modules.MariaDb.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.PostgreSql\Wslc.Testcontainers.Modules.PostgreSql.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.RabbitMq\Wslc.Testcontainers.Modules.RabbitMq.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MongoDb\Wslc.Testcontainers.Modules.MongoDb.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Nats\Wslc.Testcontainers.Modules.Nats.csproj" />

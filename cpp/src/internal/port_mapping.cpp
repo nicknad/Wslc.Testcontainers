@@ -1,9 +1,10 @@
 #include "internal/port_mapping.hpp"
 
-#include "internal/json.hpp"
 #include "internal/tcp_http.hpp"
 #include "internal/util.hpp"
 #include "wslc/exceptions.hpp"
+
+#include <nlohmann/json.hpp>
 
 #include <cmath>
 #include <cstdint>
@@ -42,36 +43,36 @@ bool TryParsePortDigits(std::string_view text, int& port)
     return port > 0;
 }
 
-bool TryParseInspectPort(std::string key, int& ContainerPort)
+bool TryParseInspectPort(std::string_view key, int& ContainerPort)
 {
     ContainerPort = 0;
     const std::size_t separator = key.find('/');
-    const std::string port_part = separator == std::string::npos ? key : key.substr(0, separator);
+    const std::string_view port_part = separator == std::string_view::npos ? key : key.substr(0, separator);
     if (!TryParsePortDigits(port_part, ContainerPort))
     {
         return false;
     }
 
-    if (separator == std::string::npos)
+    if (separator == std::string_view::npos)
     {
         return true;
     }
 
-    const std::string suffix = key.substr(separator + 1);
+    const std::string_view suffix = key.substr(separator + 1);
     return suffix.empty() || EqualsIgnoreCase(suffix, "tcp");
 }
 
-bool TryReadMappedPort(const json::Value& element, int& port)
+bool TryReadMappedPort(const nlohmann::json& element, int& port)
 {
     port = 0;
-    if (element.IsString())
+    if (element.is_string())
     {
-        return TryParsePortDigits(element.String, port);
+        return TryParsePortDigits(element.get_ref<const std::string&>(), port);
     }
 
-    if (element.IsNumber())
+    if (element.is_number())
     {
-        const double value = element.Number;
+        const double value = element.get<double>();
         if (!std::isfinite(value) || value < 1.0 || value > 65535.0 || value != std::trunc(value))
         {
             return false;
@@ -105,22 +106,23 @@ void FillSockaddr(const std::string& address, sockaddr_storage& storage)
 
 } // namespace
 
-PortMapping PortMapping::Create(const std::vector<WslPortMappingRecord>& mappings)
+PortMapping::PortMapping(const std::vector<WslPortMappingRecord>& mappings)
 {
-    PortMapping result;
     for (const auto& mapping : mappings)
     {
-        if (!result.m_entries.contains(mapping.ContainerPort))
+        if (!m_entries.contains(mapping.ContainerPort))
         {
-            result.m_entries[mapping.ContainerPort] = Entry{mapping.BindAddress, 0};
+            Entry entry;
+            entry.BindAddress = mapping.BindAddress;
+            entry.ProbeHost = ResolveProbeHost(mapping.BindAddress);
+            m_entries[mapping.ContainerPort] = std::move(entry);
         }
     }
-
-    return result;
 }
 
 int PortMapping::UnresolvedCount() const
 {
+    std::lock_guard lock(m_gate);
     int count = 0;
     for (const auto& pair : m_entries)
     {
@@ -135,6 +137,7 @@ int PortMapping::UnresolvedCount() const
 
 std::vector<std::string> PortMapping::UnresolvedPorts() const
 {
+    std::lock_guard lock(m_gate);
     std::vector<std::string> result;
     for (const auto& pair : m_entries)
     {
@@ -149,6 +152,7 @@ std::vector<std::string> PortMapping::UnresolvedPorts() const
 
 std::vector<WslcContainerPortMapping> PortMapping::ToNativeMappings(std::vector<sockaddr_storage>& storage) const
 {
+    std::lock_guard lock(m_gate);
     std::vector<WslcContainerPortMapping> mappings;
     mappings.reserve(m_entries.size());
     storage.reserve(storage.size() + m_entries.size());
@@ -174,6 +178,12 @@ std::vector<WslcContainerPortMapping> PortMapping::ToNativeMappings(std::vector<
 
 int PortMapping::GetMappedPort(int containerPort) const
 {
+    std::lock_guard lock(m_gate);
+    return GetMappedPortLocked(containerPort);
+}
+
+int PortMapping::GetMappedPortLocked(int containerPort) const
+{
     const auto it = m_entries.find(containerPort);
     if (it == m_entries.end())
     {
@@ -194,42 +204,57 @@ int PortMapping::GetMappedPort(int containerPort) const
 
 void PortMapping::ResolveFromInspect(std::string_view inspect_json)
 {
-    const auto document = json::Parse(inspect_json);
-    if (!document)
+    // The runtime may return partial JSON while ports are being assigned; treat unparsable
+    // payloads as "not yet resolved" so the poll loop retries instead of failing startup.
+    // Note: a number that overflows double (e.g. 1e999) makes nlohmann/json reject the whole
+    // document, so even valid entries stay unresolved until the next poll. The runtime only
+    // emits small integers and strings, where per-value skipping still applies.
+    nlohmann::json document;
+    try
+    {
+        document = nlohmann::json::parse(inspect_json.begin(), inspect_json.end());
+    }
+    catch (const nlohmann::json::exception&)
     {
         return;
     }
 
-    const json::Value* ports = document->Find("Ports");
-    if (ports == nullptr || !ports->IsObject())
+    if (!document.is_object())
     {
         return;
     }
 
-    for (const auto& property : ports->Object)
+    const auto ports = document.find("Ports");
+    if (ports == document.end() || !ports->is_object())
+    {
+        return;
+    }
+
+    std::lock_guard lock(m_gate);
+    for (const auto& [key, value] : ports->items())
     {
         int ContainerPort = 0;
-        if (!TryParseInspectPort(property.first, ContainerPort))
+        if (!TryParseInspectPort(key, ContainerPort))
         {
             continue;
         }
 
         const auto it = m_entries.find(ContainerPort);
-        if (it == m_entries.end() || !property.second.IsArray())
+        if (it == m_entries.end() || !value.is_array())
         {
             continue;
         }
 
-        for (const auto& item : property.second.Array)
+        for (const auto& item : value)
         {
-            if (!item.IsObject())
+            if (!item.is_object())
             {
                 continue;
             }
 
-            const json::Value* host_port = item.Find("HostPort");
+            const auto hostPort = item.find("HostPort");
             int mapped = 0;
-            if (host_port != nullptr && TryReadMappedPort(*host_port, mapped))
+            if (hostPort != item.end() && TryReadMappedPort(*hostPort, mapped))
             {
                 it->second.MappedPort = mapped;
                 break;
@@ -246,29 +271,37 @@ bool PortMapping::IsPortOpen(int containerPort, std::stop_token token) const
 
 WslEndpoint PortMapping::GetConnectEndpoint(int containerPort) const
 {
+    std::lock_guard lock(m_gate);
     const auto it = m_entries.find(containerPort);
-    std::string host = "127.0.0.1";
-    if (it != m_entries.end() && it->second.BindAddress)
+    const std::string host = it != m_entries.end() ? it->second.ProbeHost : "127.0.0.1";
+
+    return WslEndpoint{host, GetMappedPortLocked(containerPort)};
+}
+
+std::string PortMapping::ResolveProbeHost(const std::optional<std::string>& bindAddress)
+{
+    if (!bindAddress)
     {
-        const auto normalized = NormalizeIpAddress(*it->second.BindAddress);
-        if (normalized)
-        {
-            if (*normalized == "0.0.0.0")
-            {
-                host = "127.0.0.1";
-            }
-            else if (*normalized == "::")
-            {
-                host = "::1";
-            }
-            else
-            {
-                host = *normalized;
-            }
-        }
+        return "127.0.0.1";
     }
 
-    return WslEndpoint{std::move(host), GetMappedPort(containerPort)};
+    const auto normalized = NormalizeIpAddress(*bindAddress);
+    if (!normalized)
+    {
+        return "127.0.0.1";
+    }
+
+    if (*normalized == "0.0.0.0")
+    {
+        return "127.0.0.1";
+    }
+
+    if (*normalized == "::")
+    {
+        return "::1";
+    }
+
+    return *normalized;
 }
 
 } // namespace wslc::internal

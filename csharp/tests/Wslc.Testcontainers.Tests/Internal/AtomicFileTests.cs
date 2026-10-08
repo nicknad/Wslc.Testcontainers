@@ -1,7 +1,7 @@
 using Wslc.Testcontainers.Internal;
 using Xunit;
 
-namespace Wslc.Testcontainers.Tests;
+namespace Wslc.Testcontainers.Tests.Internal;
 
 public sealed class AtomicFileTests
 {
@@ -20,6 +20,26 @@ public sealed class AtomicFileTests
 
             Assert.Equal("new", File.ReadAllText(destination));
             Assert.False(File.Exists(temp));
+        }
+        finally
+        {
+            directory.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
+    public void WriteAllText_replaces_an_existing_destination()
+    {
+        var directory = Directory.CreateTempSubdirectory("wslc-atomic");
+        try
+        {
+            var destination = Path.Combine(directory.FullName, "dest.json");
+            File.WriteAllText(destination, "old");
+
+            AtomicFile.WriteAllText(destination, "new");
+
+            Assert.Equal("new", File.ReadAllText(destination));
+            Assert.Empty(Directory.GetFiles(directory.FullName, ".*.wslc-tmp"));
         }
         finally
         {

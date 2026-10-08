@@ -6,6 +6,7 @@
 #include <memory>
 #include <stop_token>
 #include <string>
+#include <string_view>
 #include <utility>
 
 namespace wslc
@@ -93,6 +94,57 @@ public:
 protected:
     /// <summary>Initializes a wrapper around the given container.</summary>
     explicit WslModuleContainer(WslContainer inner) : m_inner(std::move(inner)) {}
+
+    /// <summary>Brackets IPv6 literals so host:port stays a valid URL authority.</summary>
+    static std::string FormatHost(const std::string& host)
+    {
+        return host.find(':') != std::string::npos ? "[" + host + "]" : host;
+    }
+
+    /// <summary>Percent-encodes a credential for the userinfo section of a connection URL.
+    /// RFC 3986 unreserved characters pass through; the rest become %XX (uppercase).</summary>
+    static std::string PercentEncode(std::string_view value)
+    {
+        constexpr char c_hexDigits[] = "0123456789ABCDEF";
+        std::string encoded;
+        encoded.reserve(value.size());
+        for (const char character : value)
+        {
+            const auto byte = static_cast<unsigned char>(character);
+            const bool unreserved = (byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z') ||
+                                    (byte >= '0' && byte <= '9') || byte == '-' || byte == '_' || byte == '.' ||
+                                    byte == '~';
+            if (unreserved)
+            {
+                encoded.push_back(character);
+            }
+            else
+            {
+                encoded.push_back('%');
+                encoded.push_back(c_hexDigits[byte >> 4]);
+                encoded.push_back(c_hexDigits[byte & 0x0F]);
+            }
+        }
+
+        return encoded;
+    }
+
+    /// <summary>Renders an endpoint as host:port.</summary>
+    static std::string FormatEndpoint(WslEndpoint endpoint)
+    {
+        return FormatHost(endpoint.Host) + ":" + std::to_string(endpoint.Port);
+    }
+
+    /// <summary>Renders an HTTP endpoint as http://host:port.</summary>
+    static std::string FormatHttpEndpoint(WslEndpoint endpoint) { return "http://" + FormatEndpoint(endpoint); }
+
+    /// <summary>Renders a connection string with host, port, username, password, and database.</summary>
+    static std::string FormatConnectionString(WslEndpoint endpoint, const std::string& username,
+                                              const std::string& password, const std::string& database)
+    {
+        return "Host=" + endpoint.Host + ";Port=" + std::to_string(endpoint.Port) + ";Username=" + username +
+               ";Password=" + password + ";Database=" + database;
+    }
 
 private:
     WslContainer m_inner;

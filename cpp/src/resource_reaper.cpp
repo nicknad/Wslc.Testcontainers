@@ -61,26 +61,6 @@ bool ShouldCleanup(const std::optional<InstanceMetadata>& metadata, bool owner_a
     return !owner_alive;
 }
 
-bool IsOwnerAlive(int process_id)
-{
-    if (process_id <= 0)
-    {
-        return false;
-    }
-
-    wil::unique_handle process(
-        OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, static_cast<DWORD>(process_id)));
-    if (!process)
-    {
-        const DWORD error = GetLastError();
-        // Access denied querying another user's process: assume alive to avoid deleting live storage.
-        return error == ERROR_ACCESS_DENIED;
-    }
-
-    DWORD ExitCode = 0;
-    return GetExitCodeProcess(process.get(), &ExitCode) != 0 && ExitCode == STILL_ACTIVE;
-}
-
 bool IsOwnerAlive(const InstanceMetadata& metadata)
 {
     if (metadata.OwnerProcessId <= 0)

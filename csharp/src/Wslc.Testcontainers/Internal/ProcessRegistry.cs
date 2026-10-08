@@ -48,17 +48,31 @@ internal sealed class ProcessRegistry
     {
         for (var i = _processes.Count - 1; i >= 0; i--)
         {
+            var process = _processes[i];
+            bool gone;
             try
             {
-                if (_processes[i].HasExited)
-                {
-                    _processes.RemoveAt(i);
-                }
+                gone = process.HasExited;
             }
             catch
             {
                 // A faulted HasExited probe (e.g. a torn-down native handle) is treated as gone.
-                _processes.RemoveAt(i);
+                gone = true;
+            }
+
+            if (!gone)
+            {
+                continue;
+            }
+
+            _processes.RemoveAt(i);
+            try
+            {
+                // Best-effort release of the native handle when the owner forgot to dispose.
+                process.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            }
+            catch
+            {
             }
         }
     }

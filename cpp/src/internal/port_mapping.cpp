@@ -106,25 +106,23 @@ void FillSockaddr(const std::string& address, sockaddr_storage& storage)
 
 } // namespace
 
-PortMapping PortMapping::Create(const std::vector<WslPortMappingRecord>& mappings)
+PortMapping::PortMapping(const std::vector<WslPortMappingRecord>& mappings)
 {
-    PortMapping result;
     for (const auto& mapping : mappings)
     {
-        if (!result.m_entries.contains(mapping.ContainerPort))
+        if (!m_entries.contains(mapping.ContainerPort))
         {
             Entry entry;
             entry.BindAddress = mapping.BindAddress;
             entry.ProbeHost = ResolveProbeHost(mapping.BindAddress);
-            result.m_entries[mapping.ContainerPort] = std::move(entry);
+            m_entries[mapping.ContainerPort] = std::move(entry);
         }
     }
-
-    return result;
 }
 
 int PortMapping::UnresolvedCount() const
 {
+    std::lock_guard lock(m_gate);
     int count = 0;
     for (const auto& pair : m_entries)
     {
@@ -139,6 +137,7 @@ int PortMapping::UnresolvedCount() const
 
 std::vector<std::string> PortMapping::UnresolvedPorts() const
 {
+    std::lock_guard lock(m_gate);
     std::vector<std::string> result;
     for (const auto& pair : m_entries)
     {
@@ -153,6 +152,7 @@ std::vector<std::string> PortMapping::UnresolvedPorts() const
 
 std::vector<WslcContainerPortMapping> PortMapping::ToNativeMappings(std::vector<sockaddr_storage>& storage) const
 {
+    std::lock_guard lock(m_gate);
     std::vector<WslcContainerPortMapping> mappings;
     mappings.reserve(m_entries.size());
     storage.reserve(storage.size() + m_entries.size());
@@ -177,6 +177,12 @@ std::vector<WslcContainerPortMapping> PortMapping::ToNativeMappings(std::vector<
 }
 
 int PortMapping::GetMappedPort(int containerPort) const
+{
+    std::lock_guard lock(m_gate);
+    return GetMappedPortLocked(containerPort);
+}
+
+int PortMapping::GetMappedPortLocked(int containerPort) const
 {
     const auto it = m_entries.find(containerPort);
     if (it == m_entries.end())
@@ -224,6 +230,7 @@ void PortMapping::ResolveFromInspect(std::string_view inspect_json)
         return;
     }
 
+    std::lock_guard lock(m_gate);
     for (const auto& [key, value] : ports->items())
     {
         int ContainerPort = 0;
@@ -264,10 +271,11 @@ bool PortMapping::IsPortOpen(int containerPort, std::stop_token token) const
 
 WslEndpoint PortMapping::GetConnectEndpoint(int containerPort) const
 {
+    std::lock_guard lock(m_gate);
     const auto it = m_entries.find(containerPort);
     const std::string host = it != m_entries.end() ? it->second.ProbeHost : "127.0.0.1";
 
-    return WslEndpoint{host, GetMappedPort(containerPort)};
+    return WslEndpoint{host, GetMappedPortLocked(containerPort)};
 }
 
 std::string PortMapping::ResolveProbeHost(const std::optional<std::string>& bindAddress)

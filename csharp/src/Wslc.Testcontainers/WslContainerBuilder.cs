@@ -220,9 +220,8 @@ public sealed class WslContainerBuilder
             throw new WslException($"File source '{hostPath}' is a reparse point (symlink or junction); refusing to follow it.");
         }
 
-        const long MaxCopyBytes = 1024L * 1024L * 1024L;
         var length = new FileInfo(hostPath).Length;
-        if (length > MaxCopyBytes)
+        if (length > HostFile.MaxCopyBytes)
         {
             throw new WslException($"File '{hostPath}' exceeds 1 GiB limit ({length} bytes) and cannot be copied into the container.");
         }

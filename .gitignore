@@ -13,6 +13,7 @@ build/
 out/
 cpp/build*/
 cpp/.packages/
+cpp/Testing/
 CMakeFiles/
 CMakeUserPresets.json
 _deps/

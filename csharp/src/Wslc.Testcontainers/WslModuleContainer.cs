@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 
 namespace Wslc.Testcontainers;
 
@@ -87,6 +88,17 @@ public abstract class WslModuleContainer : IWslContainer
         await _inner.DisposeAsync().ConfigureAwait(false);
     }
 
+    /// <summary>Brackets IPv6 literals so host:port stays a valid URL authority.</summary>
+    protected static string FormatHost(IPAddress address) =>
+        address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString();
+
+    /// <summary>Renders an endpoint as host:port, e.g. <c>127.0.0.1:49153</c>.</summary>
+    protected static string FormatEndpoint(IPEndPoint endpoint) => $"{FormatHost(endpoint.Address)}:{endpoint.Port}";
+
     /// <summary>Renders an HTTP base URL for the given endpoint, e.g. <c>http://127.0.0.1:49153</c>.</summary>
-    protected static string FormatHttpEndpoint(IPEndPoint endpoint) => $"http://{endpoint.Address}:{endpoint.Port}";
+    protected static string FormatHttpEndpoint(IPEndPoint endpoint) => $"http://{FormatEndpoint(endpoint)}";
+
+    /// <summary>Renders a connection string with host, port, username, password, and database.</summary>
+    protected static string FormatConnectionString(IPEndPoint endpoint, string username, string password, string database) =>
+        $"Host={endpoint.Address};Port={endpoint.Port};Username={username};Password={password};Database={database}";
 }

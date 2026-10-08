@@ -1,2 +1,5 @@
 #nullable enable
+static Wslc.Testcontainers.WslModuleContainer.FormatConnectionString(System.Net.IPEndPoint! endpoint, string! username, string! password, string! database) -> string!
+static Wslc.Testcontainers.WslModuleContainer.FormatEndpoint(System.Net.IPEndPoint! endpoint) -> string!
+static Wslc.Testcontainers.WslModuleContainer.FormatHost(System.Net.IPAddress! address) -> string!
 static Wslc.Testcontainers.WslModuleContainer.FormatHttpEndpoint(System.Net.IPEndPoint! endpoint) -> string!

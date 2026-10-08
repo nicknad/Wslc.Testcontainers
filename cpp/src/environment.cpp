@@ -2,7 +2,9 @@
 
 #include "internal/util.hpp"
 
-#include <cstdlib>
+#include <charconv>
+#include <cmath>
+#include <limits>
 #include <string>
 #include <vector>
 
@@ -11,20 +13,6 @@ namespace wslc
 
 namespace
 {
-
-bool IsContinuousIntegration()
-{
-    static constexpr const char* variables[] = {"CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL", "TEAMCITY_VERSION"};
-    for (const char* Name : variables)
-    {
-        if (internal::IsContinuousIntegrationVariable(Name, internal::ReadEnvironmentVariable(Name)))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 std::optional<std::chrono::milliseconds> ParseClockTime(std::string_view value)
 {
@@ -103,6 +91,11 @@ std::optional<std::chrono::milliseconds> ParseClockTime(std::string_view value)
                 return std::nullopt;
             }
 
+            if (result > (std::numeric_limits<std::int64_t>::max() - (character - '0')) / 10)
+            {
+                return std::nullopt;
+            }
+
             result = result * 10 + (character - '0');
         }
 
@@ -146,7 +139,27 @@ std::optional<std::chrono::milliseconds> ParseClockTime(std::string_view value)
         }
     }
 
-    const std::int64_t total = ((days * 24 + hours) * 60 + *minutes) * 60 * 1000 + *seconds * 1000 + fraction_ms;
+    // Overflow-checked accumulation: the days field and the hours field are unbounded digits.
+    constexpr std::int64_t c_millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const auto add_scaled = [](std::int64_t& total, std::int64_t value, std::int64_t scale) -> bool
+    {
+        if (value > (std::numeric_limits<std::int64_t>::max() - total) / scale)
+        {
+            return false;
+        }
+
+        total += value * scale;
+        return true;
+    };
+
+    std::int64_t total = 0;
+    if (!add_scaled(total, days, c_millisecondsPerDay) || !add_scaled(total, hours, 60 * 60 * 1000) ||
+        !add_scaled(total, *minutes, 60 * 1000) || !add_scaled(total, *seconds, 1000) ||
+        !add_scaled(total, fraction_ms, 1))
+    {
+        return std::nullopt;
+    }
+
     if (total <= 0)
     {
         return std::nullopt;
@@ -194,9 +207,20 @@ std::optional<std::chrono::milliseconds> WslEnvironment::ParseTimeout(const std:
         return std::nullopt;
     }
 
-    char* end = nullptr;
-    const double seconds = std::strtod(text.c_str(), &end);
-    if (*end == '\0' && seconds > 0)
+    // std::from_chars is locale-independent (strtod honors the C locale) and rejects the hex
+    // float syntax that C# double.TryParse also rejects. A leading '+' is allowed like C#.
+    const char* begin = text.data();
+    const char* end = begin + text.size();
+    if (begin != end && *begin == '+')
+    {
+        ++begin;
+    }
+
+    double seconds = 0.0;
+    const auto [ptr, ec] = std::from_chars(begin, end, seconds);
+    // Cap at TimeSpan.MaxValue.TotalSeconds so both ports accept the same range.
+    constexpr double c_maxTimeoutSeconds = static_cast<double>(std::numeric_limits<std::int64_t>::max()) / 10'000'000.0;
+    if (ec == std::errc{} && ptr == end && std::isfinite(seconds) && seconds > 0 && seconds <= c_maxTimeoutSeconds)
     {
         return std::chrono::milliseconds(static_cast<std::int64_t>(seconds * 1000.0));
     }
@@ -238,7 +262,7 @@ std::chrono::milliseconds WslEnvironment::DefaultWaitTimeout()
 
 bool WslEnvironment::ReuseAllowed()
 {
-    if (!IsContinuousIntegration())
+    if (!internal::IsContinuousIntegration())
     {
         return true;
     }

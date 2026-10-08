@@ -15,9 +15,5 @@ public sealed class RedisContainer : WslModuleContainer
     }
 
     /// <summary>Renders the <c>host:port</c> endpoint for StackExchange.Redis (e.g. <c>127.0.0.1:49153</c>).</summary>
-    public string GetEndpoint()
-    {
-        var endpoint = GetConnectEndpoint(DefaultPort);
-        return $"{endpoint.Address}:{endpoint.Port}";
-    }
+    public string GetEndpoint() => FormatEndpoint(GetConnectEndpoint(DefaultPort));
 }

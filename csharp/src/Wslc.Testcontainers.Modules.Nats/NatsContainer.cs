@@ -28,11 +28,11 @@ public sealed class NatsContainer : WslModuleContainer
         var endpoint = GetConnectEndpoint(DefaultPort);
         if (_username is null)
         {
-            return $"nats://{endpoint.Address}:{endpoint.Port}";
+            return $"nats://{FormatEndpoint(endpoint)}";
         }
 
         var user = Uri.EscapeDataString(_username);
         var password = Uri.EscapeDataString(_password!);
-        return $"nats://{user}:{password}@{endpoint.Address}:{endpoint.Port}";
+        return $"nats://{user}:{password}@{FormatEndpoint(endpoint)}";
     }
 }

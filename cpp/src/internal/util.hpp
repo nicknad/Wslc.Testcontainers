@@ -1,5 +1,7 @@
 #pragma once
 
+#include "wslc/log_line.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -150,6 +152,9 @@ std::optional<bool> ParseBoolValue(std::string_view value);
 /// </summary>
 bool IsContinuousIntegrationVariable(std::string_view name, std::string_view value);
 
+/// <summary>True when any well-known CI environment variable marks a CI host.</summary>
+bool IsContinuousIntegration();
+
 /// <summary>
 /// Resolves whether Reuse is effective for a container: configured (or default) Reuse only
 /// counts when the Environment allows it. Pure so callers can test both the configured and the
@@ -177,5 +182,14 @@ void BestEffortDeleteFile(const std::filesystem::path& path);
 
 /// <summary>Returns true when the path exists and is a reparse point (symlink/junction).</summary>
 bool IsReparsePoint(const std::filesystem::path& path);
+
+/// <summary>Returns the last maxLines from the provided logs.</summary>
+std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines);
+
+/// <summary>
+/// Joins the last maxLines from the provided logs for the specified source,
+/// using newlines as separators.
+/// </summary>
+std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines);
 
 } // namespace wslc::internal

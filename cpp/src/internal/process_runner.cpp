@@ -21,7 +21,14 @@ constexpr std::uint64_t c_maxCopyBytes = 1024ull * 1024ull * 1024ull;
 constexpr std::size_t c_copyChunkSize = 64 * 1024;
 constexpr std::chrono::milliseconds c_abortGracePeriod{2000};
 
-std::vector<PCSTR> build_argv(const std::vector<std::string>& CommandLine)
+std::string first_argument(const ProcessSettings& settings)
+{
+    return settings.CommandLine.empty() ? std::string() : settings.CommandLine.front();
+}
+
+} // namespace
+
+std::vector<PCSTR> ToNativeArgv(const std::vector<std::string>& CommandLine)
 {
     std::vector<PCSTR> argv;
     argv.reserve(CommandLine.size());
@@ -33,7 +40,7 @@ std::vector<PCSTR> build_argv(const std::vector<std::string>& CommandLine)
     return argv;
 }
 
-std::vector<std::string> BuildEnvironment(const std::map<std::string, std::string>& Environment)
+std::vector<std::string> ToEnvironmentStrings(const std::map<std::string, std::string>& Environment)
 {
     std::vector<std::string> values;
     values.reserve(Environment.size());
@@ -45,7 +52,7 @@ std::vector<std::string> BuildEnvironment(const std::map<std::string, std::strin
     return values;
 }
 
-std::vector<PCSTR> build_environment_values(const std::vector<std::string>& Environment)
+std::vector<PCSTR> ToNativeEnvironment(const std::vector<std::string>& Environment)
 {
     std::vector<PCSTR> values;
     values.reserve(Environment.size());
@@ -56,13 +63,6 @@ std::vector<PCSTR> build_environment_values(const std::vector<std::string>& Envi
 
     return values;
 }
-
-std::string first_argument(const ProcessSettings& settings)
-{
-    return settings.CommandLine.empty() ? std::string() : settings.CommandLine.front();
-}
-
-} // namespace
 
 std::shared_ptr<ContainerProcessState> ProcessRunner::Prepare(std::function<void(LogLine)> observer,
                                                               bool capture_output)
@@ -87,13 +87,13 @@ void ProcessRunner::CreateNative(WslcContainer container, const ProcessSettings&
         check(result, ErrorKind::Process, "Failed to set the process working directory", nullptr);
     }
 
-    const std::vector<PCSTR> argv = build_argv(settings.CommandLine);
+    const std::vector<PCSTR> argv = ToNativeArgv(settings.CommandLine);
     result = WslcSetProcessSettingsCmdLine(&nativeSettings, argv.data(), argv.size());
     check(result, ErrorKind::Process, "Failed to set the process command line", nullptr);
 
     // The SDK takes an array of "KEY=VALUE" strings.
-    const std::vector<std::string> Environment = BuildEnvironment(settings.Environment);
-    const std::vector<PCSTR> environmentValues = build_environment_values(Environment);
+    const std::vector<std::string> Environment = ToEnvironmentStrings(settings.Environment);
+    const std::vector<PCSTR> environmentValues = ToNativeEnvironment(Environment);
     if (!environmentValues.empty())
     {
         result =
@@ -389,6 +389,12 @@ void ProcessRunner::CopyFrom(WslcContainer container, const std::string& Source,
             }
 
             output.close();
+            if (output.fail())
+            {
+                // Without this check a disk-full write would silently commit a truncated file.
+                throw WslProcessException("Copying '" + Source + "' to '" + ToUtf8(fullDestination.wstring()) +
+                                          "' failed: the temporary file could not be written.");
+            }
         }
 
         stdoutHandle.reset();

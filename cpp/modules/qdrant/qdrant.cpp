@@ -33,8 +33,7 @@ QdrantContainer::QdrantContainer(WslContainer inner) : WslModuleContainer(std::m
 
 std::string QdrantContainer::GetEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(HttpPort);
-    return "http://" + endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatHttpEndpoint(GetConnectEndpoint(HttpPort));
 }
 
 } // namespace wslc::modules

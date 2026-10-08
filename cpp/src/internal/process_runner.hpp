@@ -17,6 +17,15 @@
 namespace wslc::internal
 {
 
+/// <summary>Views a command line as the PCSTR array the SDK expects; the strings must outlive the array.</summary>
+std::vector<PCSTR> ToNativeArgv(const std::vector<std::string>& CommandLine);
+
+/// <summary>Renders one "KEY=VALUE" string per environment entry.</summary>
+std::vector<std::string> ToEnvironmentStrings(const std::map<std::string, std::string>& Environment);
+
+/// <summary>Views "KEY=VALUE" strings as the PCSTR array the SDK expects; the strings must outlive the array.</summary>
+std::vector<PCSTR> ToNativeEnvironment(const std::vector<std::string>& Environment);
+
 /// <summary>Description of a process to create inside a container.</summary>
 struct ProcessSettings
 {

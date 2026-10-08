@@ -89,9 +89,20 @@ TEST(ResourceReaper, ReusableInstancesArePreserved)
 
 TEST(ResourceReaper, OwnerLivenessIsDetected)
 {
-    EXPECT_TRUE(wslc::internal::IsOwnerAlive(static_cast<int>(wslc::internal::CurrentProcessId())));
-    EXPECT_FALSE(wslc::internal::IsOwnerAlive(0));
-    EXPECT_FALSE(wslc::internal::IsOwnerAlive(INT_MAX));
+    // Test IsOwnerAlive via InstanceMetadata to avoid exposing IsOwnerAlive(int)
+    InstanceMetadata metadata;
+    metadata.SessionId = "test-session";
+    metadata.InstanceId = "wslc-owner-liveness";
+    metadata.CreatedAt = std::chrono::system_clock::now();
+
+    metadata.OwnerProcessId = static_cast<int>(wslc::internal::CurrentProcessId());
+    EXPECT_TRUE(wslc::internal::IsOwnerAlive(metadata));
+
+    metadata.OwnerProcessId = 0;
+    EXPECT_FALSE(wslc::internal::IsOwnerAlive(metadata));
+
+    metadata.OwnerProcessId = INT_MAX;
+    EXPECT_FALSE(wslc::internal::IsOwnerAlive(metadata));
 }
 
 TEST(ResourceReaper, ReuseInstanceLockIsDetected)

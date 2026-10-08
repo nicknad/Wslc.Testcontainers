@@ -55,9 +55,9 @@ std::optional<LogLine> LogStream::Next(std::stop_token token)
         return std::nullopt;
     }
 
-    std::stop_callback callback(token, [&subscriber] { subscriber.Condition.notify_all(); });
-    subscriber.Condition.wait(lock, [&subscriber, &token]
-                              { return !subscriber.Queue.empty() || subscriber.Closed || token.stop_requested(); });
+    // condition_variable_any's stop_token overload closes the missed-wakeup race between a
+    // stop request and the predicate check.
+    subscriber.Condition.wait(lock, token, [&subscriber] { return !subscriber.Queue.empty() || subscriber.Closed; });
 
     if (!subscriber.Queue.empty())
     {

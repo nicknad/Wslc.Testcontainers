@@ -811,6 +811,21 @@ bool IsContinuousIntegrationVariable(std::string_view name, std::string_view val
     return false;
 }
 
+bool IsContinuousIntegration()
+{
+    static constexpr const char* c_variables[] = {"CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL",
+                                                  "TEAMCITY_VERSION"};
+    for (const char* Name : c_variables)
+    {
+        if (IsContinuousIntegrationVariable(Name, ReadEnvironmentVariable(Name)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool IsReuseEffective(std::optional<bool> configuredReuse, bool reuseByDefault, bool reuseAllowed)
 {
     return configuredReuse.value_or(reuseByDefault) && reuseAllowed;
@@ -921,4 +936,58 @@ bool IsReparsePoint(const std::filesystem::path& path)
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 }
 
+std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
+{
+    if (Logs.size() <= maxLines)
+    {
+        return Logs;
+    }
+
+    return std::vector<LogLine>(Logs.end() - static_cast<std::ptrdiff_t>(maxLines), Logs.end());
+}
+
+std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines)
+{
+    // Two passes, O(n) total: count matches first, then join only the trailing window.
+    // The previous vector-erase-front version was O(n*m).
+    std::size_t total = 0;
+    for (const auto& line : Logs)
+    {
+        if (line.Source == Source)
+        {
+            total++;
+        }
+    }
+
+    if (total == 0)
+    {
+        return std::nullopt;
+    }
+
+    const std::size_t skip = total > maxLines ? total - maxLines : 0;
+    std::string result;
+    std::size_t seen = 0;
+    std::size_t emitted = 0;
+    for (const auto& line : Logs)
+    {
+        if (line.Source != Source)
+        {
+            continue;
+        }
+
+        if (seen++ < skip)
+        {
+            continue;
+        }
+
+        if (emitted++ > 0)
+        {
+            result.push_back('\n');
+        }
+
+        result += line.Text;
+    }
+
+    return result;
+}
 } // namespace wslc::internal

@@ -713,18 +713,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
     private Dictionary<string, string> BuildEnvironment(IReadOnlyDictionary<string, string>? overrides)
     {
-        if (overrides is not null)
-        {
-            foreach (var pair in overrides)
-            {
-                Validation.RequireEnvironmentName(pair.Key, nameof(overrides));
-                if (pair.Value is null)
-                {
-                    throw new ArgumentException($"Environment variable '{pair.Key}' has null value.", nameof(overrides));
-                }
-            }
-        }
-
+        // Overrides are validated by ValidateProcessOptions before this point.
         var baseEnv = _configuration.Environment;
         var environment = new Dictionary<string, string>(
             baseEnv.Count + 4 + (overrides?.Count ?? 0),
@@ -816,6 +805,9 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         await DisposeMainProcessAsync(failures).ConfigureAwait(false);
         StopAndDeleteContainer(failures);
         TerminateSession(failures);
+
+        // The instance is torn down, so a later StartAsync must be able to re-acquire the lock.
+        ReleaseReuseLock();
 
         _network = null;
         _started = false;
@@ -956,8 +948,10 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         {
             _store.WriteMetadata(_metadata);
         }
-        catch
+        catch (Exception exception)
         {
+            // Best-effort per ADR-0004, but a stale wslc.json must be visible in the logs.
+            _logs.Publish(LogLine.Diagnostic($"failed to persist instance metadata: {exception.Message}"));
         }
     }
 

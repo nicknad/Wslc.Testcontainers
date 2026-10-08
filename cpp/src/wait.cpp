@@ -22,16 +22,6 @@ namespace
 constexpr int c_maxIterations = 100'000;
 constexpr std::size_t c_maxLogLines = 50;
 
-std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
-{
-    if (Logs.size() <= maxLines)
-    {
-        return Logs;
-    }
-
-    return std::vector<LogLine>(Logs.end() - static_cast<std::ptrdiff_t>(maxLines), Logs.end());
-}
-
 /// <summary>Requests Stop on a derived Stop source when the Timeout elapses; cancels on destruction.</summary>
 class StopTimer
 {
@@ -98,7 +88,8 @@ protected:
         std::string message = "Timed out after " + internal::FormatMilliseconds(Elapsed) + "s waiting for " + Name() +
                               " on '" + target.Name() + "'.";
 
-        return WslReadinessException(message, Name(), m_timeout, TakeLast(target.GetRecentLogs(), c_maxLogLines));
+        return WslReadinessException(message, Name(), m_timeout,
+                                     internal::TakeLast(target.GetRecentLogs(), c_maxLogLines));
     }
 
     std::chrono::milliseconds m_timeout = WslEnvironment::DefaultWaitTimeout();

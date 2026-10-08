@@ -4,8 +4,8 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ## 0.4.0
 
-Rolls up 0.3.1 and 0.3.2; neither reached nuget.org (0.3.1 failed its release gate,
-0.3.2 was accepted but never finished nuget.org validation). The 0.3.1 section below
+Rolls up the 0.3.1 and 0.3.2 changes. 0.3.1 never left the release gate; 0.3.2 was
+published and indexed (slowly), then superseded by 0.4.0. The 0.3.1 section below
 lists the rest of the content.
 
 ### Fixed

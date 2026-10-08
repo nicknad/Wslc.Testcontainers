@@ -113,7 +113,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `new WslContainerBuilder()` | `wslc::WslContainerBuilder builder;` |
 | `WithImage` / `FromTarball` / `WithCommand` / `WithWorkingDirectory` | same names |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | `WithEnvironment(name, value)` / `WithEnvironmentVariables(map)` |
-| `WithPort(port)` / `WithPort(port, bindAddress)` | same names |
+| `WithPort(port)` / `WithPort(port, bindAddress)` / `WithPort(port, hostPort)` / `WithPort(port, hostPort, bindAddress)` | same names |
 | `WithWaitStrategy(strategy)` | `WithWaitStrategy(std::shared_ptr<IWaitStrategy>)` |
 | `WithFile` / `WithVolume` / `WithScratchVolume` | same names |
 | `WithNetworkingMode` / `WithCpuCount` / `WithMemoryMegabytes` | same names |
@@ -128,7 +128,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` |
 
 Behavioral notes:
 
@@ -149,6 +149,7 @@ Typed module builders live in `cpp/modules/`:
 #include <wslc/modules/clickhouse.hpp>
 #include <wslc/modules/keycloak.hpp>
 #include <wslc/modules/elasticsearch.hpp>
+#include <wslc/modules/kafka.hpp>
 #include <wslc/modules/mailpit.hpp>
 #include <wslc/modules/mariadb.hpp>
 #include <wslc/modules/mongodb.hpp>
@@ -235,7 +236,18 @@ wslc::modules::ElasticsearchBuilder elasticsearchBuilder;
 auto elasticsearch = elasticsearchBuilder.Build();
 elasticsearch.Start();
 const std::string rest = elasticsearch.GetEndpoint();
+
+wslc::modules::KafkaBuilder kafkaBuilder;
+auto kafka = kafkaBuilder.Build();
+kafka.Start();
+const std::string bootstrapServers = kafka.GetBootstrapServers(); // 127.0.0.1:<fixed host port>
 ```
+
+> **Kafka reserves a fixed host port.** A broker tells clients to reconnect to its advertised
+> listener, so the host port must be known before the container starts and cannot be dynamic. The
+> module picks a free loopback port when you call `Build()`, and `Start` fails fast if that port is
+> taken by the time the container starts — so avoid starting several Kafka containers in parallel.
+> All other modules keep dynamic ports.
 
 ## Configuration
 

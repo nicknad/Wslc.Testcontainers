@@ -115,6 +115,10 @@ PortMapping::PortMapping(const std::vector<WslPortMappingRecord>& mappings)
             Entry entry;
             entry.BindAddress = mapping.BindAddress;
             entry.ProbeHost = ResolveProbeHost(mapping.BindAddress);
+            entry.HostPort = mapping.HostPort;
+            // A fixed port is known before Start, so it resolves without polling the inspect
+            // payload; dynamic ports stay 0 until ResolveFromInspect assigns one.
+            entry.MappedPort = mapping.HostPort;
             m_entries[mapping.ContainerPort] = std::move(entry);
         }
     }
@@ -159,7 +163,7 @@ std::vector<WslcContainerPortMapping> PortMapping::ToNativeMappings(std::vector<
     for (const auto& pair : m_entries)
     {
         WslcContainerPortMapping mapping{};
-        mapping.windowsPort = 0;
+        mapping.windowsPort = static_cast<std::uint16_t>(pair.second.HostPort);
         mapping.containerPort = static_cast<std::uint16_t>(pair.first);
         mapping.protocol = WSLC_PORT_PROTOCOL_TCP;
         mapping.windowsAddress = nullptr;

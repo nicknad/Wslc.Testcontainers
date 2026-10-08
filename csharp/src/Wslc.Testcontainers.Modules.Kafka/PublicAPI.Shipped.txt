@@ -1,0 +1,7 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.Kafka.KafkaContainer.DefaultPort = 9092 -> int
+Wslc.Testcontainers.Modules.Kafka.KafkaBuilder
+Wslc.Testcontainers.Modules.Kafka.KafkaBuilder.Build() -> Wslc.Testcontainers.Modules.Kafka.KafkaContainer!
+Wslc.Testcontainers.Modules.Kafka.KafkaBuilder.KafkaBuilder() -> void
+Wslc.Testcontainers.Modules.Kafka.KafkaContainer
+Wslc.Testcontainers.Modules.Kafka.KafkaContainer.GetBootstrapServers() -> string!

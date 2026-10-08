@@ -9,7 +9,9 @@
 #include "wslc/platform.hpp"
 
 #include <cctype>
+#include <optional>
 #include <system_error>
+#include <vector>
 
 namespace wslc
 {
@@ -38,6 +40,55 @@ std::string ValidateBindAddress(const std::string& BindAddress)
     }
 
     return *normalized;
+}
+
+bool SameBindAddress(const std::optional<std::string>& left, const std::optional<std::string>& right)
+{
+    if (!left || !right)
+    {
+        return !left && !right;
+    }
+
+    return internal::EqualsIgnoreCase(*left, *right);
+}
+
+/// Adds one container-port mapping, applying the same single-declaration rules as the builder:
+/// a repeated container port must keep the same bind address, a dynamic declaration may be
+/// upgraded to a fixed host port, and conflicting fixed host ports are rejected.
+void ApplyPortMapping(std::vector<internal::WslPortMappingRecord>& mappings, int port,
+                      std::optional<std::string> bindAddress, int hostPort)
+{
+    for (auto& existing : mappings)
+    {
+        if (existing.ContainerPort != port)
+        {
+            continue;
+        }
+
+        if (!SameBindAddress(existing.BindAddress, bindAddress))
+        {
+            throw WslException("Port " + std::to_string(port) +
+                               " is already mapped with a different bind address. Declare each port once.");
+        }
+
+        if (existing.HostPort != 0 && hostPort != 0 && existing.HostPort != hostPort)
+        {
+            throw WslException("Port " + std::to_string(port) + " is already mapped to host port " +
+                               std::to_string(existing.HostPort) + ". Declare each port once.");
+        }
+
+        if (existing.HostPort != 0 || hostPort == 0)
+        {
+            return;
+        }
+
+        // Upgrade a dynamic declaration to a fixed host port: module builders declare the default
+        // dynamic port, then a module Configure call pins the host port.
+        existing.HostPort = hostPort;
+        return;
+    }
+
+    mappings.push_back(internal::WslPortMappingRecord{port, std::move(bindAddress), hostPort});
 }
 
 } // namespace
@@ -124,44 +175,30 @@ WslContainerBuilder& WslContainerBuilder::WithEnvironmentVariables(std::map<std:
 WslContainerBuilder& WslContainerBuilder::WithPort(int port)
 {
     internal::ValidatePort(port);
-    for (const auto& existing : m_state->configuration.PortMappings)
-    {
-        if (existing.ContainerPort == port)
-        {
-            if (existing.BindAddress)
-            {
-                throw WslException("Port " + std::to_string(port) +
-                                   " is already mapped with a different bind address. Declare each port once.");
-            }
+    ApplyPortMapping(m_state->configuration.PortMappings, port, std::nullopt, 0);
+    return *this;
+}
 
-            return *this;
-        }
-    }
-
-    m_state->configuration.PortMappings.push_back(internal::WslPortMappingRecord{port, std::nullopt});
+WslContainerBuilder& WslContainerBuilder::WithPort(int port, int HostPort)
+{
+    internal::ValidatePort(port);
+    internal::ValidatePort(HostPort);
+    ApplyPortMapping(m_state->configuration.PortMappings, port, std::nullopt, HostPort);
     return *this;
 }
 
 WslContainerBuilder& WslContainerBuilder::WithPort(int port, std::string BindAddress)
 {
     internal::ValidatePort(port);
-    const std::string normalized = ValidateBindAddress(BindAddress);
-    for (const auto& existing : m_state->configuration.PortMappings)
-    {
-        if (existing.ContainerPort == port)
-        {
-            const bool same = existing.BindAddress && internal::EqualsIgnoreCase(*existing.BindAddress, normalized);
-            if (!same)
-            {
-                throw WslException("Port " + std::to_string(port) +
-                                   " is already mapped with a different bind address. Declare each port once.");
-            }
+    ApplyPortMapping(m_state->configuration.PortMappings, port, ValidateBindAddress(BindAddress), 0);
+    return *this;
+}
 
-            return *this;
-        }
-    }
-
-    m_state->configuration.PortMappings.push_back(internal::WslPortMappingRecord{port, normalized});
+WslContainerBuilder& WslContainerBuilder::WithPort(int port, int HostPort, std::string BindAddress)
+{
+    internal::ValidatePort(port);
+    internal::ValidatePort(HostPort);
+    ApplyPortMapping(m_state->configuration.PortMappings, port, ValidateBindAddress(BindAddress), HostPort);
     return *this;
 }
 

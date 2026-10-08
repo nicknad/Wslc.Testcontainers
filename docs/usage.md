@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -75,6 +75,7 @@ dotnet add package Wslc.Testcontainers.Modules.ClickHouse
 dotnet add package Wslc.Testcontainers.Modules.Vault
 dotnet add package Wslc.Testcontainers.Modules.Keycloak
 dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
+dotnet add package Wslc.Testcontainers.Modules.Kafka
 ```
 
 ## Quickstart
@@ -198,6 +199,8 @@ using Wslc.Testcontainers.Modules.WireMock;
 await using var wiremock = new WireMockBuilder().Build();
 await wiremock.StartAsync();
 var stubs = wiremock.GetEndpoint(); // http://host:port
+```
+
 Qdrant (vector database HTTP + gRPC APIs):
 
 ```csharp
@@ -207,6 +210,8 @@ await using var qdrant = new QdrantBuilder().Build();
 await qdrant.StartAsync();
 var httpApi = qdrant.GetEndpoint(); // http://host:port for the HTTP API
 // gRPC consumers use qdrant.GetConnectEndpoint(QdrantContainer.GrpcPort).
+```
+
 ClickHouse (HTTP interface + native protocol):
 
 ```csharp
@@ -215,6 +220,8 @@ using Wslc.Testcontainers.Modules.ClickHouse;
 await using var clickhouse = new ClickHouseBuilder().Build();
 await clickhouse.StartAsync();
 var clickHouseClient = clickhouse.GetConnectionString(); // Host=127.0.0.1;Port=<dynamic>;...
+```
+
 Vault (dev mode, fixed root token):
 
 ```csharp
@@ -224,6 +231,8 @@ await using var vault = new VaultBuilder().Build();
 await vault.StartAsync();
 var vaultAddress = vault.GetAddress(); // http://host:port for VAULT_ADDR
 var rootToken = vault.RootToken;       // "root" unless WithRootToken(...) overrides it
+```
+
 Keycloak (OIDC identity provider):
 
 ```csharp
@@ -232,6 +241,8 @@ using Wslc.Testcontainers.Modules.Keycloak;
 await using var keycloak = new KeycloakBuilder().Build();
 await keycloak.StartAsync();
 var issuer = keycloak.GetEndpoint(); // http://host:port; credentials via AdminUsername/AdminPassword
+```
+
 Elasticsearch (single-node HTTP API):
 
 ```csharp
@@ -242,6 +253,22 @@ await elasticsearch.StartAsync();
 var rest = elasticsearch.GetEndpoint(); // http://host:port
 ```
 
+Kafka (single-node KRaft broker; bootstrap servers on a fixed host port):
+
+```csharp
+using Wslc.Testcontainers.Modules.Kafka;
+
+await using var kafka = new KafkaBuilder().Build();
+await kafka.StartAsync();
+var bootstrapServers = kafka.GetBootstrapServers(); // 127.0.0.1:<fixed host port>
+```
+
+Kafka is the one module that reserves a **fixed** loopback host port: a broker tells clients to
+reconnect to its advertised listener, so the port must be known before the container starts (a
+dynamic port cannot be advertised). The runtime fails fast at `StartAsync` if that port is already
+in use, so avoid starting several Kafka containers in parallel. Everything else about the module
+is the usual preset: image, KRaft environment and readiness waits.
+
 ## Core concepts
 
 | Concept | Description |
@@ -250,7 +277,7 @@ var rest = elasticsearch.GetEndpoint(); // http://host:port
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do
@@ -278,6 +305,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve the address and port with `GetConnectEndpoint(containerPort)`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address. |
+| `WithPort(port, hostPort)` / `WithPort(port, hostPort, bindAddress)` | Reserve a specific Windows host port instead of a dynamic one. Use it for services that must advertise the address clients reach them on (e.g. Kafka's advertised listener); `StartAsync` fails if the host port is already in use. |
 | `WithNetworkingMode(mode)` | `Bridged` (default) or `Isolated` (no NIC — full isolation; no ports or network waits allowed; the only containment mode the runtime enforces). |
 | `WithCpuCount(n)` / `WithMemoryMegabytes(n)` | Caps for the session VM (megabytes). Null (default) leaves the runtime default. |
 | `WithScratchVolume(name, containerPath, sizeBytes, ...)` | Session VHD volume (native ext4, recreated empty every start). Prefer over bind mounts when data must not be exposed as Windows host files (the VHD still lives under the session storage directory). |
@@ -362,7 +390,8 @@ Rules that bite:
 
 ## Ports and connecting
 
-Host ports are dynamic. Never hardcode them:
+Host ports are dynamic by default. Never hardcode them unless you deliberately reserved a fixed
+one with `WithPort(port, hostPort)`:
 
 ```csharp
 var endpoint = postgres.GetConnectEndpoint(PostgreSqlContainer.DefaultPort);
@@ -376,8 +405,9 @@ var connectionString =
   host port plus the address the mapping is actually bound to (IPv4 `127.0.0.1` for
   `0.0.0.0`, IPv6 `::1` for `::`). Mappings are TCP-only because the WSLC runtime
   returns `E_NOTIMPL` for UDP.
-- Only declared ports are mapped; each `WslContainer` gets its own mapping so
-  parallel tests never collide. UDP mapping support must come from the runtime.
+- Only declared ports are mapped; by default each `WslContainer` gets a dynamic host port so
+  parallel tests never collide. `WithPort(port, hostPort)` reserves a fixed one instead and
+  `StartAsync` fails fast if it is taken. UDP mapping support must come from the runtime.
 - The Windows side binds loopback (`127.0.0.1`) by default. Override it only when you
   need LAN exposure, e.g. `WithPort(8080, "0.0.0.0")` or `WithPort(8080, IPAddress.Any)`.
 - Published ports are reachable via loopback from Windows. Treat them as test-only

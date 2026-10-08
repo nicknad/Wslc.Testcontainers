@@ -138,6 +138,21 @@ TEST(PortMapping, MappingsAreDynamicUntilResolved)
     }
 }
 
+TEST(PortMapping, FixedHostPortsResolveBeforeInspectAndAreForwarded)
+{
+    PortMapping mapping = PortMapping({WslPortMappingRecord{9092, std::nullopt, 49153}});
+
+    // A fixed port is known before Start, so it needs no inspect round-trip.
+    EXPECT_EQ(mapping.UnresolvedCount(), 0);
+    EXPECT_EQ(mapping.GetMappedPort(9092), 49153);
+
+    std::vector<sockaddr_storage> storage;
+    const std::vector<WslcContainerPortMapping> mappings = mapping.ToNativeMappings(storage);
+    ASSERT_EQ(mappings.size(), 1u);
+    EXPECT_EQ(static_cast<int>(mappings[0].windowsPort), 49153);
+    EXPECT_EQ(static_cast<int>(mappings[0].containerPort), 9092);
+}
+
 TEST(PortMapping, BindAddressIsForwardedToTheContainerMapping)
 {
     const PortMapping mapping = PortMapping({Port(8080, "127.0.0.1"), Port(9090)});

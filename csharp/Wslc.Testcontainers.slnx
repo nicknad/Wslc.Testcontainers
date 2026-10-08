@@ -16,6 +16,7 @@
     <Project Path="src/Wslc.Testcontainers.Modules.Vault/Wslc.Testcontainers.Modules.Vault.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.Kafka/Wslc.Testcontainers.Modules.Kafka.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj" />

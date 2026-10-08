@@ -76,6 +76,9 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
 - `Wslc.Testcontainers.Modules.Elasticsearch`: HTTP 9200, readiness via
   `/_cluster/health?wait_for_status=yellow`, `GetEndpoint()`; single-node, security off,
   512 MB heap, niofs storage.
+- `Wslc.Testcontainers.Modules.Kafka`: TCP 9092 + log `Kafka Server started`, `GetBootstrapServers()`
+  as `127.0.0.1:<host-port>`; single-node KRaft. Reserves a fixed loopback host port that the broker
+  advertises, so the host port is part of the reuse identity.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

@@ -1,3 +1,8 @@
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#include <wil/resource.h>
+
 #include <gtest/gtest.h>
 
 #include "internal/container_host.hpp"
@@ -8,6 +13,7 @@
 #include "wslc/modules/clickhouse.hpp"
 #include "wslc/modules/keycloak.hpp"
 #include "wslc/modules/elasticsearch.hpp"
+#include "wslc/modules/kafka.hpp"
 #include "wslc/modules/mailpit.hpp"
 #include "wslc/modules/mariadb.hpp"
 #include "wslc/modules/mongodb.hpp"
@@ -23,6 +29,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -93,6 +100,63 @@ std::string GetEnvironment(const char* name)
     const std::string result = value != nullptr ? value : "";
     free(value);
     return result;
+}
+
+/// Connects to a broker at host:port and sends a Kafka ApiVersions v0 request, returning true
+/// only when the response carries the sent correlation id and error code 0. This proves a host
+/// client can actually talk to the broker through its advertised (fixed) listener; the
+/// container-internal CLI cannot, because the advertised address points at the Windows host.
+bool KafkaBrokerAnswersApiVersions(const std::string& host, int port)
+{
+    WSADATA data{};
+    if (WSAStartup(MAKEWORD(2, 2), &data) != 0)
+    {
+        return false;
+    }
+
+    wil::unique_socket handle(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
+    if (!handle)
+    {
+        WSACleanup();
+        return false;
+    }
+
+    bool ok = false;
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(static_cast<u_short>(port));
+    if (InetPtonA(AF_INET, host.c_str(), &address.sin_addr) == 1 &&
+        ::connect(handle.get(), reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0)
+    {
+        const unsigned char request[] = {0, 0, 0, 10, 0, 18, 0, 0, 0, 0, 0, 1, 0xFF, 0xFF};
+        if (send(handle.get(), reinterpret_cast<const char*>(request), static_cast<int>(sizeof(request)), 0) ==
+            static_cast<int>(sizeof(request)))
+        {
+            unsigned char lengthBytes[4] = {};
+            if (recv(handle.get(), reinterpret_cast<char*>(lengthBytes), 4, MSG_WAITALL) == 4)
+            {
+                const std::uint32_t length = (std::uint32_t(lengthBytes[0]) << 24) |
+                                             (std::uint32_t(lengthBytes[1]) << 16) |
+                                             (std::uint32_t(lengthBytes[2]) << 8) | std::uint32_t(lengthBytes[3]);
+                if (length >= 6 && length <= 16u * 1024u * 1024u)
+                {
+                    std::vector<unsigned char> payload(length);
+                    if (recv(handle.get(), reinterpret_cast<char*>(payload.data()), static_cast<int>(length),
+                             MSG_WAITALL) == static_cast<int>(length))
+                    {
+                        const std::uint32_t correlationId =
+                            (std::uint32_t(payload[0]) << 24) | (std::uint32_t(payload[1]) << 16) |
+                            (std::uint32_t(payload[2]) << 8) | std::uint32_t(payload[3]);
+                        const std::uint16_t errorCode = static_cast<std::uint16_t>((payload[4] << 8) | payload[5]);
+                        ok = correlationId == 1 && errorCode == 0;
+                    }
+                }
+            }
+        }
+    }
+
+    WSACleanup();
+    return ok;
 }
 
 } // namespace
@@ -551,6 +615,32 @@ TEST(IntegrationModules, RabbitMqModuleStartsAndAnswersPing)
     }
 
     rabbitmq.Dispose();
+}
+
+TEST(IntegrationModules, KafkaModuleStartsAndServesMetadata)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::KafkaBuilder builder;
+    auto kafka = builder.Build();
+    try
+    {
+        kafka.Start();
+
+        // The broker advertises the fixed loopback host port, so a host-side client must reach it
+        // there and complete a Kafka handshake.
+        const std::string bootstrap = kafka.GetBootstrapServers();
+        EXPECT_EQ(bootstrap.find("127.0.0.1:"), 0u);
+        const std::string prefix = "127.0.0.1:";
+        EXPECT_TRUE(KafkaBrokerAnswersApiVersions("127.0.0.1", std::stoi(bootstrap.substr(prefix.size()))));
+    }
+    catch (...)
+    {
+        kafka.Dispose();
+        throw;
+    }
+
+    kafka.Dispose();
 }
 
 TEST(IntegrationModules, MongoDbModuleStartsAndServesPing)

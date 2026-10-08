@@ -51,10 +51,11 @@ internal sealed record WslFileCopy(string Source, string Destination);
 
 internal sealed record WslVolumeMount(string HostPath, string ContainerPath, bool ReadOnly);
 
-/// <summary>A Linux TCP port exposed on a dynamic Windows port.</summary>
+/// <summary>A Linux TCP port exposed on a Windows port.</summary>
 /// <param name="ContainerPort">Linux service port (1-65535).</param>
 /// <param name="BindAddress">Optional normalized Windows bind address (e.g. 127.0.0.1). Null uses the SDK default (loopback).</param>
-internal sealed record WslPortMapping(int ContainerPort, string? BindAddress)
+/// <param name="HostPort">Fixed Windows host port (1-65535), or 0 for a runtime-assigned dynamic port.</param>
+internal sealed record WslPortMapping(int ContainerPort, string? BindAddress, int HostPort = 0)
 {
     public override string ToString() => ContainerPort.ToString(CultureInfo.InvariantCulture);
 }
@@ -151,6 +152,12 @@ internal static class WslConfigHasher
         Array.Sort(ports, static (a, b) =>
         {
             var c = a.ContainerPort.CompareTo(b.ContainerPort);
+            if (c != 0)
+            {
+                return c;
+            }
+
+            c = a.HostPort.CompareTo(b.HostPort);
             return c != 0 ? c : string.CompareOrdinal(a.BindAddress, b.BindAddress);
         });
         WriteInt32(hash, ports.Length);
@@ -158,6 +165,7 @@ internal static class WslConfigHasher
         {
             WriteInt32(hash, port.ContainerPort);
             WriteString(hash, port.BindAddress);
+            WriteInt32(hash, port.HostPort);
         }
 
         WriteInt32(hash, configuration.NetworkingMode.HasValue ? (int)configuration.NetworkingMode.Value : -1);

@@ -137,7 +137,22 @@ public sealed class WslContainerBuilder
     public WslContainerBuilder WithPort(int port)
     {
         Validation.ValidatePort(port);
-        return AddPortMapping(port, bindAddress: null);
+        return AddPortMapping(port, bindAddress: null, hostPort: 0);
+    }
+
+    /// <summary>
+    /// Declares a Linux TCP service port exposed on a specific Windows host port instead of a
+    /// runtime-assigned dynamic port. The host port is reserved exactly: if it is already in use,
+    /// <see cref="WslContainer.StartAsync"/> fails instead of picking another port.
+    /// Use this for services that must advertise the host address clients reach them on (for
+    /// example Kafka's advertised listener); otherwise prefer the dynamic overloads so parallel
+    /// tests never collide. The Windows side binds loopback (<c>127.0.0.1</c>).
+    /// </summary>
+    public WslContainerBuilder WithPort(int port, int hostPort)
+    {
+        Validation.ValidatePort(port);
+        Validation.ValidatePort(hostPort, nameof(hostPort));
+        return AddPortMapping(port, bindAddress: null, hostPort);
     }
 
     /// <summary>
@@ -165,26 +180,80 @@ public sealed class WslContainerBuilder
     {
         Validation.ValidatePort(port);
         ArgumentNullException.ThrowIfNull(address);
-        return AddPortMapping(port, address.ToString());
+        return AddPortMapping(port, address.ToString(), hostPort: 0);
     }
 
-    private WslContainerBuilder AddPortMapping(int port, string? bindAddress)
+    /// <summary>
+    /// Declares a Linux TCP service port exposed on a specific Windows host port and bound to a
+    /// specific Windows address (e.g. <c>0.0.0.0</c>). The host port is reserved exactly.
+    /// </summary>
+    public WslContainerBuilder WithPort(int port, int hostPort, string bindAddress)
     {
-        foreach (var existing in _configuration.PortMappings)
+        ArgumentException.ThrowIfNullOrWhiteSpace(bindAddress);
+        if (!IPAddress.TryParse(bindAddress, out var address))
         {
-            if (existing.ContainerPort == port)
-            {
-                if (!string.Equals(existing.BindAddress, bindAddress, StringComparison.OrdinalIgnoreCase))
-                {
-                    throw new WslException(
-                        $"Port {port} is already mapped with a different bind address. Declare each port once.");
-                }
-
-                return this;
-            }
+            throw new ArgumentException($"Bind address '{bindAddress}' is not a valid IP address.", nameof(bindAddress));
         }
 
-        _configuration = _configuration with { PortMappings = Append(_configuration.PortMappings, new WslPortMapping(port, bindAddress)) };
+        return WithPort(port, hostPort, address);
+    }
+
+    /// <summary>
+    /// Declares a Linux TCP service port exposed on a specific Windows host port and bound to a
+    /// specific Windows address (e.g. <see cref="IPAddress.Any"/>). The host port is reserved exactly.
+    /// </summary>
+    public WslContainerBuilder WithPort(int port, int hostPort, IPAddress address)
+    {
+        Validation.ValidatePort(port);
+        Validation.ValidatePort(hostPort, nameof(hostPort));
+        ArgumentNullException.ThrowIfNull(address);
+        return AddPortMapping(port, address.ToString(), hostPort);
+    }
+
+    private WslContainerBuilder AddPortMapping(int port, string? bindAddress, int hostPort)
+    {
+        var mappings = _configuration.PortMappings;
+        for (var index = 0; index < mappings.Count; index++)
+        {
+            var existing = mappings[index];
+            if (existing.ContainerPort != port)
+            {
+                continue;
+            }
+
+            if (!string.Equals(existing.BindAddress, bindAddress, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new WslException(
+                    $"Port {port} is already mapped with a different bind address. Declare each port once.");
+            }
+
+            if (existing.HostPort != 0 && hostPort != 0 && existing.HostPort != hostPort)
+            {
+                throw new WslException(
+                    $"Port {port} is already mapped to host port {existing.HostPort}. Declare each port once.");
+            }
+
+            if (existing.HostPort != 0 || hostPort == 0)
+            {
+                return this;
+            }
+
+            // Upgrade a dynamic declaration to a fixed host port: module builders declare the
+            // default dynamic port, then a module Configure call pins the host port.
+            var updated = new WslPortMapping[mappings.Count];
+            for (var copy = 0; copy < mappings.Count; copy++)
+            {
+                updated[copy] = copy == index ? existing with { HostPort = hostPort } : mappings[copy];
+            }
+
+            _configuration = _configuration with { PortMappings = updated };
+            return this;
+        }
+
+        _configuration = _configuration with
+        {
+            PortMappings = Append(mappings, new WslPortMapping(port, bindAddress, hostPort)),
+        };
         return this;
     }
 

@@ -99,7 +99,7 @@
     "cpu": null,
     "memoryMB": null,
     "reuse": null,
-    "sha256": "820e2e7f8d648f5a93ad198f179acc4c32f653e5cc73380515fa51ec396d1493"
+    "sha256": "b644942a47982fe9aa5d4b3843ab29b2824e421826fcc63538db2f53410ef689"
   },
   {
     "name": "ports-duplicate-different-bind",
@@ -116,7 +116,24 @@
     "cpu": null,
     "memoryMB": null,
     "reuse": null,
-    "sha256": "6e5df8b1ff0f4205b7a1be12b6f9b8408f569adcd8967f7bd2fa8f5d20418ab5"
+    "sha256": "c4b7fbb8fb267e32a2a6fdfb9eec5793531166e1e5572fe649926921ba000758"
+  },
+  {
+    "name": "ports-fixed-host",
+    "image": "apache/kafka:4.3.1",
+    "command": null,
+    "args": [],
+    "env": {},
+    "workingDirectory": null,
+    "files": [],
+    "volumes": [],
+    "sessionVolumes": [],
+    "ports": [{"container": 9092, "bind": null, "host": 49153}, {"container": 8080, "bind": null}],
+    "networkingMode": null,
+    "cpu": null,
+    "memoryMB": null,
+    "reuse": null,
+    "sha256": "2eb5f008c03621c80075fff6391392c7d883552e339d9574e6371aa22d47ead2"
   },
   {
     "name": "files-relative-and-absolute",
@@ -212,7 +229,7 @@
     "cpu": 2,
     "memoryMB": 1024,
     "reuse": true,
-    "sha256": "afbe7303b9bfe2e8439a183ec21a4a7a4e6f7ad6c63b05ccd0c5c73fd2e595d6"
+    "sha256": "148e2970dd51fac46eae9cb61cdcc0ebe42c8b66cab7f324e4b336037d96f0d7"
   },
   {
     "name": "reuse-true",

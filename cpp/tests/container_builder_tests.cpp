@@ -173,6 +173,26 @@ TEST(ContainerBuilder, WithPortNormalizesTheBindAddress)
     EXPECT_NO_THROW(builder.WithPort(8080, "::1").Build());
 }
 
+TEST(ContainerBuilder, WithPortSupportsFixedHostPorts)
+{
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithPort(9092, 49153).Build());
+    EXPECT_THROW(WslContainerBuilder{}.WithPort(9092, 0), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithPort(9092, 70000), WslException);
+
+    WslContainerBuilder bound;
+    EXPECT_NO_THROW(bound.WithImage("alpine").WithPort(9092, 49153, "127.0.0.1").Build());
+}
+
+TEST(ContainerBuilder, WithPortUpgradesDynamicToFixedAndRejectsHostPortConflicts)
+{
+    WslContainerBuilder upgraded;
+    upgraded.WithImage("alpine").WithPort(9092).WithPort(9092, 49153);
+    // Re-pinning the same host port is a no-op; a different one conflicts.
+    EXPECT_NO_THROW(upgraded.WithPort(9092, 49153));
+    EXPECT_THROW(upgraded.WithPort(9092, 49154), WslException);
+}
+
 TEST(ContainerBuilder, WithCpuCountAndMemoryMegabytesRecordLimits)
 {
     WslContainerBuilder builder;

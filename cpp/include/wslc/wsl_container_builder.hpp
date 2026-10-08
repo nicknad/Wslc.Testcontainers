@@ -100,10 +100,26 @@ public:
     WslContainerBuilder& WithPort(int port);
 
     /// <summary>
+    /// Declares a Linux TCP service port exposed on a specific Windows host port instead of a
+    /// runtime-assigned dynamic port. The host port is reserved exactly: if it is already in use,
+    /// Start fails instead of picking another port. Use this for services that must advertise the
+    /// host address clients reach them on (for example Kafka's advertised listener); otherwise
+    /// prefer the dynamic overloads so parallel tests never collide. The Windows side binds
+    /// loopback (127.0.0.1).
+    /// </summary>
+    WslContainerBuilder& WithPort(int port, int HostPort);
+
+    /// <summary>
     /// Declares a Linux TCP service port bound to a specific Windows address (e.g. 0.0.0.0 to
     /// expose it on the LAN). The Windows port stays dynamic.
     /// </summary>
     WslContainerBuilder& WithPort(int port, std::string BindAddress);
+
+    /// <summary>
+    /// Declares a Linux TCP service port exposed on a specific Windows host port and bound to a
+    /// specific Windows address (e.g. 0.0.0.0). The host port is reserved exactly.
+    /// </summary>
+    WslContainerBuilder& WithPort(int port, int HostPort, std::string BindAddress);
 
     /// <summary>Adds a readiness strategy. All configured Strategies must pass before startup completes. At most 16
     /// strategies may be configured.</summary>

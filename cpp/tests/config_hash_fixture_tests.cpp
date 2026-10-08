@@ -160,8 +160,14 @@ Configuration ToConfiguration(const json& element)
 
     for (const json& item : RequireProperty(element, "ports"))
     {
-        configuration.PortMappings.push_back(
-            WslPortMappingRecord{RequireProperty(item, "container").get<int>(), ReadOptionalString(item, "bind")});
+        int hostPort = 0;
+        if (const auto host = item.find("host"); host != item.end() && !host->is_null())
+        {
+            hostPort = host->get<int>();
+        }
+
+        configuration.PortMappings.push_back(WslPortMappingRecord{RequireProperty(item, "container").get<int>(),
+                                                                  ReadOptionalString(item, "bind"), hostPort});
     }
 
     configuration.NetworkingMode = [&]() -> std::optional<ContainerNetworkMode>

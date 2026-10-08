@@ -82,6 +82,7 @@ general-purpose container tooling.
 - Windows x64 and ARM64
 - Real-runtime integration tests
 - Container networking configuration
+- Dynamic or fixed host-port mapping
 - Host-directory mounts
 - Environment variables and port configuration
 - Readiness checks
@@ -107,6 +108,7 @@ The .NET implementation currently includes modules for:
 - Vault
 - Keycloak
 - Elasticsearch
+- Kafka
 
 Modules are intended to make common integration-test dependencies require minimal test setup.
 

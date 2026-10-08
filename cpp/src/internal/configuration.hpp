@@ -15,11 +15,12 @@
 namespace wslc::internal
 {
 
-/// <summary>A Linux TCP port exposed on a dynamic Windows port.</summary>
+/// <summary>A Linux TCP port exposed on a Windows port (0 HostPort means dynamic).</summary>
 struct WslPortMappingRecord
 {
     int ContainerPort = 0;
     std::optional<std::string> BindAddress;
+    int HostPort = 0;
 };
 
 /// <summary>A Host file copied into the container.</summary>

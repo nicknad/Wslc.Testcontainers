@@ -94,9 +94,12 @@ await LogDumper.DumpHeadAsync(container.SubscribeLogs(ct), output.WriteLine, max
 
 ## Ports
 
-- Mapped ports are dynamic. Never hardcode the host port — always resolve it with
+- Mapped ports are dynamic by default. Never hardcode the host port — always resolve it with
   `var endpoint = container.GetConnectEndpoint(5432);` and use `endpoint.Address` /
   `endpoint.Port`.
+- `WithPort(port, hostPort)` reserves a fixed host port instead. If `StartAsync` fails with a
+  socket-bind error naming `127.0.0.1:<port>/tcp`, another process (or another fixed mapping) holds
+  that port; pick a different one or drop back to a dynamic mapping with `WithPort(port)`.
 - `GetConnectEndpoint()` before `StartAsync()` throws by design.
 - Parallel tests are isolated (one WSL session per container), so distinct
   `GetConnectEndpoint()` values across tests are expected.

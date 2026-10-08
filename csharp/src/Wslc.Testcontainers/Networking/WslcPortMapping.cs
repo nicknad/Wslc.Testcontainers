@@ -11,9 +11,9 @@ namespace Wslc.Testcontainers.Networking;
 /// Maps Linux container ports to Windows ports (loopback by default, overridable per port)
 /// using the official <see cref="ContainerPortMapping"/> mechanism. A Windows port of 0 asks
 /// the WSL runtime to assign a free dynamic port, which is then discovered from the container
-/// inspect payload. Mappings are TCP-only: the runtime returns <c>E_NOTIMPL</c> for UDP, so
-/// non-TCP inspect entries are ignored. TCP probes honor the configured bind address
-/// (any-address bindings probe loopback).
+/// inspect payload; a fixed host port is passed through and is known before start. Mappings are
+/// TCP-only: the runtime returns <c>E_NOTIMPL</c> for UDP, so non-TCP inspect entries are ignored.
+/// TCP probes honor the configured bind address (any-address bindings probe loopback).
 /// </summary>
 internal sealed class WslcPortMapping
 {
@@ -27,12 +27,18 @@ internal sealed class WslcPortMapping
         // Probe address resolved once at Create so readiness polls (every ~250 ms) do not
         // re-parse the bind address per probe. Matches the C++ PortMapping::ProbeHost cache.
         public IPAddress ProbeAddress { get; }
+        // Fixed host port reserved by the builder, or 0 for a runtime-assigned dynamic port.
+        public int HostPort { get; }
         public int MappedPort { get; set; }
 
-        public Entry(string? bindAddress)
+        public Entry(string? bindAddress, int hostPort)
         {
             BindAddress = bindAddress;
             ProbeAddress = ResolveProbeAddress(bindAddress);
+            HostPort = hostPort;
+            // A fixed port is known before start, so it resolves without polling the inspect
+            // payload; dynamic ports stay 0 until ResolveFromInspect assigns one.
+            MappedPort = hostPort;
         }
 
         private static IPAddress ResolveProbeAddress(string? bindAddress)
@@ -99,7 +105,7 @@ internal sealed class WslcPortMapping
         {
             if (!entries.ContainsKey(mapping.ContainerPort))
             {
-                entries[mapping.ContainerPort] = new Entry(mapping.BindAddress);
+                entries[mapping.ContainerPort] = new Entry(mapping.BindAddress, mapping.HostPort);
             }
         }
 
@@ -111,7 +117,7 @@ internal sealed class WslcPortMapping
         var mappings = new List<ContainerPortMapping>(_entries.Count);
         foreach (var pair in _entries)
         {
-            var mapping = new ContainerPortMapping(0, (ushort)pair.Key, Microsoft.WSL.Containers.PortProtocol.TCP);
+            var mapping = new ContainerPortMapping((ushort)pair.Value.HostPort, (ushort)pair.Key, Microsoft.WSL.Containers.PortProtocol.TCP);
             if (pair.Value.BindAddress is { } bindAddress)
             {
                 mapping.WindowsAddress = new Windows.Networking.HostName(bindAddress);

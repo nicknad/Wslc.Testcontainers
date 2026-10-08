@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0-windows10.0.19041.0;net9.0-windows10.0.19041.0;net10.0-windows10.0.19041.0</TargetFrameworks>
+    <WindowsSdkPackageVersion>10.0.26100.80</WindowsSdkPackageVersion>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <RootNamespace>Wslc.Testcontainers.Modules.Kafka</RootNamespace>
+    <AssemblyName>Wslc.Testcontainers.Modules.Kafka</AssemblyName>
+    <PackageId>Wslc.Testcontainers.Modules.Kafka</PackageId>
+    <Description>Kafka module for Wslc.Testcontainers: typed single-node builder and bootstrap servers string.</Description>
+    <PackageTags>wsl;containers;testing;integration-testing;testcontainers;windows;kafka;message-broker;streaming</PackageTags>
+    <IsPackable>true</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Wslc.Testcontainers\Wslc.Testcontainers.csproj" />
+  </ItemGroup>
+
+</Project>

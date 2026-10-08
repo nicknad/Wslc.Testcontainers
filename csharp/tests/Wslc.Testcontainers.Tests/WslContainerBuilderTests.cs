@@ -121,6 +121,31 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
+    public void WithPort_supports_a_fixed_host_port()
+    {
+        var container = new WslContainerBuilder()
+            .WithImage("alpine")
+            .WithPort(9092, 49153)
+            .Build();
+
+        Assert.Equal(new WslPortMapping(9092, null, 49153), Assert.Single(container.Configuration.PortMappings));
+        Assert.Equal(new WslPortMapping(9092, "0.0.0.0", 49153), Assert.Single(
+            new WslContainerBuilder().WithImage("alpine").WithPort(9092, 49153, "0.0.0.0").Build().Configuration.PortMappings));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(9092, 0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(9092, 70000));
+    }
+
+    [Fact]
+    public void WithPort_upgrades_dynamic_to_fixed_and_rejects_host_port_conflicts()
+    {
+        var upgraded = new WslContainerBuilder().WithImage("alpine").WithPort(9092).WithPort(9092, 49153);
+
+        Assert.Equal(new WslPortMapping(9092, null, 49153), Assert.Single(upgraded.Build().Configuration.PortMappings));
+        Assert.Same(upgraded, upgraded.WithPort(9092, 49153));
+        Assert.Throws<WslException>(() => upgraded.WithPort(9092, 49154));
+    }
+
+    [Fact]
     public void WithCpuCount_and_WithMemoryMegabytes_record_limits()
     {
         var container = new WslContainerBuilder()

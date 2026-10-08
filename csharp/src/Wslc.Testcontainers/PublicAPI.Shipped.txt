@@ -237,3 +237,7 @@ Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, System.Net.IPAddress!
 Wslc.Testcontainers.WslModuleContainer.ExecAsync(string! command, string![]? arguments = null, Wslc.Testcontainers.ExecOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
 Wslc.Testcontainers.WslModuleContainer.GetConnectEndpoint(int containerPort) -> System.Net.IPEndPoint!
 Wslc.Testcontainers.WslModuleContainer.StartProcess(string! command, string![]? arguments = null, Wslc.Testcontainers.ProcessOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> Wslc.Testcontainers.IWslProcess!
+static Wslc.Testcontainers.WslModuleContainer.FormatConnectionString(System.Net.IPEndPoint! endpoint, string! username, string! password, string! database) -> string!
+static Wslc.Testcontainers.WslModuleContainer.FormatEndpoint(System.Net.IPEndPoint! endpoint) -> string!
+static Wslc.Testcontainers.WslModuleContainer.FormatHost(System.Net.IPAddress! address) -> string!
+static Wslc.Testcontainers.WslModuleContainer.FormatHttpEndpoint(System.Net.IPEndPoint! endpoint) -> string!

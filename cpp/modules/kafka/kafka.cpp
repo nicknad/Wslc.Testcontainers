@@ -5,6 +5,8 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 
+#include <wil/resource.h>
+
 #include <string>
 #include <utility>
 
@@ -24,8 +26,8 @@ int ReserveHostPort()
         throw WslException("Failed to initialize Winsock while reserving a Kafka host port.");
     }
 
-    const SOCKET handle = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (handle == INVALID_SOCKET)
+    wil::unique_socket handle(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP));
+    if (!handle)
     {
         WSACleanup();
         throw WslException("Failed to create a socket while reserving a Kafka host port.");
@@ -37,16 +39,15 @@ int ReserveHostPort()
     address.sin_port = 0;
 
     int port = 0;
-    if (::bind(handle, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0)
+    if (::bind(handle.get(), reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == 0)
     {
         int length = sizeof(address);
-        if (getsockname(handle, reinterpret_cast<sockaddr*>(&address), &length) == 0)
+        if (getsockname(handle.get(), reinterpret_cast<sockaddr*>(&address), &length) == 0)
         {
             port = ntohs(address.sin_port);
         }
     }
 
-    closesocket(handle);
     WSACleanup();
 
     if (port == 0)

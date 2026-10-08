@@ -276,7 +276,7 @@ wslc_apply_strict_options(wslc_elasticsearch)
 add_library(wslc_kafka STATIC modules/kafka/kafka.cpp)
 add_library(wslc::kafka ALIAS wslc_kafka)
 target_include_directories(wslc_kafka PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/kafka/include")
-target_link_libraries(wslc_kafka PUBLIC wslc)
+target_link_libraries(wslc_kafka PUBLIC wslc PRIVATE wil::headers)
 wslc_apply_strict_options(wslc_kafka)
 
 # ---------------------------------------------------------------------------

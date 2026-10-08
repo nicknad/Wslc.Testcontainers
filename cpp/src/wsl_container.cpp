@@ -73,61 +73,6 @@ void ValidateExecOptions(const ExecOptions& options)
     ValidateProcessOptions(options);
 }
 
-std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
-{
-    if (Logs.size() <= maxLines)
-    {
-        return Logs;
-    }
-
-    return std::vector<LogLine>(Logs.end() - static_cast<std::ptrdiff_t>(maxLines), Logs.end());
-}
-
-std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines)
-{
-    // Two passes, O(n) total: count matches first, then join only the trailing window.
-    // The previous vector-erase-front version was O(n*m).
-    std::size_t total = 0;
-    for (const auto& line : Logs)
-    {
-        if (line.Source == Source)
-        {
-            total++;
-        }
-    }
-
-    if (total == 0)
-    {
-        return std::nullopt;
-    }
-
-    const std::size_t skip = total > maxLines ? total - maxLines : 0;
-    std::string result;
-    std::size_t seen = 0;
-    std::size_t emitted = 0;
-    for (const auto& line : Logs)
-    {
-        if (line.Source != Source)
-        {
-            continue;
-        }
-
-        if (seen++ < skip)
-        {
-            continue;
-        }
-
-        if (emitted++ > 0)
-        {
-            result.push_back('\n');
-        }
-
-        result += line.Text;
-    }
-
-    return result;
-}
-
 std::string DescribeException(const std::exception_ptr& error)
 {
     try
@@ -1169,9 +1114,9 @@ WslReadinessException WslContainer::Impl::enrich(const WslReadinessException& re
                           : std::nullopt));
     const std::optional<std::string> Command = readiness.Command() ? readiness.Command() : configuration.Command;
     const std::optional<std::string> Stdout =
-        readiness.Stdout() ? readiness.Stdout() : JoinLast(*logs_snapshot, LogSource::Stdout, c_maxRecentLogs);
+        readiness.Stdout() ? readiness.Stdout() : internal::JoinLast(*logs_snapshot, LogSource::Stdout, c_maxRecentLogs);
     const std::optional<std::string> Stderr =
-        readiness.Stderr() ? readiness.Stderr() : JoinLast(*logs_snapshot, LogSource::Stderr, c_maxRecentLogs);
+        readiness.Stderr() ? readiness.Stderr() : internal::JoinLast(*logs_snapshot, LogSource::Stderr, c_maxRecentLogs);
     return internal::ReadinessDiagnostics::Enrich(readiness, Image, Command, ExitCode, Stdout, Stderr);
 }
 
@@ -1348,7 +1293,7 @@ std::vector<LogLine> WslContainer::Impl::RecentLogs(int maxLines) const
         throw WslException("maxLines must be positive.");
     }
 
-    return TakeLast(*Logs->Snapshot(), static_cast<std::size_t>(maxLines));
+    return internal::TakeLast(*Logs->Snapshot(), static_cast<std::size_t>(maxLines));
 }
 
 WslEndpoint WslContainer::Impl::connect_endpoint(int containerPort) const

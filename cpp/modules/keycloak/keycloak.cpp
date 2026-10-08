@@ -59,8 +59,7 @@ KeycloakContainer::KeycloakContainer(WslContainer inner, std::string adminUserna
 
 std::string KeycloakContainer::GetEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(DefaultPort);
-    return "http://" + endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatHttpEndpoint(GetConnectEndpoint(DefaultPort));
 }
 
 } // namespace wslc::modules

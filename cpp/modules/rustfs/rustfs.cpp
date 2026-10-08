@@ -62,8 +62,7 @@ RustFsContainer::RustFsContainer(WslContainer inner, std::string accessKey, std:
 
 std::string RustFsContainer::GetEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(S3Port);
-    return "http://" + endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatHttpEndpoint(GetConnectEndpoint(S3Port));
 }
 
 } // namespace wslc::modules

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "wslc/log_line.hpp"
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -177,5 +179,14 @@ void BestEffortDeleteFile(const std::filesystem::path& path);
 
 /// <summary>Returns true when the path exists and is a reparse point (symlink/junction).</summary>
 bool IsReparsePoint(const std::filesystem::path& path);
+
+/// <summary>Returns the last maxLines from the provided logs.</summary>
+std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines);
+
+/// <summary>
+/// Joins the last maxLines from the provided logs for the specified source,
+/// using newlines as separators.
+/// </summary>
+std::optional<std::string> JoinLast(const std::vector<LogLine>& Logs, LogSource Source, std::size_t maxLines);
 
 } // namespace wslc::internal

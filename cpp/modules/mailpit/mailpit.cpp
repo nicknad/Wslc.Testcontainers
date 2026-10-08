@@ -32,14 +32,12 @@ MailPitContainer::MailPitContainer(WslContainer inner) : WslModuleContainer(std:
 
 std::string MailPitContainer::GetSmtpEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(SmtpPort);
-    return endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatEndpoint(GetConnectEndpoint(SmtpPort));
 }
 
 std::string MailPitContainer::GetHttpEndpoint() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(HttpPort);
-    return "http://" + endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatHttpEndpoint(GetConnectEndpoint(HttpPort));
 }
 
 } // namespace wslc::modules

@@ -94,6 +94,26 @@ protected:
     /// <summary>Initializes a wrapper around the given container.</summary>
     explicit WslModuleContainer(WslContainer inner) : m_inner(std::move(inner)) {}
 
+    /// <summary>Renders an endpoint as host:port.</summary>
+    static std::string FormatEndpoint(WslEndpoint endpoint)
+    {
+        return endpoint.Host + ":" + std::to_string(endpoint.Port);
+    }
+
+    /// <summary>Renders an HTTP endpoint as http://host:port.</summary>
+    static std::string FormatHttpEndpoint(WslEndpoint endpoint)
+    {
+        return "http://" + endpoint.Host + ":" + std::to_string(endpoint.Port);
+    }
+
+    /// <summary>Renders a connection string with host, port, username, password, and database.</summary>
+    static std::string FormatConnectionString(WslEndpoint endpoint, const std::string& username,
+                                              const std::string& password, const std::string& database)
+    {
+        return "Host=" + endpoint.Host + ";Port=" + std::to_string(endpoint.Port) + 
+               ";Username=" + username + ";Password=" + password + ";Database=" + database;
+    }
+
 private:
     WslContainer m_inner;
 };

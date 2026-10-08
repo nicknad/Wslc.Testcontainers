@@ -14,9 +14,6 @@ namespace wslc::internal
 /// <summary>Decides whether WSLC-owned storage may be deleted automatically.</summary>
 bool ShouldCleanup(const std::optional<InstanceMetadata>& metadata, bool owner_alive, bool include_reuse);
 
-/// <summary>Returns true when a process with the pid is still running (access denied counts as alive).</summary>
-bool IsOwnerAlive(int process_id);
-
 /// <summary>Owner liveness with a PID-recycling guard based on the metadata creation time.</summary>
 bool IsOwnerAlive(const InstanceMetadata& metadata);
 

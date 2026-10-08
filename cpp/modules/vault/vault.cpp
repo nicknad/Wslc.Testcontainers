@@ -48,8 +48,7 @@ VaultContainer::VaultContainer(WslContainer inner, std::string rootToken)
 
 std::string VaultContainer::GetAddress() const
 {
-    const WslEndpoint endpoint = GetConnectEndpoint(DefaultPort);
-    return "http://" + endpoint.Host + ":" + std::to_string(endpoint.Port);
+    return FormatHttpEndpoint(GetConnectEndpoint(DefaultPort));
 }
 
 } // namespace wslc::modules

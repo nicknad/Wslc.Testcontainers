@@ -7,7 +7,9 @@ endpoint helpers, REV2-R6-CHECK) in `129cda4`, and the Review 3.0 bug/dedup batc
 start-thread handle lifetime, timeout parse guards, metadata-write visibility,
 `PortMapping` locking, IPv6 bracketing, shared `PercentEncode`/format helpers, 1 GiB
 constant, duplicate validation passes, argv/env marshalling, CI-variable list,
-`BuilderLimits` helper, registry prune disposal). Do not re-litigate those.
+`BuilderLimits` helper, registry prune disposal). The 0.3.2 release also fixed the
+exit-time `CleanupRegistry` use-after-free (`container_host.cpp`, found by ASan during
+the 0.3.1 release gate). Do not re-litigate those.
 
 Statuses: **OPEN** (reproduced, not fixed), **UNVERIFIED** (needs reproduction),
 **PARTIAL** (some of the item landed), **PROCESS** (planning/observability gap),

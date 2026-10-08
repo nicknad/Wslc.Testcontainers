@@ -182,10 +182,12 @@ jobs:
         run: |
           # dotnet nuget push does not expand wildcards (.NET 10), so enumerate explicitly.
           # Match extensions exactly: Win32 -Filter *.nupkg also matches *.snupkg.
+          # --no-symbols: dotnet nuget push auto-pushes the sibling .snupkg otherwise, which
+          # would race the explicit symbol loop below (duplicate 409s).
           $packages = Get-ChildItem artifacts/packages -File | Where-Object { $_.Extension -eq '.nupkg' }
           $symbols = Get-ChildItem artifacts/packages -File | Where-Object { $_.Extension -eq '.snupkg' }
           foreach ($package in $packages) {
-            dotnet nuget push $package.FullName --api-key $env:PUBLISH_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+            dotnet nuget push $package.FullName --api-key $env:PUBLISH_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate --no-symbols
             if ($LASTEXITCODE -ne 0) { throw "Failed to push $($package.Name) (exit $LASTEXITCODE)." }
           }
           foreach ($symbol in $symbols) {

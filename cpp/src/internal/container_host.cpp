@@ -76,7 +76,16 @@ void CleanupAll()
 void HookProcessExit()
 {
     static std::once_flag flag;
-    std::call_once(flag, [] { std::atexit(&CleanupAll); });
+    std::call_once(flag,
+                   []
+                   {
+                       // Construct the registry before registering the exit hook: atexit handlers
+                       // and static destructors run in reverse registration order, so CleanupAll
+                       // must be registered after the registry exists or it would iterate a
+                       // destroyed registry at process exit (use-after-free).
+                       cleanup_registry();
+                       std::atexit(&CleanupAll);
+                   });
 }
 
 } // namespace

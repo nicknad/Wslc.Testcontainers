@@ -2,6 +2,16 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.3.2
+
+Supersedes 0.3.1, which failed its release gate before publishing.
+
+### Fixed
+
+- Process exit no longer crashes after a container was used: the C++ cleanup registry is now
+  constructed before the `atexit` hook, so the exit handler no longer iterates a destroyed
+  registry (heap-use-after-free, caught by ASan and the C++ integration suite).
+
 ## 0.3.1
 
 ### Fixed

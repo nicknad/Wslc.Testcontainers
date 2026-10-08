@@ -55,9 +55,7 @@ Checks: >
   -cppcoreguidelines-no-malloc,
   -cppcoreguidelines-owning-memory
 WarningsAsErrors: "*"
-HeaderFilterRegex: '(include|src|modules|tests)[\\/].*\.hpp$'
-# Fetched third-party sources (FetchContent _deps) must never be analyzed: their headers
-# live under .../include/... and would otherwise match HeaderFilterRegex.
-ExcludeHeaderFilterRegex: '_deps[\\/]'
+# Anchor to the first-party cpp/ tree so FetchContent _deps and SDK headers never match.
+HeaderFilterRegex: '[\\/]cpp[\\/](include|src|modules|tests)[\\/].*\.hpp$'
 FormatStyle: file
 UseColor: false

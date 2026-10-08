@@ -300,9 +300,11 @@ public sealed class WaitStrategyTests
     public async Task Custom_until_condition_polls_until_satisfied()
     {
         var attempts = 0;
+        // Generous budget: the condition needs three polls, and thread-pool/CI scheduling can
+        // delay the 10ms retry continuations well beyond that on loaded runners (arm64 flakes).
         var strategy = Wait.ForWsl()
-            .WithTimeout(TimeSpan.FromSeconds(2))
-            .WithRetryInterval(TimeSpan.FromMilliseconds(10))
+            .WithTimeout(TimeSpan.FromSeconds(15))
+            .WithRetryInterval(TimeSpan.FromMilliseconds(50))
             .Until("custom flag", (_, _) => Task.FromResult(Interlocked.Increment(ref attempts) >= 3));
 
         await strategy.WaitAsync(new FakeWaitTarget(), CancellationToken.None);

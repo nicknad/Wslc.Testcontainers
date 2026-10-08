@@ -204,29 +204,31 @@ void InstanceStore::WriteMetadata(const InstanceMetadata& metadata)
     // Write-then-rename so a crash mid-write cannot leave truncated JSON behind. A unique temp
     // Name keeps concurrent writers from clobbering each other's temp file.
     const std::filesystem::path temp = path.wstring() + L"." + ToUtf16(RandomHex(32)) + L".tmp";
-    bool moved = false;
     try
     {
         {
             std::ofstream stream(temp, std::ios::binary | std::ios::trunc);
             stream.write(json.data(), static_cast<std::streamsize>(json.size()));
             stream.flush();
+            if (!stream)
+            {
+                throw WslException("Failed to write metadata '" + ToUtf8(path.wstring()) + "'.");
+            }
         }
 
-        if (MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0)
+        if (MoveFileExW(temp.c_str(), path.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == 0)
         {
-            moved = true;
+            const DWORD lastError = GetLastError();
+            throw WslException("Failed to replace metadata '" + ToUtf8(path.wstring()) +
+                               "': " + FormatWindowsError(lastError));
         }
     }
     catch (...)
     {
         // Best effort: a failed write must not leave temp litter behind.
-    }
-
-    if (!moved)
-    {
         std::error_code ignored;
         std::filesystem::remove(temp, ignored);
+        throw;
     }
 }
 

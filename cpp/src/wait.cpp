@@ -88,7 +88,8 @@ protected:
         std::string message = "Timed out after " + internal::FormatMilliseconds(Elapsed) + "s waiting for " + Name() +
                               " on '" + target.Name() + "'.";
 
-        return WslReadinessException(message, Name(), m_timeout, internal::TakeLast(target.GetRecentLogs(), c_maxLogLines));
+        return WslReadinessException(message, Name(), m_timeout,
+                                     internal::TakeLast(target.GetRecentLogs(), c_maxLogLines));
     }
 
     std::chrono::milliseconds m_timeout = WslEnvironment::DefaultWaitTimeout();

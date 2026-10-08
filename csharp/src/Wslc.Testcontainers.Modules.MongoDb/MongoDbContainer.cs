@@ -29,11 +29,11 @@ public sealed class MongoDbContainer : WslModuleContainer
         var endpoint = GetConnectEndpoint(DefaultPort);
         if (_username is null)
         {
-            return $"mongodb://{endpoint.Address}:{endpoint.Port}";
+            return $"mongodb://{FormatEndpoint(endpoint)}";
         }
 
         var user = Uri.EscapeDataString(_username);
         var password = Uri.EscapeDataString(_password!);
-        return $"mongodb://{user}:{password}@{endpoint.Address}:{endpoint.Port}/?authSource=admin";
+        return $"mongodb://{user}:{password}@{FormatEndpoint(endpoint)}/?authSource=admin";
     }
 }

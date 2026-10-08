@@ -142,7 +142,8 @@ internal sealed class ContainerProcess : IWslProcess
         {
             _process.OutputReceived -= OnOutputReceived;
             _process.ErrorReceived -= OnErrorReceived;
-            _process.Exited -= OnExited;
+            // The Exited subscription stays: WaitForExitAsync waiters must observe the SIGKILL
+            // below (OnExited completes _exit) instead of hanging once the handle is released.
         }
         catch
         {

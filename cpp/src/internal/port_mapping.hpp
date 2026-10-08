@@ -8,6 +8,7 @@
 #include <wslcsdk.h>
 
 #include <map>
+#include <mutex>
 #include <optional>
 #include <stop_token>
 #include <string>
@@ -26,7 +27,8 @@ namespace wslc::internal
 class PortMapping
 {
 public:
-    static PortMapping Create(const std::vector<WslPortMappingRecord>& mappings);
+    /// <summary>Builds the mapping table from the configured container ports.</summary>
+    explicit PortMapping(const std::vector<WslPortMappingRecord>& mappings);
 
     int UnresolvedCount() const;
     std::vector<std::string> UnresolvedPorts() const;
@@ -58,7 +60,10 @@ private:
     };
 
     static std::string ResolveProbeHost(const std::optional<std::string>& bindAddress);
+    int GetMappedPortLocked(int containerPort) const;
 
+    // ResolveFromInspect mutates MappedPort on the start thread while readiness probes read it.
+    mutable std::mutex m_gate;
     std::map<int, Entry> m_entries;
 };
 

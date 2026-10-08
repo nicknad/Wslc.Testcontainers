@@ -37,7 +37,7 @@ public:
     struct Subscriber
     {
         std::mutex Mutex;
-        std::condition_variable Condition;
+        std::condition_variable_any Condition;
         std::deque<LogLine> Queue;
         bool Closed = false;
     };

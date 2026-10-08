@@ -229,7 +229,10 @@ public static class WslEnvironment
             return null;
         }
 
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) && seconds > 0)
+        // Reject non-finite and out-of-range values so TimeSpan.FromSeconds cannot throw;
+        // the contract is that unparseable values fall back to defaults.
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var seconds) &&
+            double.IsFinite(seconds) && seconds > 0 && seconds <= TimeSpan.MaxValue.TotalSeconds)
         {
             return TimeSpan.FromSeconds(seconds);
         }

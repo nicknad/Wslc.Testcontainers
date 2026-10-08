@@ -152,6 +152,9 @@ std::optional<bool> ParseBoolValue(std::string_view value);
 /// </summary>
 bool IsContinuousIntegrationVariable(std::string_view name, std::string_view value);
 
+/// <summary>True when any well-known CI environment variable marks a CI host.</summary>
+bool IsContinuousIntegration();
+
 /// <summary>
 /// Resolves whether Reuse is effective for a container: configured (or default) Reuse only
 /// counts when the Environment allows it. Pure so callers can test both the configured and the

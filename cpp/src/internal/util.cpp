@@ -811,6 +811,21 @@ bool IsContinuousIntegrationVariable(std::string_view name, std::string_view val
     return false;
 }
 
+bool IsContinuousIntegration()
+{
+    static constexpr const char* c_variables[] = {"CI", "TF_BUILD", "GITHUB_ACTIONS", "JENKINS_URL",
+                                                  "TEAMCITY_VERSION"};
+    for (const char* Name : c_variables)
+    {
+        if (IsContinuousIntegrationVariable(Name, ReadEnvironmentVariable(Name)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 bool IsReuseEffective(std::optional<bool> configuredReuse, bool reuseByDefault, bool reuseAllowed)
 {
     return configuredReuse.value_or(reuseByDefault) && reuseAllowed;
@@ -920,7 +935,6 @@ bool IsReparsePoint(const std::filesystem::path& path)
     const DWORD attributes = GetFileAttributesW(path.c_str());
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
 }
-
 
 std::vector<LogLine> TakeLast(const std::vector<LogLine>& Logs, std::size_t maxLines)
 {

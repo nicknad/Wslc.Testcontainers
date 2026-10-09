@@ -1,4 +1,1 @@
 #nullable enable
-Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
-Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort, System.Net.IPAddress! address) -> Wslc.Testcontainers.WslContainerBuilder!

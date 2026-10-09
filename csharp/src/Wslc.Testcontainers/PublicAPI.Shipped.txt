@@ -241,3 +241,6 @@ static Wslc.Testcontainers.WslModuleContainer.FormatConnectionString(System.Net.
 static Wslc.Testcontainers.WslModuleContainer.FormatEndpoint(System.Net.IPEndPoint! endpoint) -> string!
 static Wslc.Testcontainers.WslModuleContainer.FormatHost(System.Net.IPAddress! address) -> string!
 static Wslc.Testcontainers.WslModuleContainer.FormatHttpEndpoint(System.Net.IPEndPoint! endpoint) -> string!
+Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort, System.Net.IPAddress! address) -> Wslc.Testcontainers.WslContainerBuilder!

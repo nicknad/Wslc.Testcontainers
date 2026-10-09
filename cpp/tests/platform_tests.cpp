@@ -56,7 +56,7 @@ TEST(Platform, WslVersionGateEnforcesMinimum)
 TEST(Platform, BuildFailsFastOnUnsupportedPlatform)
 {
     WslContainerBuilder builder;
-    builder.WithImage("docker.io/library/alpine:latest");
+    builder.WithImage("docker.io/library/alpine:latest").WithKeepAliveShell();
 
     if (!WslPlatform::IsSupported())
     {

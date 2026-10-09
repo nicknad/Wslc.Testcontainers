@@ -21,6 +21,12 @@ internal sealed record WslContainerConfiguration
 
     public string? WorkingDirectory { get; init; }
 
+    /// <summary>
+    /// True when the caller explicitly opted into the keep-alive shell (a container with no service
+    /// command, driven only through exec/process calls). Required when <see cref="Command"/> is null.
+    /// </summary>
+    public bool KeepAliveShell { get; init; }
+
     public IReadOnlyDictionary<string, string> Environment { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
 
     public IReadOnlyList<WslPortMapping> PortMappings { get; init; } = Array.Empty<WslPortMapping>();

@@ -29,7 +29,8 @@ public sealed class WslContainerBuilder
     /// <summary>
     /// Uses a container image. The image is pulled on first use and cached in the session storage.
     /// The image's ENTRYPOINT/CMD is not executed automatically; declare the service with
-    /// <see cref="WithCommand"/> or use a module builder, otherwise only a keep-alive shell runs.
+    /// <see cref="WithCommand"/>, or opt into a keep-alive shell with
+    /// <see cref="WithKeepAliveShell"/>. <see cref="Build"/> throws when neither is set.
     /// </summary>
     public WslContainerBuilder WithImage(string image)
     {
@@ -70,9 +71,9 @@ public sealed class WslContainerBuilder
 
     /// <summary>
     /// Sets the long-running command started as the container init process. WSLC never runs the
-    /// image's ENTRYPOINT/CMD automatically, so declare the service here or use a module builder.
-    /// Without this, a keep-alive shell runs and the image's service never starts.
-    /// At most 1000 arguments may be configured.
+    /// image's ENTRYPOINT/CMD automatically, so declare the service here (or use a module builder).
+    /// A container needs this or <see cref="WithKeepAliveShell"/>; <see cref="Build"/> throws when
+    /// neither is set. At most 1000 arguments may be configured.
     /// </summary>
     public WslContainerBuilder WithCommand(string command, params string[] arguments)
     {
@@ -83,6 +84,18 @@ public sealed class WslContainerBuilder
             Command = command,
             CommandArguments = (string[])arguments.Clone(),
         };
+        return this;
+    }
+
+    /// <summary>
+    /// Runs a keep-alive shell as the init process instead of a service command. Use this for a
+    /// container driven only through <see cref="IWslContainer.ExecAsync"/>/<c>StartProcess</c>.
+    /// WSLC never runs the image's ENTRYPOINT/CMD automatically, so a container needs either this
+    /// or <see cref="WithCommand"/>; <see cref="Build"/> throws when neither is set.
+    /// </summary>
+    public WslContainerBuilder WithKeepAliveShell()
+    {
+        _configuration = _configuration with { KeepAliveShell = true };
         return this;
     }
 
@@ -471,6 +484,15 @@ public sealed class WslContainerBuilder
             throw new WslException(
                 "No image source configured. Call WithImage(...) or FromTarball(...), or set " +
                 $"{WslEnvironment.DefaultImageVariable}.");
+        }
+
+        if (configuration.Command is null && !configuration.KeepAliveShell)
+        {
+            throw new WslException(
+                "No init command configured. Call WithCommand(...) to run the image's service, or " +
+                "WithKeepAliveShell() for a container driven only through ExecAsync/StartProcess. " +
+                "WSLC never runs the image's ENTRYPOINT/CMD automatically, so without one the service " +
+                "never starts and readiness waits time out.");
         }
 
         if (configuration.NetworkingMode == ContainerNetworkMode.Isolated)

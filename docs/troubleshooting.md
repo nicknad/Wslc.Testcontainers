@@ -86,9 +86,9 @@ await LogDumper.DumpHeadAsync(container.SubscribeLogs(ct), output.WriteLine, max
      wait timeouts (validated at `Build()`); each strategy has its own `WithTimeout`/`WithRetryInterval`.
      A 5s strategy inside a 120s startup still fails at 5s. Module builders use `WithWaitTimeout(t)`
      for per-wait timeouts and derive startup as `2*t+30s`.
-   - Missing init command: WSLC never runs the image's ENTRYPOINT/CMD automatically. Without
-     `WithCommand(...)` (or a module builder) only a keep-alive shell runs, so waits for the
-     image's service can never pass. The readiness report prints this hint when `Command` is unset.
+   - Missing init command: WSLC never runs the image's ENTRYPOINT/CMD automatically. `Build()`
+     throws unless you call `WithCommand(...)` (or use a module builder) to run the image's service,
+     or `WithKeepAliveShell()` for a container driven only through `ExecAsync`/`StartProcess`.
    - Image pull: first start pulls the image into session storage. Re-run
      once before blaming the wait.
 

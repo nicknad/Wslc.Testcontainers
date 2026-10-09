@@ -302,7 +302,8 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | Method | Purpose / notes |
 | --- | --- |
 | `WithImage(image)` / `FromTarball(path, imageName?)` | Mutually exclusive source. |
-| `WithCommand(cmd, params args)` | Init process command. The image ENTRYPOINT is preserved and this becomes its CMD; the default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules set the image's service command (e.g. `mongod`, `nats-server`) — do not override it for modules. |
+| `WithCommand(cmd, params args)` | Init process command. The image ENTRYPOINT is preserved and this becomes its CMD. Modules set the image's service command (e.g. `mongod`, `nats-server`) — do not override it for modules. |
+| `WithKeepAliveShell()` | Runs a keep-alive shell as the init process instead of a service command; use it for a container you drive only through `ExecAsync`/`StartProcess`. A container needs `WithCommand` or this — `Build()` throws when neither is set (WSLC never runs the image ENTRYPOINT/CMD automatically). |
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve the address and port with `GetConnectEndpoint(containerPort)`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address. |

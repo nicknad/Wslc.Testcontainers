@@ -23,9 +23,10 @@ postgres.Start();
 const auto result = postgres.Exec("/bin/sh", {"-c", "psql -U postgres -c 'SELECT 1'"});
 ```
 
-> WSLC never runs the image's ENTRYPOINT/CMD automatically: without `WithCommand(...)` only a
-> keep-alive shell starts, so a readiness wait for the image's service always times out.
-> Declare the service command explicitly or use a module builder.
+> WSLC never runs the image's ENTRYPOINT/CMD automatically, so a container needs an explicit init
+> process: `Build()` throws unless you call `WithCommand(...)` to run the image's service, or
+> `WithKeepAliveShell()` for a container you drive only through `Exec`/`StartProcess`. Use a module
+> builder for common services.
 
 > **Security: defaults are for *trusted* test dependencies, not hostile code.** The underlying
 > WSL container runtime provides no security boundary by default (bridged networking with full

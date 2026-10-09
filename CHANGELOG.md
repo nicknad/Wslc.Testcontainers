@@ -4,6 +4,12 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ## Unreleased
 
+### Added
+
+- `ExecShellAsync(script, options?, token)` (C#) / `ExecShell(script, options?, token)` (C++): runs a
+  script through `/bin/sh -c` so pipelines, redirection, globbing and shell builtins are available
+  where `Exec`/`ExecAsync` (no shell) cannot express them.
+
 ### Changed
 
 - Support is now Windows **x64 (AMD64) only**. ARM64 is no longer supported or tested: the

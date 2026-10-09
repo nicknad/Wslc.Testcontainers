@@ -87,6 +87,11 @@ public:
     /// <summary>IWaitTarget surface: executes a command with container defaults.</summary>
     ExecResult Exec(std::string command, std::vector<std::string> arguments, std::stop_token token) override;
 
+    /// <summary>Runs a script through the container shell (/bin/sh -c) and captures its exit code,
+    /// stdout and stderr. Convenience for pipelines, redirection, globbing and shell builtins that
+    /// Exec cannot express because it does not use a shell. The same argument limits as Exec apply.</summary>
+    ExecResult ExecShell(std::string script, ExecOptions options = {}, std::stop_token token = {});
+
     /// <summary>
     /// Starts a long-running process inside the Environment. The caller owns the returned
     /// Handle; destroying it terminates a still-running process. At most 1000 arguments may be

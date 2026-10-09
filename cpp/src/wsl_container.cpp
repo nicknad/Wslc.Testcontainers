@@ -1411,6 +1411,16 @@ ExecResult WslContainer::Exec(std::string command, std::vector<std::string> argu
     return m_impl->Exec(std::move(command), std::move(arguments), ExecOptions{}, token);
 }
 
+ExecResult WslContainer::ExecShell(std::string script, ExecOptions options, std::stop_token token)
+{
+    if (script.find_first_not_of(" \t\r\n") == std::string::npos)
+    {
+        throw WslException("Shell script must not be empty.");
+    }
+
+    return m_impl->Exec("/bin/sh", {"-c", std::move(script)}, std::move(options), token);
+}
+
 std::unique_ptr<IWslProcess> WslContainer::StartProcess(std::string command, std::vector<std::string> arguments,
                                                         const ProcessOptions& options, std::stop_token token)
 {

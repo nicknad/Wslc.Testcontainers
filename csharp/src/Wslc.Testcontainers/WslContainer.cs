@@ -116,6 +116,16 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         ExecInternalAsync(command, arguments ?? Array.Empty<string>(), options, cancellationToken);
 
     /// <inheritdoc />
+    public Task<ExecResult> ExecShellAsync(
+        string script,
+        ExecOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(script);
+        return ExecInternalAsync("/bin/sh", new[] { "-c", script }, options, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public IWslProcess StartProcess(
         string command,
         string[]? arguments = null,

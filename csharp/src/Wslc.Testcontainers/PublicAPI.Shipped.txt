@@ -244,3 +244,6 @@ static Wslc.Testcontainers.WslModuleContainer.FormatHttpEndpoint(System.Net.IPEn
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort, string! bindAddress) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port, int hostPort, System.Net.IPAddress! address) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.IWslContainer.ExecShellAsync(string! script, Wslc.Testcontainers.ExecOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.WslContainer.ExecShellAsync(string! script, Wslc.Testcontainers.ExecOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!
+Wslc.Testcontainers.WslModuleContainer.ExecShellAsync(string! script, Wslc.Testcontainers.ExecOptions? options = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<Wslc.Testcontainers.ExecResult!>!

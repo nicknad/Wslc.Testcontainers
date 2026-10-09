@@ -2,6 +2,22 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.5.0
+
+### Added
+
+- `Modules.Kafka` (C#) / `wslc_kafka` (C++): single-node Apache Kafka 4.3.1 in KRaft mode (client
+  port 9092, `Kafka Server started` readiness, `GetBootstrapServers()` as `127.0.0.1:<host-port>`).
+  Kafka is the one module that reserves a **fixed** loopback host port (a broker tells clients to
+  reconnect to its advertised listener, so the port must be known before start) and therefore
+  fails fast if that port is already in use — avoid starting several Kafka containers in parallel.
+- Fixed host ports: `WithPort(port, hostPort)` and `WithPort(port, hostPort, bindAddress)` reserve a
+  specific Windows host port instead of a dynamic one (C# and C++). Needed by services that must
+  advertise the host address clients reach them on (for example Kafka's advertised listener); the
+  runtime fails fast at start if the fixed port is already in use. A dynamic declaration is upgraded
+  when a module pins the host port, and the host port is part of the reuse identity and the shared
+  golden hash vectors.
+
 ## 0.4.0
 
 Rolls up the 0.3.1 and 0.3.2 changes. 0.3.1 never left the release gate; 0.3.2 was

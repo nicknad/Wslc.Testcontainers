@@ -241,6 +241,7 @@ jobs:
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Vault/Wslc.Testcontainers.Modules.Vault.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj -c Release --no-build -o artifacts/packages
+      - run: dotnet pack src/Wslc.Testcontainers.Modules.Kafka/Wslc.Testcontainers.Modules.Kafka.csproj -c Release --no-build -o artifacts/packages
       - uses: actions/upload-artifact@v7
         with:
           name: packages

@@ -65,6 +65,7 @@ dotnet add package Wslc.Testcontainers.Modules.ClickHouse
 dotnet add package Wslc.Testcontainers.Modules.Vault
 dotnet add package Wslc.Testcontainers.Modules.Keycloak
 dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
+dotnet add package Wslc.Testcontainers.Modules.Kafka
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -106,6 +107,7 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Exposes a Linux TCP port on a dynamic Windows port; the optional per-port Windows bind address defaults to loopback (pass `0.0.0.0` or `IPAddress.Any` to expose on the LAN). UDP is not supported — the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
+| `WithPort(port, hostPort)` / `WithPort(port, hostPort, bindAddress)` | Exposes a Linux TCP port on a specific Windows host port instead of a dynamic one. Use it for services that must advertise the address clients reach them on (e.g. Kafka's advertised listener); `StartAsync` fails if the host port is already in use. |
 | `WithNetworkingMode(mode)`                                      | `Bridged` (default) or `Isolated` (no NIC — no ports or waits allowed; the only containment mode).                     |
 | `WithCpuCount(n)` / `WithMemoryMegabytes(n)`                    | Caps for the session VM.                                                                    |
 | `WithScratchVolume(name, containerPath, sizeBytes, ...)`          | Scratch VHD volume (ext4, recreated empty every start) instead of a bind mount.             |
@@ -183,13 +185,15 @@ var strategy = Wait.ForWsl()
     .And(Wait.ForWsl().UntilMessageIsLogged("ready to accept connections"));
 ```
 
-Mapped ports are dynamic (`WindowsPort = 0`): the WSL runtime assigns a free host port and WSLC
-resolves it after start, so `GetConnectEndpoint(5432)` never collides between parallel tests.
-Mappings are TCP-only: the WSLC runtime returns `E_NOTIMPL` for UDP mappings. The Windows side
-binds loopback by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override.
-TCP/HTTP readiness probes honor the configured bind address; `GetConnectEndpoint(port)` returns
-the effective endpoint (wildcard bindings resolve to loopback: `127.0.0.1` for `0.0.0.0`, `::1`
-for `::`).
+Mapped ports are dynamic by default (`WindowsPort = 0`): the WSL runtime assigns a free host port and
+WSLC resolves it after start, so `GetConnectEndpoint(5432)` never collides between parallel tests.
+Pass a host port (`WithPort(port, hostPort)`) to reserve a fixed one instead — needed by services
+that must advertise the host address clients reach them on (e.g. Kafka); the runtime then fails
+fast at start if the port is taken. Mappings are TCP-only: the WSLC runtime returns `E_NOTIMPL` for
+UDP mappings. The Windows side binds loopback by default; pass a bind address (e.g. `"0.0.0.0"` or
+`IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address;
+`GetConnectEndpoint(port)` returns the effective endpoint (wildcard bindings resolve to loopback:
+`127.0.0.1` for `0.0.0.0`, `::1` for `::`).
 
 ## Lifecycle and cleanup
 
@@ -242,6 +246,7 @@ using Wslc.Testcontainers.Modules.ClickHouse;
 using Wslc.Testcontainers.Modules.Vault;
 using Wslc.Testcontainers.Modules.Keycloak;
 using Wslc.Testcontainers.Modules.Elasticsearch;
+using Wslc.Testcontainers.Modules.Kafka;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -298,7 +303,17 @@ var issuer = keycloak.GetEndpoint(); // http://host:port; credentials via AdminU
 await using var elasticsearch = new ElasticsearchBuilder().Build();
 await elasticsearch.StartAsync();
 var rest = elasticsearch.GetEndpoint(); // http://host:port
+
+await using var kafka = new KafkaBuilder().Build();
+await kafka.StartAsync();
+var bootstrapServers = kafka.GetBootstrapServers(); // 127.0.0.1:<fixed host port>
 ```
+
+> **Kafka reserves a fixed host port.** A broker tells clients to reconnect to its advertised
+> listener, so the host port must be known before the container starts and cannot be dynamic. The
+> module picks a free loopback port when you call `Build()`, and `StartAsync` fails fast if that port
+> is taken by the time the container starts — so avoid starting several Kafka containers in parallel.
+> All other modules keep dynamic ports.
 
 See `examples/Postgres/` (console) and `examples/Postgres.Tests/` (shared xUnit
 fixture with per-test reset).

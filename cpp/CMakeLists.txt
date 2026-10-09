@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Wslc.Testcontainers.Cpp VERSION 0.4.0 LANGUAGES CXX)
+project(Wslc.Testcontainers.Cpp VERSION 0.5.0 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")
@@ -272,6 +272,12 @@ add_library(wslc::elasticsearch ALIAS wslc_elasticsearch)
 target_include_directories(wslc_elasticsearch PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/elasticsearch/include")
 target_link_libraries(wslc_elasticsearch PUBLIC wslc)
 wslc_apply_strict_options(wslc_elasticsearch)
+
+add_library(wslc_kafka STATIC modules/kafka/kafka.cpp)
+add_library(wslc::kafka ALIAS wslc_kafka)
+target_include_directories(wslc_kafka PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/kafka/include")
+target_link_libraries(wslc_kafka PUBLIC wslc PRIVATE wil::headers)
+wslc_apply_strict_options(wslc_kafka)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

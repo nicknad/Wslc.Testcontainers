@@ -21,8 +21,9 @@ namespace wslc::internal
 /// <summary>
 /// Maps Linux container ports to Windows ports (loopback by default, overridable per port)
 /// using the official container port mapping mechanism. A Windows port of 0 asks the runtime
-/// to assign a free dynamic port, discovered from the container inspect payload. Mappings are
-/// TCP-only: the runtime returns E_NOTIMPL for UDP, so non-TCP inspect entries are ignored.
+/// to assign a free dynamic port, discovered from the container inspect payload; a fixed host
+/// port is passed through and is known before Start. Mappings are TCP-only: the runtime returns
+/// E_NOTIMPL for UDP, so non-TCP inspect entries are ignored.
 /// </summary>
 class PortMapping
 {
@@ -56,6 +57,8 @@ private:
         // absent bindings fall back to 127.0.0.1. Cached so readiness polls (every ~250 ms) do
         // not repeat InetPton/InetNtop per probe.
         std::string ProbeHost = "127.0.0.1";
+        // Fixed host port reserved by the builder, or 0 for a runtime-assigned dynamic port.
+        int HostPort = 0;
         int MappedPort = 0;
     };
 

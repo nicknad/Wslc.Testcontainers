@@ -302,7 +302,10 @@ public sealed class WslConfigHasherTests
                 .EnumerateArray()
                 .Select(value => new WslPortMapping(
                     value.GetProperty("container").GetInt32(),
-                    ReadNullableString(value, "bind")))
+                    ReadNullableString(value, "bind"),
+                    value.TryGetProperty("host", out var host) && host.ValueKind != JsonValueKind.Null
+                        ? host.GetInt32()
+                        : 0))
                 .ToArray(),
             NetworkingMode = ReadNetworkingMode(element),
             CpuCount = ReadNullableUInt32(element, "cpu"),

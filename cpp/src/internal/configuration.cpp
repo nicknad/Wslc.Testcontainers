@@ -173,6 +173,11 @@ std::string WslConfigHasher::Compute(const Configuration& configuration)
                       return left.ContainerPort < right.ContainerPort;
                   }
 
+                  if (left.HostPort != right.HostPort)
+                  {
+                      return left.HostPort < right.HostPort;
+                  }
+
                   const std::string left_bind = left.BindAddress.value_or("");
                   const std::string right_bind = right.BindAddress.value_or("");
                   return OrdinalLess(left_bind, right_bind);
@@ -182,6 +187,7 @@ std::string WslConfigHasher::Compute(const Configuration& configuration)
     {
         writer.WriteInt32(port.ContainerPort);
         writer.WriteString(port.BindAddress);
+        writer.WriteInt32(port.HostPort);
     }
 
     writer.WriteInt32(configuration.NetworkingMode ? static_cast<std::int32_t>(*configuration.NetworkingMode) : -1);

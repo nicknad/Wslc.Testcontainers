@@ -468,6 +468,9 @@ appears, egress belongs there, not inside the container.
 ExecResult r = await container.ExecAsync("ps", ["aux"]);
 r.EnsureSuccess(); // throws WslProcessException with truncated output on failure
 
+// Shell script via /bin/sh -c: pipelines, redirection, globbing, builtins.
+ExecResult sh = await container.ExecShellAsync("ps aux | grep app | wc -l");
+
 // With options (env, cwd, stdin, timeout). Pass null for arguments/options to use defaults.
 var r2 = await container.ExecAsync("psql", ["-c", "SELECT 1"], new ExecOptions
 {

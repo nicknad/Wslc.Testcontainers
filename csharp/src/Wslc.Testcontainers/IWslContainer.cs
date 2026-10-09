@@ -68,6 +68,17 @@ public interface IWslContainer : IAsyncDisposable
     Task<ExecResult> ExecAsync(string command, string[]? arguments = null, ExecOptions? options = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Runs <paramref name="script"/> through the container shell (<c>/bin/sh -c</c>) and captures
+    /// its exit code, stdout and stderr. Convenience for pipelines, redirection, globbing and shell
+    /// builtins that <see cref="ExecAsync"/> cannot express because it does not use a shell.
+    /// The same option and argument limits as <see cref="ExecAsync"/> apply.
+    /// </summary>
+    /// <param name="script">Shell script text (not an executable name).</param>
+    /// <param name="options">Exec settings, or <c>null</c> for container defaults.</param>
+    /// <param name="cancellationToken">Cancels the command; the process is killed.</param>
+    Task<ExecResult> ExecShellAsync(string script, ExecOptions? options = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Starts a long-running process inside the environment. The caller owns the returned
     /// <see cref="IWslProcess"/> and must dispose it; disposal terminates the process if it is
     /// still running. The container tracks live processes only with pruning of exited entries,

@@ -193,6 +193,31 @@ TEST(Integration, RunsCommandsAndCapturesOutput)
     container.Dispose();
 }
 
+TEST(Integration, ExecShellRunsAScriptThroughTheShell)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    WslContainerBuilder builder;
+    auto container = builder.WithImage(TestImage).Build();
+    try
+    {
+        container.Start();
+
+        // Pipeline + command substitution, which Exec cannot express (no shell).
+        const auto result = container.ExecShell("echo \"$(printf wslc)-shell\" | tr a-z A-Z");
+
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find("WSLC-SHELL"), std::string::npos);
+    }
+    catch (...)
+    {
+        container.Dispose();
+        throw;
+    }
+
+    container.Dispose();
+}
+
 TEST(Integration, ExposesEnvironmentVariables)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();

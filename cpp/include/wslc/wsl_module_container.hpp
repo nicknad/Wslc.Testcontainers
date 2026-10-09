@@ -61,6 +61,12 @@ public:
         return m_inner.Exec(std::move(command), std::move(arguments), std::move(options), token);
     }
 
+    /// <summary>Runs a script through the container shell (/bin/sh -c) and captures its output.</summary>
+    ExecResult ExecShell(std::string script, ExecOptions options = {}, std::stop_token token = {})
+    {
+        return m_inner.ExecShell(std::move(script), std::move(options), token);
+    }
+
     /// <summary>Starts a long-running process inside the Environment.</summary>
     /// <exception cref="WslException">options is an ExecOptions carrying StandardInput or Timeout;
     /// those apply only to Exec().</exception>

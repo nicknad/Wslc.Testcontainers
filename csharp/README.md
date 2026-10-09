@@ -126,6 +126,9 @@ using Wslc.Testcontainers;
 ExecResult result = await container.ExecAsync("ps", ["aux"]);
 Console.WriteLine(result.ExitCode);
 
+// Shell script through /bin/sh -c (pipelines, redirection, globbing, builtins)
+ExecResult shell = await container.ExecShellAsync("ps aux | grep app | wc -l");
+
 // Options: environment, working directory, stdin, timeout (pass null for defaults)
 var result2 = await container.ExecAsync("psql", ["-c", "SELECT 1"], new ExecOptions
 {

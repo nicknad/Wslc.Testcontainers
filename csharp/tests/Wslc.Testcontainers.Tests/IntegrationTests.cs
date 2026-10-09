@@ -40,6 +40,22 @@ public sealed class IntegrationTests
     }
 
     [IntegrationFact]
+    public async Task ExecShell_runs_a_script_through_the_shell()
+    {
+        await using var container = new WslContainerBuilder()
+            .WithImage(TestImage)
+            .Build();
+
+        await container.StartAsync();
+
+        // Pipeline + command substitution, which ExecAsync cannot express (no shell).
+        var result = await container.ExecShellAsync("echo \"$(printf wslc)-shell\" | tr a-z A-Z");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Equal("WSLC-SHELL", result.Stdout.Trim());
+    }
+
+    [IntegrationFact]
     public async Task Exposes_environment_variables()
     {
         await using var container = new WslContainerBuilder()

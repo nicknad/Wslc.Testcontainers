@@ -121,6 +121,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Build()` → `WslContainer` | `Build()` → `wslc::WslContainer` (move-only) |
 | `StartAsync` / `StopAsync` / `DisposeAsync` | `Start(token)` / `Stop(token)` / `Dispose()` |
 | `ExecAsync(command, args, options, token)` | `Exec(command, args, options, token)` |
+| `ExecShellAsync(script, options, token)` | `ExecShell(script, options, token)` |
 | `StartProcess(...)` → `IWslProcess` | `StartProcess(...)` → `std::unique_ptr<IWslProcess>` |
 | `CopyToAsync` / `CopyFromAsync` | `CopyTo` / `CopyFrom` |
 | `SubscribeLogs(token)` → `IAsyncEnumerable<LogLine>` | `SubscribeLogs()` → `LogStream` (blocking `Next(token)`) |

@@ -58,7 +58,7 @@ public sealed class WslPlatformTests
     [Fact]
     public async Task Build_fails_fast_on_unsupported_platform()
     {
-        var builder = new WslContainerBuilder().WithImage("docker.io/library/alpine:latest");
+        var builder = new WslContainerBuilder().WithImage("docker.io/library/alpine:latest").WithKeepAliveShell();
 
         if (!WslPlatform.IsSupported)
         {

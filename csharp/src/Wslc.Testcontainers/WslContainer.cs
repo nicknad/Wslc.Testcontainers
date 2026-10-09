@@ -932,7 +932,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
                 ? new WslTimeoutException(
                     $"Container '{Name}' did not complete startup within {_configuration.StartupTimeout.TotalSeconds:0.###}s." +
                     (_configuration.Command is null
-                        ? " No init command was configured, so only a keep-alive shell is running; WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder."
+                        ? " No service command was configured (WithKeepAliveShell), so only a keep-alive shell is running; WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder."
                         : string.Empty),
                     exception)
                 : exception;

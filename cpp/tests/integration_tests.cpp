@@ -173,7 +173,7 @@ TEST(Integration, RunsCommandsAndCapturesOutput)
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).Build();
+    auto container = builder.WithImage(TestImage).WithKeepAliveShell().Build();
     try
     {
         container.Start();
@@ -198,7 +198,7 @@ TEST(Integration, ExecShellRunsAScriptThroughTheShell)
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).Build();
+    auto container = builder.WithImage(TestImage).WithKeepAliveShell().Build();
     try
     {
         container.Start();
@@ -223,7 +223,8 @@ TEST(Integration, ExposesEnvironmentVariables)
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithEnvironment("WSLC_TEST_VALUE", "hello").Build();
+    auto container =
+        builder.WithImage(TestImage).WithKeepAliveShell().WithEnvironment("WSLC_TEST_VALUE", "hello").Build();
     try
     {
         container.Start();
@@ -250,7 +251,7 @@ TEST(Integration, CopiesFilesIntoAndOutOfTheContainer)
     const std::filesystem::path destination = source.string() + ".out";
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).Build();
+    auto container = builder.WithImage(TestImage).WithKeepAliveShell().Build();
     try
     {
         container.Start();
@@ -284,6 +285,7 @@ TEST(Integration, MapsPortsAndServesHttp)
     WslContainerBuilder builder;
     auto container =
         builder.WithImage(TestImage)
+            .WithKeepAliveShell()
             .WithCommand("/bin/sh", {"-c", "while true; do printf 'HTTP/1.1 200 OK\\r\\nContent-Length: "
                                            "2\\r\\nConnection: close\\r\\n\\r\\nok' | nc -l -p 8080; done"})
             .WithPort(8080)
@@ -313,6 +315,7 @@ TEST(Integration, ReadinessFailureCleansUpEphemeralStorage)
     WslContainerBuilder builder;
     auto container =
         builder.WithImage(TestImage)
+            .WithKeepAliveShell()
             .WithPort(65000)
             .WithWaitStrategy(wslc::waiting::ForWsl().WithTimeout(5s).WithRetryInterval(200ms).UntilMessageIsLogged(
                 "this-message-never-appears"))
@@ -330,7 +333,8 @@ TEST(Integration, IsolatedNetworkingRunsCommandsWithoutPorts)
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithNetworkingMode(ContainerNetworkMode::Isolated).Build();
+    auto container =
+        builder.WithImage(TestImage).WithKeepAliveShell().WithNetworkingMode(ContainerNetworkMode::Isolated).Build();
     try
     {
         container.Start();
@@ -355,7 +359,10 @@ TEST(Integration, ScratchVolumesMountAndAreRecreatedOnRestart)
     WSLC_SKIP_UNLESS_INTEGRATION();
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithScratchVolume("scratch", "/scratch", 64 * Megabyte).Build();
+    auto container = builder.WithImage(TestImage)
+                         .WithKeepAliveShell()
+                         .WithScratchVolume("scratch", "/scratch", 64 * Megabyte)
+                         .Build();
     try
     {
         container.Start();
@@ -395,6 +402,7 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
         const std::string runMarker = RandomHex(32);
         WslContainerBuilder firstBuilder;
         firstBuilder.WithImage(TestImage)
+            .WithKeepAliveShell()
             .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
             .WithScratchVolume("scratch", "/scratch", 64 * Megabyte)
             .WithReuse();
@@ -417,6 +425,7 @@ TEST(Integration, ReuseKeepsTheSessionVhdAndImageCache)
 
             WslContainerBuilder secondBuilder;
             secondBuilder.WithImage(TestImage)
+                .WithKeepAliveShell()
                 .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
                 .WithScratchVolume("scratch", "/scratch", 64 * Megabyte)
                 .WithReuse();
@@ -464,6 +473,7 @@ TEST(Integration, ReadOnlyScratchVolumesRejectWrites)
     WslContainerBuilder builder;
     auto container =
         builder.WithImage(TestImage)
+            .WithKeepAliveShell()
             .WithScratchVolume("scratch", "/scratch", 64 * Megabyte, VolumeAccess::ReadOnly, VhdAllocationType::Fixed)
             .Build();
     try
@@ -491,7 +501,8 @@ TEST(Integration, ResourceCapsAreAppliedToTheSession)
 
     const unsigned int cpuCount = std::min(2u, std::thread::hardware_concurrency());
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithCpuCount(cpuCount).WithMemoryMegabytes(1024).Build();
+    auto container =
+        builder.WithImage(TestImage).WithKeepAliveShell().WithCpuCount(cpuCount).WithMemoryMegabytes(1024).Build();
     try
     {
         container.Start();
@@ -523,7 +534,7 @@ TEST(Integration, MountsWindowsDirectoriesAsVolumes)
     std::ofstream(hostDirectory / "data.txt") << "mounted";
 
     WslContainerBuilder builder;
-    auto container = builder.WithImage(TestImage).WithVolume(hostDirectory, "/workspace").Build();
+    auto container = builder.WithImage(TestImage).WithKeepAliveShell().WithVolume(hostDirectory, "/workspace").Build();
     try
     {
         container.Start();

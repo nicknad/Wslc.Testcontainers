@@ -12,6 +12,11 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ### Changed
 
+- `WslContainerBuilder.Build()` (C# and C++) now requires an init process: call `WithCommand(...)`
+  to run the image's service, or the new `WithKeepAliveShell()` for a container driven only through
+  `Exec`/`StartProcess`. Previously an implicit keep-alive shell ran, which silently swallowed the
+  common "forgot to declare the service" mistake until a readiness wait timed out. This is a
+  breaking change for core-builder callers that relied on the implicit shell.
 - `ExecResult` and `LogLine` (C#) are now get-only records: the `init` setters were removed, so a
   captured result or log line can no longer be reassigned or mutated with `with`. The C++ value
   types (`ExecResult`, `LogLine`) are unchanged aggregates.

@@ -183,11 +183,11 @@ The native port additionally requires:
 WSL Containers does not automatically execute an image's `ENTRYPOINT` or `CMD` in the way a
 Docker-based workflow might lead you to expect.
 
-Without an explicit command, a keep-alive shell can start instead of the service you intended to run.
+A container therefore needs an explicit init process: `Build()` throws unless you call
+`WithCommand(...)` to run the image's service, or `WithKeepAliveShell()` for a container you drive
+only through `Exec`/`StartProcess`.
 
-As a result, a service readiness check can wait indefinitely.
-
-**Use a module builder or explicitly configure the service command.**
+**Use a module builder, or explicitly configure the service command (or the keep-alive shell).**
 
 The built-in modules handle this for their respective services.
 

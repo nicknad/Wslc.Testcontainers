@@ -57,6 +57,10 @@ struct Configuration
     std::optional<std::string> Command;
     std::vector<std::string> CommandArguments;
     std::optional<std::string> WorkingDirectory;
+
+    /// <summary>True when the caller explicitly opted into the keep-alive shell (no service command).</summary>
+    bool KeepAliveShell = false;
+
     std::map<std::string, std::string> Environment;
     std::vector<WslPortMappingRecord> PortMappings;
     std::vector<std::shared_ptr<waiting::IWaitStrategy>> WaitStrategies;

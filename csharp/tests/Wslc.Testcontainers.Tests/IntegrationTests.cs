@@ -27,7 +27,7 @@ public sealed class IntegrationTests
     public async Task Runs_commands_and_captures_output()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .Build();
 
         await container.StartAsync();
@@ -43,7 +43,7 @@ public sealed class IntegrationTests
     public async Task ExecShell_runs_a_script_through_the_shell()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .Build();
 
         await container.StartAsync();
@@ -59,7 +59,7 @@ public sealed class IntegrationTests
     public async Task Exposes_environment_variables()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithEnvironment("WSLC_TEST_VALUE", "hello")
             .Build();
 
@@ -81,7 +81,7 @@ public sealed class IntegrationTests
         try
         {
             await using var container = new WslContainerBuilder()
-                .WithImage(TestImage)
+                .WithImage(TestImage).WithKeepAliveShell()
                 .Build();
 
             await container.StartAsync();
@@ -107,7 +107,7 @@ public sealed class IntegrationTests
     public async Task Maps_ports_and_serves_http()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithCommand(
                 "/bin/sh",
                 "-c",
@@ -132,7 +132,7 @@ public sealed class IntegrationTests
     public async Task Readiness_failure_cleans_up_ephemeral_storage()
     {
         var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithPort(65000)
             .WithWaitStrategy(
                 Wait.ForWsl()
@@ -153,7 +153,7 @@ public sealed class IntegrationTests
     public async Task Isolated_networking_runs_commands_without_ports()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
 
@@ -170,7 +170,7 @@ public sealed class IntegrationTests
     public async Task Scratch_volumes_mount_and_are_recreated_on_restart()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
             .Build();
 
@@ -200,7 +200,7 @@ public sealed class IntegrationTests
             // start is guaranteed to pull instead of hitting a leftover cache.
             var runMarker = Guid.NewGuid().ToString("N");
             var first = new WslContainerBuilder()
-                .WithImage(TestImage)
+                .WithImage(TestImage).WithKeepAliveShell()
                 .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
                 .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
                 .WithReuse()
@@ -226,7 +226,7 @@ public sealed class IntegrationTests
                     "reuse storage VHD must survive DisposeAsync");
 
                 var second = new WslContainerBuilder()
-                    .WithImage(TestImage)
+                    .WithImage(TestImage).WithKeepAliveShell()
                     .WithEnvironment("WSLC_REUSE_TEST_RUN", runMarker)
                     .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
                     .WithReuse()
@@ -283,7 +283,7 @@ public sealed class IntegrationTests
     public async Task Read_only_session_volumes_reject_writes()
     {
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
             .Build();
 
@@ -301,7 +301,7 @@ public sealed class IntegrationTests
     {
         var cpuCount = (uint)Math.Min(2, Environment.ProcessorCount);
         await using var container = new WslContainerBuilder()
-            .WithImage(TestImage)
+            .WithImage(TestImage).WithKeepAliveShell()
             .WithCpuCount(cpuCount)
             .WithMemoryMegabytes(1024)
             .Build();
@@ -326,7 +326,7 @@ public sealed class IntegrationTests
         try
         {
             await using var container = new WslContainerBuilder()
-                .WithImage(TestImage)
+                .WithImage(TestImage).WithKeepAliveShell()
                 .WithVolume(hostDirectory, "/workspace")
                 .Build();
 

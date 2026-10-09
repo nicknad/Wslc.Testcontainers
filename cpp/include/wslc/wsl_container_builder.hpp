@@ -65,8 +65,8 @@ public:
 
     /// <summary>
     /// Uses a container Image. The Image is pulled on first use. The Image's ENTRYPOINT/CMD is
-    /// not executed automatically; declare the service with <c>WithCommand</c> or use a module
-    /// builder, otherwise only a keep-alive shell runs.
+    /// not executed automatically; declare the service with <c>WithCommand</c>, or opt into a
+    /// keep-alive shell with <c>WithKeepAliveShell</c>. Build throws when neither is set.
     /// </summary>
     WslContainerBuilder& WithImage(std::string image);
 
@@ -78,9 +78,15 @@ public:
     WslContainerBuilder& FromTarball(std::filesystem::path TarballPath,
                                      std::optional<std::string> imageName = std::nullopt);
 
-    /// <summary>Sets the long-running command started as the container init process. At most 1000 arguments may be
-    /// configured.</summary>
+    /// <summary>Sets the long-running command started as the container init process. WSLC never runs the Image
+    /// ENTRYPOINT/CMD automatically, so declare the service here (or use a module builder). A container needs this
+    /// or WithKeepAliveShell; Build throws when neither is set. At most 1000 arguments may be configured.</summary>
     WslContainerBuilder& WithCommand(std::string command, std::vector<std::string> arguments = {});
+
+    /// <summary>Runs a keep-alive shell as the init process instead of a service command. Use this for a container
+    /// driven only through Exec/StartProcess. A container needs this or WithCommand; Build throws when neither is
+    /// set.</summary>
+    WslContainerBuilder& WithKeepAliveShell();
 
     /// <summary>Sets the working directory used by the init process and command executions.</summary>
     WslContainerBuilder& WithWorkingDirectory(std::string WorkingDirectory);

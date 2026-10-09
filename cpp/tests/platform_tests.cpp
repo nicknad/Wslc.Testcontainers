@@ -11,7 +11,7 @@ using wslc::WslPlatform;
 
 TEST(Platform, IsSupportedMatchesOsAndArchitecture)
 {
-#if defined(_M_X64) || defined(_M_ARM64)
+#if defined(_M_X64)
     EXPECT_TRUE(WslPlatform::IsSupported());
 #else
     EXPECT_FALSE(WslPlatform::IsSupported());

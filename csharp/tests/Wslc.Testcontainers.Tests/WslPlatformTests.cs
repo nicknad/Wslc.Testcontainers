@@ -13,7 +13,7 @@ public sealed class WslPlatformTests
     public void IsSupported_matches_os_and_architecture()
     {
         var expected = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) &&
-            RuntimeInformation.ProcessArchitecture is Architecture.X64 or Architecture.Arm64;
+            RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
         Assert.Equal(expected, WslPlatform.IsSupported);
     }

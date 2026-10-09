@@ -17,7 +17,7 @@ bypass actors:
 - changes must go through a pull request;
 - two required status checks must pass:
   - `guard-source-branch` — enforces that the PR **source branch is `development`**;
-  - `packages` — the `ci.yml` aggregate that depends on the full C# (net8/9/10), ARM64,
+  - `packages` — the `ci.yml` aggregate that depends on the full C# (net8/9/10),
     Linux-guard, C++ build/test, clang-format/clang-tidy, and AddressSanitizer jobs.
 
 GitHub has no native "pull requests only from branch X" rule, so

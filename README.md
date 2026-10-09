@@ -79,7 +79,7 @@ general-purpose container tooling.
 - Direct integration with WSL Containers
 - No Docker Engine dependency
 - .NET 8, 9 and 10 support
-- Windows x64 and ARM64
+- Windows x64 (AMD64)
 - Real-runtime integration tests
 - Container networking configuration
 - Dynamic or fixed host-port mapping
@@ -147,7 +147,7 @@ See the [`csharp/README.md`](csharp/README.md) for the complete .NET API and con
 ### Windows
 
 - Windows 10 version 2004 or newer, or Windows 11
-- x64 or ARM64
+- x64 (AMD64). ARM64 is not supported or tested.
 - WSL 2.9.3 or newer
 - WSL Containers support
 

@@ -18,8 +18,9 @@ struct WslVersion
 
 /// <summary>
 /// Windows-only platform guard for WSLC. The library runs exclusively on
-/// Windows 10 Build 19041+ (x64/ARM64) with WSL container support; every public entry point
-/// fails fast off-platform instead of surfacing obscure loader or COM errors.
+/// Windows 10 Build 19041+ (x64/AMD64) with WSL container support; every public entry point
+/// fails fast off-platform instead of surfacing obscure loader or COM errors. ARM64 is not
+/// supported or tested.
 /// </summary>
 class WslPlatform
 {

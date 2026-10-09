@@ -41,16 +41,13 @@ Wslc.Testcontainers.ExecOptions.Timeout.get -> System.TimeSpan?
 Wslc.Testcontainers.ExecOptions.Timeout.init -> void
 Wslc.Testcontainers.ExecResult
 Wslc.Testcontainers.ExecResult.<Clone>$() -> Wslc.Testcontainers.ExecResult!
-Wslc.Testcontainers.ExecResult.Deconstruct(out int ExitCode, out string! Stdout, out string! Stderr) -> void
+Wslc.Testcontainers.ExecResult.Deconstruct(out int exitCode, out string! stdout, out string! stderr) -> void
 Wslc.Testcontainers.ExecResult.EnsureSuccess() -> Wslc.Testcontainers.ExecResult!
 Wslc.Testcontainers.ExecResult.Equals(Wslc.Testcontainers.ExecResult? other) -> bool
-Wslc.Testcontainers.ExecResult.ExecResult(int ExitCode, string! Stdout, string! Stderr) -> void
+Wslc.Testcontainers.ExecResult.ExecResult(int exitCode, string! stdout, string! stderr) -> void
 Wslc.Testcontainers.ExecResult.ExitCode.get -> int
-Wslc.Testcontainers.ExecResult.ExitCode.init -> void
 Wslc.Testcontainers.ExecResult.Stderr.get -> string!
-Wslc.Testcontainers.ExecResult.Stderr.init -> void
 Wslc.Testcontainers.ExecResult.Stdout.get -> string!
-Wslc.Testcontainers.ExecResult.Stdout.init -> void
 Wslc.Testcontainers.ExecResult.Succeeded.get -> bool
 Wslc.Testcontainers.IWslContainer
 Wslc.Testcontainers.IWslContainer.CopyFromAsync(string! containerPath, string! hostPath, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task!
@@ -71,15 +68,12 @@ Wslc.Testcontainers.IWslProcess.KillAsync(System.Threading.CancellationToken can
 Wslc.Testcontainers.IWslProcess.WaitForExitAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<int>!
 Wslc.Testcontainers.LogLine
 Wslc.Testcontainers.LogLine.<Clone>$() -> Wslc.Testcontainers.LogLine!
-Wslc.Testcontainers.LogLine.Deconstruct(out Wslc.Testcontainers.LogSource Source, out string! Text, out System.DateTimeOffset Timestamp) -> void
+Wslc.Testcontainers.LogLine.Deconstruct(out Wslc.Testcontainers.LogSource source, out string! text, out System.DateTimeOffset timestamp) -> void
 Wslc.Testcontainers.LogLine.Equals(Wslc.Testcontainers.LogLine? other) -> bool
-Wslc.Testcontainers.LogLine.LogLine(Wslc.Testcontainers.LogSource Source, string! Text, System.DateTimeOffset Timestamp) -> void
+Wslc.Testcontainers.LogLine.LogLine(Wslc.Testcontainers.LogSource source, string! text, System.DateTimeOffset timestamp) -> void
 Wslc.Testcontainers.LogLine.Source.get -> Wslc.Testcontainers.LogSource
-Wslc.Testcontainers.LogLine.Source.init -> void
 Wslc.Testcontainers.LogLine.Text.get -> string!
-Wslc.Testcontainers.LogLine.Text.init -> void
 Wslc.Testcontainers.LogLine.Timestamp.get -> System.DateTimeOffset
-Wslc.Testcontainers.LogLine.Timestamp.init -> void
 Wslc.Testcontainers.LogSource
 Wslc.Testcontainers.LogSource.Stderr = 1 -> Wslc.Testcontainers.LogSource
 Wslc.Testcontainers.LogSource.Stdout = 0 -> Wslc.Testcontainers.LogSource

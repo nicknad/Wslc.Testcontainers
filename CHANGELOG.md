@@ -12,6 +12,9 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
 ### Changed
 
+- `ExecResult` and `LogLine` (C#) are now get-only records: the `init` setters were removed, so a
+  captured result or log line can no longer be reassigned or mutated with `with`. The C++ value
+  types (`ExecResult`, `LogLine`) are unchanged aggregates.
 - Support is now Windows **x64 (AMD64) only**. ARM64 is no longer supported or tested: the
   platform guard fails fast on ARM64, the ARM64 CI job was removed, and the release script rejects
   non-AMD64 hosts. All unit and real-runtime integration testing targets x64.

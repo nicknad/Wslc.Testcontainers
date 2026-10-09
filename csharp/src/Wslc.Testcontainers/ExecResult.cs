@@ -1,15 +1,41 @@
 namespace Wslc.Testcontainers;
 
 /// <summary>
-/// Result of executing a command inside a WSLC environment.
+/// Result of executing a command inside a WSLC environment. Immutable: the exit code and captured
+/// streams are set once at construction and cannot be reassigned or mutated with <c>with</c>.
 /// </summary>
-/// <param name="ExitCode">The Linux process exit code.</param>
-/// <param name="Stdout">Captured standard output.</param>
-/// <param name="Stderr">Captured standard error.</param>
-public sealed record ExecResult(int ExitCode, string Stdout, string Stderr)
+public sealed record ExecResult
 {
+    /// <summary>Initializes a result from the process exit code and captured streams.</summary>
+    /// <param name="exitCode">The Linux process exit code.</param>
+    /// <param name="stdout">Captured standard output.</param>
+    /// <param name="stderr">Captured standard error.</param>
+    public ExecResult(int exitCode, string stdout, string stderr)
+    {
+        ExitCode = exitCode;
+        Stdout = stdout;
+        Stderr = stderr;
+    }
+
+    /// <summary>The Linux process exit code.</summary>
+    public int ExitCode { get; }
+
+    /// <summary>Captured standard output.</summary>
+    public string Stdout { get; }
+
+    /// <summary>Captured standard error.</summary>
+    public string Stderr { get; }
+
     /// <summary>Gets a value indicating whether the command exited successfully.</summary>
     public bool Succeeded => ExitCode == 0;
+
+    /// <summary>Deconstructs the result into its exit code and captured streams.</summary>
+    public void Deconstruct(out int exitCode, out string stdout, out string stderr)
+    {
+        exitCode = ExitCode;
+        stdout = Stdout;
+        stderr = Stderr;
+    }
 
     /// <summary>Throws a <see cref="WslProcessException"/> when the command failed.</summary>
     /// <remarks>

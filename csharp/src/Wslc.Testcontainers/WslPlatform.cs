@@ -4,9 +4,9 @@ namespace Wslc.Testcontainers;
 
 /// <summary>
 /// Windows-only platform guard for WSLC. The library runs exclusively on
-/// Windows 10 build 19041+ (x64/ARM64) with WSL container support; every public
+/// Windows 10 build 19041+ (x64/AMD64) with WSL container support; every public
 /// entry point fails fast with <see cref="PlatformNotSupportedException"/> elsewhere
-/// instead of surfacing obscure loader or COM errors.
+/// instead of surfacing obscure loader or COM errors. ARM64 is not supported or tested.
 /// </summary>
 public static class WslPlatform
 {
@@ -20,7 +20,7 @@ public static class WslPlatform
     /// <summary>Gets a value indicating whether the current machine can run WSLC.</summary>
     public static bool IsSupported =>
         OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) &&
-        RuntimeInformation.ProcessArchitecture is Architecture.X64 or Architecture.Arm64;
+        RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
     /// <summary>Gets a short description of the current OS and architecture for diagnostics.</summary>
     public static string DescribeCurrent() =>
@@ -38,7 +38,7 @@ public static class WslPlatform
         }
 
         throw new PlatformNotSupportedException(
-            $"Wslc.Testcontainers requires Windows 10 build 19041+ (x64/ARM64) with WSL {MinimumWslVersion} or newer. " +
+            $"Wslc.Testcontainers requires Windows 10 build 19041+ (x64/AMD64) with WSL {MinimumWslVersion} or newer. " +
             $"Current: {DescribeCurrent()}. " +
             $"Run 'wsl --install' (or 'wsl --update') on a supported Windows host and retry.");
     }

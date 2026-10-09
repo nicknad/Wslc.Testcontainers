@@ -120,15 +120,16 @@ Promotion instructions:
 # 1. Host checks (early fail mirrors WslPlatform guard; works on WinPS 5.1 + PS7)
 Step 'Host checks'
 if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT) {
-  throw 'Verify-Package requires Windows 10 build 19041+ (x64/ARM64).'
+  throw 'Verify-Package requires Windows 10 build 19041+ (x64/AMD64).'
 }
 # Use the environment variables rather than RuntimeInformation.ProcessArchitecture:
 # that API returns null in some PowerShell hosts (limited/constrained runspaces, older
 # .NET Framework) and reports the *process* arch (X86 under WOW64). PROCESSOR_ARCHITEW6432
-# carries the real OS arch when this shell is 32-bit; both are AMD64/ARM64 names.
+# carries the real OS arch when this shell is 32-bit. Only AMD64 is supported; ARM64 is not
+# tested or shipped.
 $arch = $env:PROCESSOR_ARCHITEW6432
 if ([string]::IsNullOrEmpty($arch)) { $arch = $env:PROCESSOR_ARCHITECTURE }
-if ($arch -notin @('AMD64', 'ARM64')) { throw "Unsupported architecture: $arch. Requires x64/ARM64." }
+if ($arch -ne 'AMD64') { throw "Unsupported architecture: $arch. Requires x64/AMD64." }
 dotnet --version | Write-Output
 try { wsl --version | Write-Output } catch { Write-Warning "wsl --version failed: $_" }
 

@@ -42,7 +42,7 @@ var connectionString = postgres.GetConnectionString();
 
 ## Requirements
 
-- Windows 10 2004+ or Windows 11 (x64 / ARM64)
+- Windows 10 2004+ or Windows 11 (x64 / AMD64). ARM64 is not supported or tested.
 - WSL **2.9.3 or newer** with container support: `wsl --install` (or `wsl --update`)
 - .NET 8, 9 or 10 on Windows
 

@@ -41,7 +41,8 @@ see [Egress policy](#egress-policy-not-offered).
 
 ## Requirements
 
-- Windows 10 build 19041+ (x64/ARM64), WSL **2.9.3+** with container support.
+- Windows 10 build 19041+ (x64/AMD64 only; ARM64 is not supported or tested), WSL **2.9.3+**
+  with container support.
   Verify with `wsl --status` / `wsl --version`; in code `StartAsync()` fails fast
   with `WslRuntimeException` when components are missing.
 - .NET 8, 9 or 10 on Windows. Building the repo needs the .NET 10 SDK

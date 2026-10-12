@@ -18,15 +18,25 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
+    public void Build_requires_a_command_or_keep_alive_shell()
+    {
+        var builder = new WslContainerBuilder().WithImage("alpine");
+
+        Assert.Throws<WslException>(() => builder.Build());
+        Assert.Same(builder, builder.WithKeepAliveShell());
+        Assert.NotNull(builder.Build());
+    }
+
+    [Fact]
     public void FromTarball_rejects_a_missing_tarball()
     {
-        Assert.Throws<WslException>(() => new WslContainerBuilder().FromTarball("does-not-exist.tar"));
+        Assert.Throws<WslException>(() => new WslContainerBuilder().FromTarball("does-not-exist.tar").WithKeepAliveShell());
     }
 
     [Fact]
     public void WithImage_records_the_image()
     {
-        var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         Assert.Equal("alpine:latest", container.Image);
         Assert.Equal("alpine:latest", container.Configuration.Image);
@@ -40,7 +50,7 @@ public sealed class WslContainerBuilderTests
         File.WriteAllText(path, "not-a-real-tarball");
         try
         {
-            var container = new WslContainerBuilder().FromTarball(path, "custom:local").Build();
+            var container = new WslContainerBuilder().FromTarball(path, "custom:local").WithKeepAliveShell().Build();
 
             Assert.Equal(path, container.Configuration.TarballPath);
             Assert.Equal("custom:local", container.Configuration.TarballImageName);
@@ -56,7 +66,7 @@ public sealed class WslContainerBuilderTests
     public void Builders_mutate_in_place_and_build_snapshots_configuration()
     {
         var builder = new WslContainerBuilder()
-            .WithImage("alpine:latest")
+            .WithImage("alpine:latest").WithKeepAliveShell()
             .WithEnvironment("A", "1");
 
         var container = builder.Build();
@@ -71,7 +81,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void WithPort_validates_and_deduplicates()
     {
-        var builder = new WslContainerBuilder().WithImage("alpine").WithPort(8080).WithPort(8080).WithPort(5432);
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithPort(8080).WithPort(8080).WithPort(5432);
 
         Assert.Equal(
             new[] { new WslPortMapping(8080, null), new WslPortMapping(5432, null) },
@@ -84,7 +94,7 @@ public sealed class WslContainerBuilderTests
     public void WithPort_supports_bind_addresses()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080)
             .WithPort(9090, "127.0.0.1")
             .Build();
@@ -101,7 +111,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void WithPort_rejects_invalid_bind_addresses_and_conflicts()
     {
-        var builder = new WslContainerBuilder().WithImage("alpine");
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
         Assert.Throws<ArgumentException>(() => builder.WithPort(8080, "not-an-ip"));
         Assert.Throws<ArgumentException>(() => builder.WithPort(8080, ""));
 
@@ -113,7 +123,7 @@ public sealed class WslContainerBuilderTests
     public void WithPort_normalizes_the_bind_address()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, "0:0:0:0:0:0:0:1")
             .Build();
 
@@ -124,13 +134,13 @@ public sealed class WslContainerBuilderTests
     public void WithPort_supports_a_fixed_host_port()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(9092, 49153)
             .Build();
 
         Assert.Equal(new WslPortMapping(9092, null, 49153), Assert.Single(container.Configuration.PortMappings));
         Assert.Equal(new WslPortMapping(9092, "0.0.0.0", 49153), Assert.Single(
-            new WslContainerBuilder().WithImage("alpine").WithPort(9092, 49153, "0.0.0.0").Build().Configuration.PortMappings));
+            new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithPort(9092, 49153, "0.0.0.0").Build().Configuration.PortMappings));
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(9092, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => new WslContainerBuilder().WithPort(9092, 70000));
     }
@@ -138,7 +148,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void WithPort_upgrades_dynamic_to_fixed_and_rejects_host_port_conflicts()
     {
-        var upgraded = new WslContainerBuilder().WithImage("alpine").WithPort(9092).WithPort(9092, 49153);
+        var upgraded = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithPort(9092).WithPort(9092, 49153);
 
         Assert.Equal(new WslPortMapping(9092, null, 49153), Assert.Single(upgraded.Build().Configuration.PortMappings));
         Assert.Same(upgraded, upgraded.WithPort(9092, 49153));
@@ -149,7 +159,7 @@ public sealed class WslContainerBuilderTests
     public void WithCpuCount_and_WithMemoryMegabytes_record_limits()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithCpuCount(2)
             .WithMemoryMegabytes(2048)
             .Build();
@@ -163,15 +173,15 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void WithNetworkingMode_Isolated_rejects_ports_and_network_waits()
     {
-        var ports = new WslContainerBuilder().WithImage("alpine").WithPort(8080).WithNetworkingMode(ContainerNetworkMode.Isolated);
+        var ports = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithPort(8080).WithNetworkingMode(ContainerNetworkMode.Isolated);
         Assert.Throws<WslException>(() => ports.Build());
 
-        var waits = new WslContainerBuilder().WithImage("alpine")
+        var waits = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell()
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsOpen(80))
             .WithNetworkingMode(ContainerNetworkMode.Isolated);
         Assert.Throws<WslException>(() => waits.Build());
 
-        var composite = new WslContainerBuilder().WithImage("alpine")
+        var composite = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell()
             .WithWaitStrategy(
                 Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilMessageIsLogged("ready")
                     .And(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestSucceeds("/health", 8080)))
@@ -180,14 +190,14 @@ public sealed class WslContainerBuilderTests
 
         // Detection covers only built-in TCP/HTTP waits; a custom condition is not inspected and
         // can still be combined with None (documented bypass).
-        var custom = new WslContainerBuilder().WithImage("alpine")
+        var custom = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell()
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().Until("custom", (_, _) => Task.FromResult(true)))
             .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
         Assert.Equal(ContainerNetworkMode.Isolated, custom.Configuration.NetworkingMode);
 
         // Non-network waits are fine without networking.
-        var offline = new WslContainerBuilder().WithImage("alpine")
+        var offline = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell()
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilFileExists("/tmp/ready"))
             .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
@@ -204,7 +214,7 @@ public sealed class WslContainerBuilderTests
     public void WithScratchVolume_records_and_validates()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithScratchVolume("data", "/data", 10UL * 1024 * 1024 * 1024)
             .Build();
 
@@ -215,7 +225,7 @@ public sealed class WslContainerBuilderTests
         Assert.Equal(10UL * 1024 * 1024 * 1024, volume.SizeBytes);
         Assert.Equal(VhdAllocationType.Dynamic, volume.Type);
 
-        var builder = new WslContainerBuilder().WithImage("alpine");
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
         Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("", "/data", 100));
         Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("a/b", "/data", 100));
         Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("a b", "/data", 100));
@@ -225,7 +235,7 @@ public sealed class WslContainerBuilderTests
         Assert.Throws<WslException>(() => builder.WithScratchVolume("Data", "/a", 100).WithScratchVolume("data", "/b", 100));
 
         var readOnlyFixed = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithScratchVolume("data", "/data", 100, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
             .Build();
         var configured = Assert.Single(readOnlyFixed.Configuration.ScratchVolumes);
@@ -260,7 +270,7 @@ public sealed class WslContainerBuilderTests
     [InlineData("_x1")]
     public void WithEnvironment_accepts_ascii_names(string name)
     {
-        var container = new WslContainerBuilder().WithImage("alpine").WithEnvironment(name, "value").Build();
+        var container = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithEnvironment(name, "value").Build();
 
         Assert.Equal("value", container.Configuration.Environment[name]);
     }
@@ -271,7 +281,7 @@ public sealed class WslContainerBuilderTests
     [InlineData("Aé")]
     public async Task Exec_rejects_non_ascii_environment_names(string name)
     {
-        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         await Assert.ThrowsAsync<ArgumentException>(
             () => container.ExecAsync(
@@ -301,7 +311,7 @@ public sealed class WslContainerBuilderTests
             Directory.SetCurrentDirectory(directory.FullName);
 
             var container = new WslContainerBuilder()
-                .WithImage("alpine")
+                .WithImage("alpine").WithKeepAliveShell()
                 .WithFile("payload.txt", "/tmp/payload.txt")
                 .Build();
 
@@ -332,8 +342,8 @@ public sealed class WslContainerBuilderTests
             File.WriteAllText(file, "payload");
             Directory.SetCurrentDirectory(directory.FullName);
 
-            var relative = new WslContainerBuilder().WithImage("alpine").WithFile("payload.txt", "/tmp/payload.txt").Build();
-            var absolute = new WslContainerBuilder().WithImage("alpine").WithFile(file, "/tmp/payload.txt").Build();
+            var relative = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithFile("payload.txt", "/tmp/payload.txt").Build();
+            var absolute = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithFile(file, "/tmp/payload.txt").Build();
 
             Assert.Equal(
                 WslConfigHasher.Compute(relative.Configuration),
@@ -357,7 +367,7 @@ public sealed class WslContainerBuilderTests
             Directory.SetCurrentDirectory(directory.FullName);
 
             var container = new WslContainerBuilder()
-                .WithImage("alpine")
+                .WithImage("alpine").WithKeepAliveShell()
                 .WithVolume("data", "/data")
                 .Build();
 
@@ -391,7 +401,7 @@ public sealed class WslContainerBuilderTests
         File.WriteAllText(file, "payload");
         try
         {
-            var builder = new WslContainerBuilder().WithImage("alpine");
+            var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
             Assert.Throws<ArgumentException>(() => builder.WithFile(file, "/proc/self/environ"));
             Assert.Throws<ArgumentException>(() => builder.WithVolume(directory.FullName, "/sys/kernel"));
             Assert.Throws<ArgumentException>(() => builder.WithScratchVolume("data", "/dev/sda", 100));
@@ -463,7 +473,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public async Task Container_guards_access_before_start()
     {
-        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         Assert.False(container.IsStarted);
         Assert.Throws<WslException>(() => container.GetConnectEndpoint(8080));
@@ -474,7 +484,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public async Task StartProcess_rejects_exec_only_options_before_container_work()
     {
-        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         var standardInput = Assert.Throws<ArgumentException>(
             () => container.StartProcess(
@@ -496,7 +506,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public async Task Dispose_is_safe_for_unstarted_containers()
     {
-        var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         await container.DisposeAsync();
         await container.DisposeAsync();
@@ -506,7 +516,7 @@ public sealed class WslContainerBuilderTests
     public void Wait_strategies_accumulate()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine:latest")
+            .WithImage("alpine:latest").WithKeepAliveShell()
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsOpen(80))
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilProcessIsRunning("nginx"))
             .Build();
@@ -520,7 +530,7 @@ public sealed class WslContainerBuilderTests
         // Readiness probes honor the configured bind address, so non-loopback bindings
         // are valid with TCP and HTTP waits (no build-time rejection, no guaranteed timeout).
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, "192.168.1.10")
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilTcpPortIsOpen(8080))
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().UntilHttpRequestSucceeds("/health", 8080))
@@ -534,27 +544,27 @@ public sealed class WslContainerBuilderTests
     public void WithPort_normalizes_and_conflict_checks_ipaddress_like_the_string_overload()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, IPAddress.Any)
             .Build();
         Assert.Equal("0.0.0.0", Assert.Single(container.Configuration.PortMappings).BindAddress);
 
         // The same address expressed as a literal is not a conflict.
         var same = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, "0.0.0.0")
             .WithPort(8080, IPAddress.Any);
         Assert.Equal("0.0.0.0", Assert.Single(same.Build().Configuration.PortMappings).BindAddress);
 
         // A different address for the same port is rejected identically.
         var conflict = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, IPAddress.Any);
         Assert.Throws<WslException>(() => conflict.WithPort(8080, "127.0.0.1"));
         Assert.Throws<WslException>(() => conflict.WithPort(8080, IPAddress.Loopback));
 
         var literalConflict = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, "0.0.0.0");
         Assert.Throws<WslException>(() => literalConflict.WithPort(8080, IPAddress.Loopback));
     }
@@ -562,23 +572,23 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void WithPort_normalizes_ipv6_and_non_loopback_addresses()
     {
-        var ipv6 = new WslContainerBuilder().WithImage("alpine").WithPort(8080, IPAddress.IPv6Loopback).Build();
+        var ipv6 = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithPort(8080, IPAddress.IPv6Loopback).Build();
         Assert.Equal("::1", Assert.Single(ipv6.Configuration.PortMappings).BindAddress);
 
         var nonLoopback = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, IPAddress.Parse("192.168.1.10"))
             .Build();
         Assert.Equal("192.168.1.10", Assert.Single(nonLoopback.Configuration.PortMappings).BindAddress);
 
         // The expanded IPv6 literal normalizes to the same canonical address, so it is not a conflict.
         var same = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithPort(8080, IPAddress.IPv6Loopback)
             .WithPort(8080, "0:0:0:0:0:0:0:1");
         Assert.Equal("::1", Assert.Single(same.Build().Configuration.PortMappings).BindAddress);
 
-        var conflict = new WslContainerBuilder().WithImage("alpine").WithPort(8080, IPAddress.IPv6Loopback);
+        var conflict = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithPort(8080, IPAddress.IPv6Loopback);
         Assert.Throws<WslException>(() => conflict.WithPort(8080, IPAddress.Parse("192.168.1.10")));
         Assert.Throws<WslException>(() => conflict.WithPort(8080, "0.0.0.0"));
     }
@@ -587,7 +597,7 @@ public sealed class WslContainerBuilderTests
     public void Cpu_and_memory_caps_are_inclusive()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithCpuCount(BuilderLimits.MaxCpuCount)
             .WithMemoryMegabytes(BuilderLimits.MaxMemoryMB)
             .Build();
@@ -604,7 +614,7 @@ public sealed class WslContainerBuilderTests
     public void Scratch_volume_size_cap_is_inclusive()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithScratchVolume("data", "/data", BuilderLimits.MaxScratchVolumeBytes)
             .Build();
 
@@ -619,13 +629,13 @@ public sealed class WslContainerBuilderTests
     public void Readiness_timeout_cap_is_inclusive_and_rejects_longer_timeouts_before_start()
     {
         var container = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithReadinessTimeout(BuilderLimits.MaxStartupTimeout)
             .Build();
 
         Assert.Equal(BuilderLimits.MaxStartupTimeout, container.Configuration.StartupTimeout);
 
-        var builder = new WslContainerBuilder().WithImage("alpine");
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
         Assert.Throws<ArgumentOutOfRangeException>(
             () => builder.WithReadinessTimeout(BuilderLimits.MaxStartupTimeout + TimeSpan.FromSeconds(1)));
 
@@ -638,7 +648,7 @@ public sealed class WslContainerBuilderTests
     public void Wait_strategy_count_cap_is_enforced_at_build()
     {
         var builder = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithReadinessTimeout(BuilderLimits.MaxStartupTimeout);
         for (var i = 0; i < BuilderLimits.MaxWaitStrategies; i++)
         {
@@ -657,7 +667,7 @@ public sealed class WslContainerBuilderTests
     public void Wait_timeout_sum_saturates_instead_of_overflowing()
     {
         var builder = new WslContainerBuilder()
-            .WithImage("alpine")
+            .WithImage("alpine").WithKeepAliveShell()
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.MaxValue).UntilFileExists("/tmp/a"))
             .WithWaitStrategy(Wslc.Testcontainers.Waiting.Wait.ForWsl().WithTimeout(TimeSpan.MaxValue).UntilFileExists("/tmp/b"));
 
@@ -669,13 +679,13 @@ public sealed class WslContainerBuilderTests
     {
         var atCap = new string[BuilderLimits.MaxCommandArguments];
         Array.Fill(atCap, "arg");
-        var container = new WslContainerBuilder().WithImage("alpine").WithCommand("echo", atCap).Build();
+        var container = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithCommand("echo", atCap).Build();
 
         Assert.Equal(BuilderLimits.MaxCommandArguments, container.Configuration.CommandArguments.Count);
 
         var overCap = new string[BuilderLimits.MaxCommandArguments + 1];
         Array.Fill(overCap, "arg");
-        var builder = new WslContainerBuilder().WithImage("alpine").WithCommand("echo", overCap);
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithCommand("echo", overCap);
         Assert.Throws<WslException>(() => builder.Build());
     }
 
@@ -683,13 +693,13 @@ public sealed class WslContainerBuilderTests
     public void Environment_value_and_count_caps_are_enforced()
     {
         var atCap = new string('a', BuilderLimits.MaxEnvironmentValueBytes);
-        var container = new WslContainerBuilder().WithImage("alpine").WithEnvironment("BIG", atCap).Build();
+        var container = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().WithEnvironment("BIG", atCap).Build();
 
         Assert.Equal(atCap, container.Configuration.Environment["BIG"]);
         Assert.Throws<ArgumentOutOfRangeException>(
             () => new WslContainerBuilder().WithEnvironment("BIG", atCap + "a"));
 
-        var builder = new WslContainerBuilder().WithImage("alpine");
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
         for (var i = 0; i < BuilderLimits.MaxEnvironmentVariables; i++)
         {
             builder.WithEnvironment($"VAR_{i}", "1");
@@ -710,7 +720,7 @@ public sealed class WslContainerBuilderTests
             var source = Path.Combine(directory.FullName, "payload.txt");
             File.WriteAllText(source, "payload");
 
-            var files = new WslContainerBuilder().WithImage("alpine");
+            var files = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
             for (var i = 0; i < BuilderLimits.MaxFileCopies; i++)
             {
                 files.WithFile(source, $"/tmp/payload-{i}.txt");
@@ -720,7 +730,7 @@ public sealed class WslContainerBuilderTests
             files.WithFile(source, "/tmp/payload-one-too-many.txt");
             Assert.Throws<WslException>(() => files.Build());
 
-            var volumes = new WslContainerBuilder().WithImage("alpine");
+            var volumes = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
             for (var i = 0; i < BuilderLimits.MaxVolumeMounts; i++)
             {
                 volumes.WithVolume(directory.FullName, $"/data-{i}");
@@ -749,7 +759,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public async Task Exec_timeout_cap_is_enforced()
     {
-        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
             () => container.ExecAsync(
@@ -771,7 +781,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public async Task Exec_rejects_more_than_the_argument_cap()
     {
-        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         var atCap = new string[BuilderLimits.MaxCommandArguments];
         Array.Fill(atCap, "arg");
@@ -791,7 +801,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public async Task Exec_rejects_environment_above_the_caps()
     {
-        await using var container = new WslContainerBuilder().WithImage("alpine:latest").Build();
+        await using var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().Build();
 
         var atCap = new string('a', BuilderLimits.MaxEnvironmentValueBytes);
         var atCapException = await Assert.ThrowsAsync<WslException>(
@@ -847,7 +857,7 @@ public sealed class WslContainerBuilderTests
     [Fact]
     public void Scratch_volume_count_cap_is_enforced_at_build()
     {
-        var builder = new WslContainerBuilder().WithImage("alpine");
+        var builder = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell();
         for (var i = 0; i < BuilderLimits.MaxScratchVolumes; i++)
         {
             builder.WithScratchVolume($"data{i}", $"/data{i}", 1024);
@@ -877,7 +887,7 @@ public sealed class WslContainerBuilderTests
                 }
 
                 // At the cap the tarball is accepted.
-                _ = new WslContainerBuilder().FromTarball(path);
+                _ = new WslContainerBuilder().FromTarball(path).WithKeepAliveShell();
 
                 try
                 {
@@ -889,7 +899,7 @@ public sealed class WslContainerBuilderTests
                 }
             }
 
-            Assert.Throws<WslException>(() => new WslContainerBuilder().FromTarball(path));
+            Assert.Throws<WslException>(() => new WslContainerBuilder().FromTarball(path).WithKeepAliveShell());
         }
         finally
         {
@@ -902,7 +912,7 @@ public sealed class WslContainerBuilderTests
     [InlineData(true)]
     public async Task Container_reports_whether_reuse_is_effective(bool configuredReuse)
     {
-        var container = new WslContainerBuilder().WithImage("alpine:latest").WithReuse(configuredReuse).Build();
+        var container = new WslContainerBuilder().WithImage("alpine:latest").WithKeepAliveShell().WithReuse(configuredReuse).Build();
         try
         {
             var expected = WslEnvironment.IsReuseEffective(

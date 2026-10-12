@@ -11,7 +11,7 @@ using wslc::WslPlatform;
 
 TEST(Platform, IsSupportedMatchesOsAndArchitecture)
 {
-#if defined(_M_X64) || defined(_M_ARM64)
+#if defined(_M_X64)
     EXPECT_TRUE(WslPlatform::IsSupported());
 #else
     EXPECT_FALSE(WslPlatform::IsSupported());
@@ -56,7 +56,7 @@ TEST(Platform, WslVersionGateEnforcesMinimum)
 TEST(Platform, BuildFailsFastOnUnsupportedPlatform)
 {
     WslContainerBuilder builder;
-    builder.WithImage("docker.io/library/alpine:latest");
+    builder.WithImage("docker.io/library/alpine:latest").WithKeepAliveShell();
 
     if (!WslPlatform::IsSupported())
     {

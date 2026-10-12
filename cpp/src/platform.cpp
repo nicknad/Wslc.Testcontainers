@@ -75,7 +75,7 @@ std::string architecture()
 
 bool WslPlatform::IsSupported()
 {
-#if defined(_M_X64) || defined(_M_ARM64)
+#if defined(_M_X64)
     return WindowsVersionAtLeast(10, 0, 19041);
 #else
     return false;
@@ -102,7 +102,7 @@ void WslPlatform::ThrowIfUnsupported()
     }
 
     throw PlatformNotSupportedException(
-        "Wslc.Testcontainers requires Windows 10 Build 19041+ (x64/ARM64) with WSL " +
+        "Wslc.Testcontainers requires Windows 10 Build 19041+ (x64/AMD64) with WSL " +
         std::to_string(MinimumWslVersion.Major) + "." + std::to_string(MinimumWslVersion.Minor) + "." +
         std::to_string(MinimumWslVersion.Revision) + " or newer. Current: " + DescribeCurrent() +
         ". Run 'wsl --install' (or 'wsl --update') on a supported Windows Host and retry.");

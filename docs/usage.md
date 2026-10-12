@@ -41,7 +41,8 @@ see [Egress policy](#egress-policy-not-offered).
 
 ## Requirements
 
-- Windows 10 build 19041+ (x64/ARM64), WSL **2.9.3+** with container support.
+- Windows 10 build 19041+ (x64/AMD64 only; ARM64 is not supported or tested), WSL **2.9.3+**
+  with container support.
   Verify with `wsl --status` / `wsl --version`; in code `StartAsync()` fails fast
   with `WslRuntimeException` when components are missing.
 - .NET 8, 9 or 10 on Windows. Building the repo needs the .NET 10 SDK
@@ -301,7 +302,8 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | Method | Purpose / notes |
 | --- | --- |
 | `WithImage(image)` / `FromTarball(path, imageName?)` | Mutually exclusive source. |
-| `WithCommand(cmd, params args)` | Init process command. The image ENTRYPOINT is preserved and this becomes its CMD; the default is a keep-alive shell (`/bin/sh -c "while true; do sleep 3600; done"`) so `ExecAsync` works. Modules set the image's service command (e.g. `mongod`, `nats-server`) — do not override it for modules. |
+| `WithCommand(cmd, params args)` | Init process command. The image ENTRYPOINT is preserved and this becomes its CMD. Modules set the image's service command (e.g. `mongod`, `nats-server`) — do not override it for modules. |
+| `WithKeepAliveShell()` | Runs a keep-alive shell as the init process instead of a service command; use it for a container you drive only through `ExecAsync`/`StartProcess`. A container needs `WithCommand` or this — `Build()` throws when neither is set (WSLC never runs the image ENTRYPOINT/CMD automatically). |
 | `WithWorkingDirectory(path)` | Working dir for init + execs. |
 | `WithEnvironment(k, v)` / `WithEnvironmentVariables(dict)` | Scoped to container processes only. Names must be `[_A-Za-z][_A-Za-z0-9]*`. Inside every container `WSLC_SESSION_ID`, `WSLC_INSTANCE_ID`, `WSLC_OWNER_PID`, `WSLC_CREATED_AT` are also set. |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve the address and port with `GetConnectEndpoint(containerPort)`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address. |
@@ -466,6 +468,9 @@ appears, egress belongs there, not inside the container.
 // One-shot command; captures exit code + stdout/stderr (each capped ~1 MiB).
 ExecResult r = await container.ExecAsync("ps", ["aux"]);
 r.EnsureSuccess(); // throws WslProcessException with truncated output on failure
+
+// Shell script via /bin/sh -c: pipelines, redirection, globbing, builtins.
+ExecResult sh = await container.ExecShellAsync("ps aux | grep app | wc -l");
 
 // With options (env, cwd, stdin, timeout). Pass null for arguments/options to use defaults.
 var r2 = await container.ExecAsync("psql", ["-c", "SELECT 1"], new ExecOptions

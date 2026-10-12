@@ -136,7 +136,7 @@ public sealed class WslReadinessException : WslTimeoutException
         header.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"Command:      {Command ?? "<none>"}");
         if (Command is null)
         {
-            header.AppendLine("Hint:         no init command was configured, so only a keep-alive shell is running.");
+            header.AppendLine("Hint:         no service command was configured (WithKeepAliveShell), so only a keep-alive shell is running.");
             header.AppendLine("              WSLC never runs the image's ENTRYPOINT/CMD automatically. Call WithCommand(...) or use a module builder.");
         }
 

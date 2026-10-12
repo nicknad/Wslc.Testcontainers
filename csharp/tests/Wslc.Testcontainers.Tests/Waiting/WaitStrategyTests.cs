@@ -301,7 +301,7 @@ public sealed class WaitStrategyTests
     {
         var attempts = 0;
         // Generous budget: the condition needs three polls, and thread-pool/CI scheduling can
-        // delay the 10ms retry continuations well beyond that on loaded runners (arm64 flakes).
+        // delay the 10ms retry continuations well beyond that on loaded runners.
         var strategy = Wait.ForWsl()
             .WithTimeout(TimeSpan.FromSeconds(15))
             .WithRetryInterval(TimeSpan.FromMilliseconds(50))

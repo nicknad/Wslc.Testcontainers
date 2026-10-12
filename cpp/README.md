@@ -23,9 +23,10 @@ postgres.Start();
 const auto result = postgres.Exec("/bin/sh", {"-c", "psql -U postgres -c 'SELECT 1'"});
 ```
 
-> WSLC never runs the image's ENTRYPOINT/CMD automatically: without `WithCommand(...)` only a
-> keep-alive shell starts, so a readiness wait for the image's service always times out.
-> Declare the service command explicitly or use a module builder.
+> WSLC never runs the image's ENTRYPOINT/CMD automatically, so a container needs an explicit init
+> process: `Build()` throws unless you call `WithCommand(...)` to run the image's service, or
+> `WithKeepAliveShell()` for a container you drive only through `Exec`/`StartProcess`. Use a module
+> builder for common services.
 
 > **Security: defaults are for *trusted* test dependencies, not hostile code.** The underlying
 > WSL container runtime provides no security boundary by default (bridged networking with full
@@ -34,7 +35,7 @@ const auto result = postgres.Exec("/bin/sh", {"-c", "psql -U postgres -c 'SELECT
 
 ## Requirements
 
-- Windows 10 2004+ or Windows 11 (x64 / ARM64)
+- Windows 10 2004+ or Windows 11 (x64 / AMD64). ARM64 is not supported or tested.
 - WSL **2.9.3 or newer** with container support (`wsl --install` / `wsl --update`)
 - Visual Studio 2022 17.10+ with the C++ workload (C++23), CMake 3.25+, and the
   `Microsoft.WSL.Containers` SDK
@@ -121,6 +122,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Build()` → `WslContainer` | `Build()` → `wslc::WslContainer` (move-only) |
 | `StartAsync` / `StopAsync` / `DisposeAsync` | `Start(token)` / `Stop(token)` / `Dispose()` |
 | `ExecAsync(command, args, options, token)` | `Exec(command, args, options, token)` |
+| `ExecShellAsync(script, options, token)` | `ExecShell(script, options, token)` |
 | `StartProcess(...)` → `IWslProcess` | `StartProcess(...)` → `std::unique_ptr<IWslProcess>` |
 | `CopyToAsync` / `CopyFromAsync` | `CopyTo` / `CopyFrom` |
 | `SubscribeLogs(token)` → `IAsyncEnumerable<LogLine>` | `SubscribeLogs()` → `LogStream` (blocking `Next(token)`) |

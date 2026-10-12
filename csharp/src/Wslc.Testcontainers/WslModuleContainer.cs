@@ -50,6 +50,13 @@ public abstract class WslModuleContainer : IWslContainer
         CancellationToken cancellationToken = default) =>
         _inner.ExecAsync(command, arguments, options, cancellationToken);
 
+    /// <inheritdoc />
+    public Task<ExecResult> ExecShellAsync(
+        string script,
+        ExecOptions? options = null,
+        CancellationToken cancellationToken = default) =>
+        _inner.ExecShellAsync(script, options, cancellationToken);
+
     /// <summary>Starts a long-running process inside the environment.</summary>
     public IWslProcess StartProcess(
         string command,

@@ -79,7 +79,7 @@ general-purpose container tooling.
 - Direct integration with WSL Containers
 - No Docker Engine dependency
 - .NET 8, 9 and 10 support
-- Windows x64 and ARM64
+- Windows x64 (AMD64)
 - Real-runtime integration tests
 - Container networking configuration
 - Dynamic or fixed host-port mapping
@@ -147,7 +147,7 @@ See the [`csharp/README.md`](csharp/README.md) for the complete .NET API and con
 ### Windows
 
 - Windows 10 version 2004 or newer, or Windows 11
-- x64 or ARM64
+- x64 (AMD64). ARM64 is not supported or tested.
 - WSL 2.9.3 or newer
 - WSL Containers support
 
@@ -183,11 +183,11 @@ The native port additionally requires:
 WSL Containers does not automatically execute an image's `ENTRYPOINT` or `CMD` in the way a
 Docker-based workflow might lead you to expect.
 
-Without an explicit command, a keep-alive shell can start instead of the service you intended to run.
+A container therefore needs an explicit init process: `Build()` throws unless you call
+`WithCommand(...)` to run the image's service, or `WithKeepAliveShell()` for a container you drive
+only through `Exec`/`StartProcess`.
 
-As a result, a service readiness check can wait indefinitely.
-
-**Use a module builder or explicitly configure the service command.**
+**Use a module builder, or explicitly configure the service command (or the keep-alive shell).**
 
 The built-in modules handle this for their respective services.
 

@@ -7,7 +7,7 @@ using wslc::WslContainerBuilder;
 TEST(ContainerLifecycle, DisposeCompletesLogsAndIsIdempotent)
 {
     WslContainerBuilder builder;
-    auto container = builder.WithImage("alpine:latest").Build();
+    auto container = builder.WithImage("alpine:latest").WithKeepAliveShell().Build();
 
     container.Dispose();
     container.Dispose();
@@ -19,7 +19,7 @@ TEST(ContainerLifecycle, DisposeCompletesLogsAndIsIdempotent)
 TEST(ContainerLifecycle, DisposeIsSafeForUnstartedContainers)
 {
     WslContainerBuilder builder;
-    auto container = builder.WithImage("alpine:latest").Build();
+    auto container = builder.WithImage("alpine:latest").WithKeepAliveShell().Build();
 
     EXPECT_FALSE(container.IsStarted());
     container.Dispose();

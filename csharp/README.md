@@ -17,9 +17,9 @@ var connectionString = postgres.GetConnectionString();
 ```
 
 > Using the core `WslContainerBuilder` instead? WSLC never runs the image's ENTRYPOINT/CMD
-> automatically: without `WithCommand(...)` only a keep-alive shell starts, so a readiness wait
-> for the image's service always times out. Declare the service command explicitly or use a
-> module builder.
+> automatically, so a container needs an explicit init process: `Build()` throws unless you call
+> `WithCommand(...)` to run the image's service, or `WithKeepAliveShell()` for a container you
+> drive only through `ExecAsync`/`StartProcess`. Use a module builder for common services.
 
 > **Security: defaults are for *trusted* test dependencies, not hostile code.**
 > Out of the box this library (and the underlying WSL container runtime) provides
@@ -42,7 +42,7 @@ var connectionString = postgres.GetConnectionString();
 
 ## Requirements
 
-- Windows 10 2004+ or Windows 11 (x64 / ARM64)
+- Windows 10 2004+ or Windows 11 (x64 / AMD64). ARM64 is not supported or tested.
 - WSL **2.9.3 or newer** with container support: `wsl --install` (or `wsl --update`)
 - .NET 8, 9 or 10 on Windows
 
@@ -103,7 +103,8 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | ----------------------------------------------------------------- | ------------------------------------------------------------------ |
 | `WithImage(image)`                                                | Use a container image. Pulled on first use.                        |
 | `FromTarball(path, imageName?)`                                   | Import a root filesystem tarball as an image.                      |
-| `WithCommand(command, params args)`                               | Init process. Defaults to a keep-alive shell so `ExecAsync` works — the image ENTRYPOINT/CMD never runs automatically. |
+| `WithCommand(command, params args)`                               | Init process. Required (with `WithKeepAliveShell`) — the image ENTRYPOINT/CMD never runs automatically. |
+| `WithKeepAliveShell()`                                            | Runs a keep-alive shell as the init process for a container driven only through `ExecAsync`/`StartProcess`. |
 | `WithWorkingDirectory(path)`                                      | Working directory for the init process and execs.                  |
 | `WithEnvironment(name, value)` / `WithEnvironmentVariables(dict)` | Variables scoped to container processes.                           |
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Exposes a Linux TCP port on a dynamic Windows port; the optional per-port Windows bind address defaults to loopback (pass `0.0.0.0` or `IPAddress.Any` to expose on the LAN). UDP is not supported — the WSLC runtime returns `E_NOTIMPL` for UDP mappings. |
@@ -125,6 +126,9 @@ using Wslc.Testcontainers;
 // Execute and capture output
 ExecResult result = await container.ExecAsync("ps", ["aux"]);
 Console.WriteLine(result.ExitCode);
+
+// Shell script through /bin/sh -c (pipelines, redirection, globbing, builtins)
+ExecResult shell = await container.ExecShellAsync("ps aux | grep app | wc -l");
 
 // Options: environment, working directory, stdin, timeout (pass null for defaults)
 var result2 = await container.ExecAsync("psql", ["-c", "SELECT 1"], new ExecOptions

@@ -2,6 +2,28 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## Unreleased
+
+### Added
+
+- `ExecShellAsync(script, options?, token)` (C#) / `ExecShell(script, options?, token)` (C++): runs a
+  script through `/bin/sh -c` so pipelines, redirection, globbing and shell builtins are available
+  where `Exec`/`ExecAsync` (no shell) cannot express them.
+
+### Changed
+
+- `WslContainerBuilder.Build()` (C# and C++) now requires an init process: call `WithCommand(...)`
+  to run the image's service, or the new `WithKeepAliveShell()` for a container driven only through
+  `Exec`/`StartProcess`. Previously an implicit keep-alive shell ran, which silently swallowed the
+  common "forgot to declare the service" mistake until a readiness wait timed out. This is a
+  breaking change for core-builder callers that relied on the implicit shell.
+- `ExecResult` and `LogLine` (C#) are now get-only records: the `init` setters were removed, so a
+  captured result or log line can no longer be reassigned or mutated with `with`. The C++ value
+  types (`ExecResult`, `LogLine`) are unchanged aggregates.
+- Support is now Windows **x64 (AMD64) only**. ARM64 is no longer supported or tested: the
+  platform guard fails fast on ARM64, the ARM64 CI job was removed, and the release script rejects
+  non-AMD64 hosts. All unit and real-runtime integration testing targets x64.
+
 ## 0.5.0
 
 ### Added

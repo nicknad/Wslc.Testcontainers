@@ -13,7 +13,7 @@ public sealed class WslPlatformTests
     public void IsSupported_matches_os_and_architecture()
     {
         var expected = OperatingSystem.IsWindowsVersionAtLeast(10, 0, 19041) &&
-            RuntimeInformation.ProcessArchitecture is Architecture.X64 or Architecture.Arm64;
+            RuntimeInformation.ProcessArchitecture == Architecture.X64;
 
         Assert.Equal(expected, WslPlatform.IsSupported);
     }
@@ -58,7 +58,7 @@ public sealed class WslPlatformTests
     [Fact]
     public async Task Build_fails_fast_on_unsupported_platform()
     {
-        var builder = new WslContainerBuilder().WithImage("docker.io/library/alpine:latest");
+        var builder = new WslContainerBuilder().WithImage("docker.io/library/alpine:latest").WithKeepAliveShell();
 
         if (!WslPlatform.IsSupported)
         {

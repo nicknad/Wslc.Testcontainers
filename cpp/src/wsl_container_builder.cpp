@@ -141,6 +141,12 @@ WslContainerBuilder& WslContainerBuilder::WithCommand(std::string command, std::
     return *this;
 }
 
+WslContainerBuilder& WslContainerBuilder::WithKeepAliveShell()
+{
+    m_state->configuration.KeepAliveShell = true;
+    return *this;
+}
+
 WslContainerBuilder& WslContainerBuilder::WithWorkingDirectory(std::string WorkingDirectory)
 {
     internal::ValidateContainerPath(WorkingDirectory);
@@ -347,6 +353,14 @@ WslContainer WslContainerBuilder::Build()
     {
         throw WslException(std::string("No Image Source configured. Call WithImage(...) or FromTarball(...), or set ") +
                            WslEnvironment::DefaultImageVariable + ".");
+    }
+
+    if (!configuration.Command && !configuration.KeepAliveShell)
+    {
+        throw WslException(
+            "No init command configured. Call WithCommand(...) to run the Image service, or WithKeepAliveShell() "
+            "for a container driven only through Exec/StartProcess. WSLC never runs the Image ENTRYPOINT/CMD "
+            "automatically, so without one the service never starts and readiness waits time out.");
     }
 
     internal::RequireCount(configuration.CommandArguments.size(), internal::c_maxCommandArguments, "command arguments");

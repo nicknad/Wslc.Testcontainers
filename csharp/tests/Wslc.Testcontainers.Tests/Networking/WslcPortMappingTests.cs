@@ -201,7 +201,7 @@ public sealed class WslcPortMappingTests
             var mapping = WslcPortMapping.Create(new[] { Port(8080) });
             mapping.ResolveFromInspect("{\"Ports\":{\"8080/tcp\":[{\"HostPort\":\"" + port + "\"}]}}");
 
-            Assert.True(await mapping.IsPortOpenAsync(8080, TestContext.Current.CancellationToken));
+            Assert.True(await IsOpenEventuallyAsync(mapping, 8080, TestContext.Current.CancellationToken));
         }
         finally
         {
@@ -224,5 +224,26 @@ public sealed class WslcPortMappingTests
         {
             closedListener.Stop();
         }
+    }
+
+    // IsPortOpenAsync probes with a fixed 2s timeout on the thread pool. On a saturated CI
+    // runner the connect completion can be scheduled past that timeout even though the port is
+    // open, so poll a bounded number of times instead of trusting a single probe.
+    private static async Task<bool> IsOpenEventuallyAsync(
+        WslcPortMapping mapping,
+        int containerPort,
+        CancellationToken cancellationToken)
+    {
+        const int maxAttempts = 8;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            if (await mapping.IsPortOpenAsync(containerPort, cancellationToken))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

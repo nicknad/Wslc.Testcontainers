@@ -21,8 +21,20 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - name: Update WSL
-        run: wsl --update
+      - name: Update WSL (best effort)
+        shell: pwsh
+        run: |
+          # wsl --update intermittently returns HTTP 403 (Wsl/UpdatePackage/0x80190193).
+          # WSL ships preinstalled on the runner, so a failed refresh must not mask test
+          # results; retry a bounded number of times, then continue regardless.
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            wsl --update
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Write-Warning "wsl --update failed (exit $LASTEXITCODE), attempt $attempt/3."
+            Start-Sleep -Seconds 5
+          }
+          Write-Warning "wsl --update did not succeed; continuing with the preinstalled WSL."
+          exit 0
       - name: WSL version
         run: wsl --version
       - name: Build C# tests

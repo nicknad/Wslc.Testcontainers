@@ -16,27 +16,63 @@ jobs:
     env:
       NUGET_PACKAGES: D:\a\.nuget\packages
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
+      # Heavy module images (Keycloak, Elasticsearch, Kafka, ...) cold-pull under CI
+      # load; 60s (the library default) is marginal. Builders with explicit timeouts
+      # are unaffected; the rest get extra headroom against transient slowness.
+      WSLC_TIMEOUT: "120"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - name: Update WSL (best effort)
+      - name: Update WSL (resilient)
         shell: pwsh
         run: |
-          # wsl --update intermittently returns HTTP 403 (Wsl/UpdatePackage/0x80190193).
-          # WSL ships preinstalled on the runner, so a failed refresh must not mask test
-          # results; retry a bounded number of times, then continue regardless.
-          for ($attempt = 1; $attempt -le 3; $attempt++) {
+          # wsl --update intermittently returns HTTP 403 (Wsl/UpdatePackage/0x80190193)
+          # when the Microsoft Store endpoint throttles the runner. The preinstalled WSL
+          # (currently 2.7.x) is older than the 2.9.3 container floor, so an unpatched
+          # runtime guarantees every test fails with WslRuntimeException. Retry with
+          # exponential backoff and fall back to --web-download (bypasses the Store).
+          wsl --shutdown 2>$null
+          $delays = @(5, 10, 20, 30, 30)
+          $updated = $false
+          for ($attempt = 1; $attempt -le $delays.Count; $attempt++) {
+            Write-Host "Attempt $attempt/$($delays.Count): wsl --update"
             wsl --update
-            if ($LASTEXITCODE -eq 0) { exit 0 }
-            Write-Warning "wsl --update failed (exit $LASTEXITCODE), attempt $attempt/3."
-            Start-Sleep -Seconds 5
+            if ($LASTEXITCODE -eq 0) { $updated = $true; break }
+            Write-Warning "wsl --update failed (exit $LASTEXITCODE), attempt $attempt/$($delays.Count)."
+            Write-Host "Attempt $attempt/$($delays.Count): wsl --update --web-download (Store bypass)"
+            wsl --update --web-download
+            if ($LASTEXITCODE -eq 0) { $updated = $true; break }
+            Write-Warning "wsl --update --web-download failed (exit $LASTEXITCODE), attempt $attempt/$($delays.Count)."
+            Start-Sleep -Seconds $delays[$attempt - 1]
           }
-          Write-Warning "wsl --update did not succeed; continuing with the preinstalled WSL."
+          if (-not $updated) {
+            Write-Warning "wsl --update did not succeed; the version gate below will fail fast with diagnostics."
+          }
           exit 0
       - name: WSL version
         run: wsl --version
+      - name: Verify WSL version (fail fast on infra)
+        shell: pwsh
+        run: |
+          # Fail the job here when the runtime is still below the 2.9.3 container floor
+          # instead of running 20 minutes of tests that are guaranteed to throw
+          # WslRuntimeException. This keeps infra outages (Store 403, stale runner image)
+          # distinguishable from real test failures.
+          # wsl.exe emits UTF-16; strip embedded NULs so the regex matches reliably.
+          $raw = ((wsl --version) | Out-String).Replace("`0", "")
+          Write-Host $raw
+          $match = [regex]::Match($raw, 'WSL\s+version:\s*(\d+)\.(\d+)\.(\d+)')
+          if (-not $match.Success) {
+            throw "Could not parse 'wsl --version' output; the WSL runtime looks unavailable.`n$raw"
+          }
+          $version = [Version]::new([int]$match.Groups[1].Value, [int]$match.Groups[2].Value, [int]$match.Groups[3].Value)
+          $minimum = [Version]::new(2, 9, 3)
+          if ($version -lt $minimum) {
+            throw "WSL $version is below the required $minimum (wsl --update failed, likely Store 403 Wsl/UpdatePackage/0x80190193). Failing fast; retry the workflow rather than debugging tests."
+          }
+          Write-Host "WSL $version meets the $minimum floor."
       - name: Build C# tests
         working-directory: csharp
         run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
@@ -80,3 +116,10 @@ jobs:
         run: ctest --test-dir cpp/build/tests -R "Integration" --output-on-failure
         env:
           WSLC_RUN_INTEGRATION: "1"
+      - name: Collect WSL diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          wsl --version
+          wsl --status
+          wsl --list --verbose

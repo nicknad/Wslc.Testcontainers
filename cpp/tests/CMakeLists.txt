@@ -69,4 +69,8 @@ wslc_apply_strict_options(wslc_tests)
 wslc_copy_sdk_runtime(wslc_tests)
 
 include(GoogleTest)
-gtest_discover_tests(wslc_tests DISCOVERY_TIMEOUT 60)
+# Bound every discovered test so a wedged WSL session fails the CTest entry instead of hanging the
+# job until the runner timeout. 20 minutes clears the heaviest module startup (Elasticsearch's
+# 5-minute wait budget derives a 10.5-minute startup, plus a cold image pull) with margin; the
+# fast unit tests never approach it.
+gtest_discover_tests(wslc_tests DISCOVERY_TIMEOUT 60 PROPERTIES TIMEOUT 1200)

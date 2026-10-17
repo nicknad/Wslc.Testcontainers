@@ -10,69 +10,32 @@ permissions:
   contents: read
 
 jobs:
-  integration:
+  # Each phase runs on its own fresh runner. The C# module phase spins up ~15 sessions and
+  # cold-pulls the heaviest images, so isolating it (and the C++ suite) keeps one starved VM
+  # from taking the whole run down and lets the phases run in parallel.
+  csharp-core:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     env:
       NUGET_PACKAGES: D:\a\.nuget\packages
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
-      # Heavy module images (Keycloak, Elasticsearch, Kafka, ...) cold-pull under CI
-      # load; 60s (the library default) is marginal. Builders with explicit timeouts
-      # are unaffected; the rest get extra headroom against transient slowness.
+      # Session VHDs (image cache per container) default to %LOCALAPPDATA%\Wslc on C:, whose
+      # free space on a hosted runner is tight. Keep them on the roomier scratch volume so a
+      # long run cannot exhaust C: and take the runner down mid-job.
+      WSLC_DATA_DIRECTORY: D:\a\wslc
+      # Heavy images cold-pull under CI load; 60s (the library default) is marginal. Builders
+      # with explicit timeouts are unaffected; the rest get headroom against transient slowness.
       WSLC_TIMEOUT: "120"
+      # A hosted runner has ~7 GB RAM shared with WSL and the session VHDs. Cap every session so a
+      # leaked or concurrent one cannot exhaust memory; builders that set their own caps still win.
+      WSLC_CPU_COUNT: "2"
+      WSLC_MEMORY_MEGABYTES: "2048"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - name: Update WSL (resilient)
-        shell: pwsh
-        run: |
-          # wsl --update intermittently returns HTTP 403 (Wsl/UpdatePackage/0x80190193)
-          # when the Microsoft Store endpoint throttles the runner. The preinstalled WSL
-          # (currently 2.7.x) is older than the 2.9.3 container floor, so an unpatched
-          # runtime guarantees every test fails with WslRuntimeException. Retry with
-          # exponential backoff and fall back to --web-download (bypasses the Store).
-          wsl --shutdown 2>$null
-          $delays = @(5, 10, 20, 30, 30)
-          $updated = $false
-          for ($attempt = 1; $attempt -le $delays.Count; $attempt++) {
-            Write-Host "Attempt $attempt/$($delays.Count): wsl --update"
-            wsl --update
-            if ($LASTEXITCODE -eq 0) { $updated = $true; break }
-            Write-Warning "wsl --update failed (exit $LASTEXITCODE), attempt $attempt/$($delays.Count)."
-            Write-Host "Attempt $attempt/$($delays.Count): wsl --update --web-download (Store bypass)"
-            wsl --update --web-download
-            if ($LASTEXITCODE -eq 0) { $updated = $true; break }
-            Write-Warning "wsl --update --web-download failed (exit $LASTEXITCODE), attempt $attempt/$($delays.Count)."
-            Start-Sleep -Seconds $delays[$attempt - 1]
-          }
-          if (-not $updated) {
-            Write-Warning "wsl --update did not succeed; the version gate below will fail fast with diagnostics."
-          }
-          exit 0
-      - name: WSL version
-        run: wsl --version
-      - name: Verify WSL version (fail fast on infra)
-        shell: pwsh
-        run: |
-          # Fail the job here when the runtime is still below the 2.9.3 container floor
-          # instead of running 20 minutes of tests that are guaranteed to throw
-          # WslRuntimeException. This keeps infra outages (Store 403, stale runner image)
-          # distinguishable from real test failures.
-          # wsl.exe emits UTF-16; strip embedded NULs so the regex matches reliably.
-          $raw = ((wsl --version) | Out-String).Replace("`0", "")
-          Write-Host $raw
-          $match = [regex]::Match($raw, 'WSL\s+version:\s*(\d+)\.(\d+)\.(\d+)')
-          if (-not $match.Success) {
-            throw "Could not parse 'wsl --version' output; the WSL runtime looks unavailable.`n$raw"
-          }
-          $version = [Version]::new([int]$match.Groups[1].Value, [int]$match.Groups[2].Value, [int]$match.Groups[3].Value)
-          $minimum = [Version]::new(2, 9, 3)
-          if ($version -lt $minimum) {
-            throw "WSL $version is below the required $minimum (wsl --update failed, likely Store 403 Wsl/UpdatePackage/0x80190193). Failing fast; retry the workflow rather than debugging tests."
-          }
-          Write-Host "WSL $version meets the $minimum floor."
+      - uses: ./.github/actions/setup-wsl
       - name: Build C# tests
         working-directory: csharp
         run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
@@ -81,6 +44,30 @@ jobs:
         run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName~Integration"
         env:
           WSLC_RUN_INTEGRATION: "1"
+      - name: Collect WSL diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          wsl --version
+          wsl --status
+          wsl --list --verbose
+
+  csharp-modules:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      NUGET_PACKAGES: D:\a\.nuget\packages
+      NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
+      WSLC_DATA_DIRECTORY: D:\a\wslc
+      WSLC_TIMEOUT: "120"
+      WSLC_CPU_COUNT: "2"
+      WSLC_MEMORY_MEGABYTES: "2048"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - uses: ./.github/actions/setup-wsl
       - name: Run module integration tests (real containers)
         working-directory: csharp
         run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal
@@ -91,6 +78,34 @@ jobs:
         run: dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal
         env:
           WSLC_RUN_INTEGRATION: "1"
+      - name: Collect WSL diagnostics on failure
+        if: failure()
+        shell: pwsh
+        run: |
+          wsl --version
+          wsl --status
+          wsl --list --verbose
+          Get-PSDrive -PSProvider FileSystem |
+            Select-Object Name, @{ Name = 'FreeGB'; Expression = { [math]::Round($_.Free / 1GB, 1) } } |
+            Format-Table | Out-String | Write-Host
+          if (Test-Path $env:WSLC_DATA_DIRECTORY) {
+            $bytes = (Get-ChildItem $env:WSLC_DATA_DIRECTORY -Recurse -File -ErrorAction SilentlyContinue |
+              Measure-Object Length -Sum).Sum
+            Write-Host ("WSLC_DATA_DIRECTORY {0:N2} GB" -f ($bytes / 1GB))
+          }
+
+  cpp:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      # C++ integration tests create sessions too; keep their VHDs off the tight C: drive.
+      WSLC_DATA_DIRECTORY: D:\a\wslc
+      WSLC_TIMEOUT: "120"
+      WSLC_CPU_COUNT: "2"
+      WSLC_MEMORY_MEGABYTES: "2048"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-wsl
       - name: Cache WSL Containers SDK
         uses: actions/cache@v6
         with:

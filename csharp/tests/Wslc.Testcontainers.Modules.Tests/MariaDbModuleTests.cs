@@ -1,5 +1,5 @@
 using Wslc.Testcontainers.Modules.MariaDb;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;
@@ -30,12 +30,15 @@ public sealed class MariaDbModuleTests
     {
         await using var mariadb = new MariaDbBuilder().Build();
 
-        await mariadb.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await mariadb.StartAsync(cancellationToken);
 
         Assert.StartsWith("Server=127.0.0.1;", mariadb.GetConnectionString(), StringComparison.Ordinal);
         var result = await mariadb.ExecAsync(
             "mariadb",
-            ["-u", "mariadb", "--password=secret", "-D", "customers", "-e", "SELECT 1"]);
+            ["-u", "mariadb", "--password=secret", "-D", "customers", "-e", "SELECT 1"],
+            new ExecOptions { Timeout = TimeSpan.FromSeconds(60) },
+            cancellationToken);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("1", result.Stdout, StringComparison.Ordinal);

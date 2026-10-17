@@ -1,6 +1,6 @@
 using System.Net.Http;
 using Wslc.Testcontainers.Modules.RustFs;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;
@@ -38,7 +38,7 @@ public sealed class RustFsModuleTests
     {
         await using var rustfs = new RustFsBuilder().Build();
 
-        await rustfs.StartAsync();
+        await rustfs.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("http://127.0.0.1:", rustfs.GetEndpoint(), StringComparison.Ordinal);
         using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };

@@ -349,6 +349,25 @@ WslContainer WslContainerBuilder::Build()
         }
     }
 
+    // Process-wide session caps (WSLC_CPU_COUNT / WSLC_MEMORY_MEGABYTES). An explicit builder
+    // value always wins; these only fill the gap so leaked or concurrent sessions stay bounded on
+    // a constrained Host such as a CI runner.
+    if (!configuration.CpuCount)
+    {
+        if (const auto DefaultCpuCount = WslEnvironment::DefaultCpuCount())
+        {
+            configuration.CpuCount = *DefaultCpuCount;
+        }
+    }
+
+    if (!configuration.MemoryMb)
+    {
+        if (const auto DefaultMemoryMb = WslEnvironment::DefaultMemoryMegabytes())
+        {
+            configuration.MemoryMb = *DefaultMemoryMb;
+        }
+    }
+
     if (!configuration.Image && !configuration.TarballPath)
     {
         throw WslException(std::string("No Image Source configured. Call WithImage(...) or FromTarball(...), or set ") +

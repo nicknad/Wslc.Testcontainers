@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Shared with the core and example test projects; see tests/Support. -->
+    <Compile Include="..\Support\IntegrationFactAttribute.cs" Link="Support\IntegrationFactAttribute.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Wslc.Testcontainers\Wslc.Testcontainers.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Valkey\Wslc.Testcontainers.Modules.Valkey.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.MariaDb\Wslc.Testcontainers.Modules.MariaDb.csproj" />

@@ -1,6 +1,6 @@
 using System.Net.Http;
 using Wslc.Testcontainers.Modules.ClickHouse;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;
@@ -33,7 +33,7 @@ public sealed class ClickHouseModuleTests
     {
         await using var clickhouse = new ClickHouseBuilder().Build();
 
-        await clickhouse.StartAsync();
+        await clickhouse.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("Host=127.0.0.1;Port=", clickhouse.GetConnectionString(), StringComparison.Ordinal);
         var endpoint = clickhouse.GetConnectEndpoint(ClickHouseContainer.HttpPort);

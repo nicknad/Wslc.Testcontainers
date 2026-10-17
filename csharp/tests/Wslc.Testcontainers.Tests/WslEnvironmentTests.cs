@@ -149,4 +149,21 @@ public sealed class WslEnvironmentTests
     {
         Assert.Null(WslEnvironment.ParseTimeout(null));
     }
+
+    [Theory]
+    [InlineData("1", 64u, 1u)]
+    [InlineData("4", 64u, 4u)]
+    [InlineData("64", 64u, 64u)]
+    [InlineData("0", 64u, null)]
+    [InlineData("-1", 64u, null)]
+    [InlineData("65", 64u, null)]
+    [InlineData("abc", 64u, null)]
+    [InlineData("4.0", 64u, null)]
+    [InlineData(" 4", 64u, null)]
+    [InlineData("", 64u, null)]
+    [InlineData(null, 64u, null)]
+    public void ParseCount_accepts_only_unsigned_values_within_range(string? value, uint maximum, uint? expected)
+    {
+        Assert.Equal(expected, WslEnvironment.ParseCount(value, maximum));
+    }
 }

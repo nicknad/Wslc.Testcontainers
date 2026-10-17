@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net.Http;
 using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Provisioning;
-using Wslc.Testcontainers.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Wslc.Testcontainers.Waiting;
 using Xunit;
 
@@ -19,6 +19,7 @@ public sealed class IntegrationTests
     [IntegrationFact]
     public void Runtime_components_are_available()
     {
+        TestContext.Current.CancellationToken.ThrowIfCancellationRequested();
         Assert.Empty(WslcService.GetMissingComponents());
         Assert.True(WslcService.GetVersion().Major >= 2);
     }
@@ -30,9 +31,10 @@ public sealed class IntegrationTests
             .WithImage(TestImage).WithKeepAliveShell()
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
-        var result = await container.ExecAsync("/bin/sh", ["-c", "echo hello-wslc"]);
+        var result = await container.ExecAsync("/bin/sh", ["-c", "echo hello-wslc"], cancellationToken: cancellationToken);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("hello-wslc", result.Stdout);
@@ -46,10 +48,11 @@ public sealed class IntegrationTests
             .WithImage(TestImage).WithKeepAliveShell()
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
         // Pipeline + command substitution, which ExecAsync cannot express (no shell).
-        var result = await container.ExecShellAsync("echo \"$(printf wslc)-shell\" | tr a-z A-Z");
+        var result = await container.ExecShellAsync("echo \"$(printf wslc)-shell\" | tr a-z A-Z", cancellationToken: cancellationToken);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("WSLC-SHELL", result.Stdout.Trim());
@@ -63,9 +66,10 @@ public sealed class IntegrationTests
             .WithEnvironment("WSLC_TEST_VALUE", "hello")
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
-        var result = await container.ExecAsync("/bin/sh", ["-c", "printf %s \"$WSLC_TEST_VALUE\""]);
+        var result = await container.ExecAsync("/bin/sh", ["-c", "printf %s \"$WSLC_TEST_VALUE\""], cancellationToken: cancellationToken);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Equal("hello", result.Stdout);
@@ -84,14 +88,15 @@ public sealed class IntegrationTests
                 .WithImage(TestImage).WithKeepAliveShell()
                 .Build();
 
-            await container.StartAsync();
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await container.StartAsync(cancellationToken);
 
-            await container.CopyToAsync(source, "/tmp/wslc-test.txt");
-            var cat = await container.ExecAsync("/bin/cat", ["/tmp/wslc-test.txt"]);
+            await container.CopyToAsync(source, "/tmp/wslc-test.txt", cancellationToken);
+            var cat = await container.ExecAsync("/bin/cat", ["/tmp/wslc-test.txt"], cancellationToken: cancellationToken);
             Assert.Equal("wslc-file-content", cat.Stdout);
 
-            await container.CopyFromAsync("/tmp/wslc-test.txt", destination);
-            Assert.Equal("wslc-file-content", await File.ReadAllTextAsync(destination));
+            await container.CopyFromAsync("/tmp/wslc-test.txt", destination, cancellationToken);
+            Assert.Equal("wslc-file-content", await File.ReadAllTextAsync(destination, cancellationToken));
         }
         finally
         {
@@ -119,11 +124,12 @@ public sealed class IntegrationTests
                     .UntilHttpRequestSucceeds("/", 8080))
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
         using var client = new HttpClient();
         var endpoint = container.GetConnectEndpoint(8080);
-        var response = await client.GetAsync($"http://{endpoint}/");
+        var response = await client.GetAsync($"http://{endpoint}/", cancellationToken);
 
         Assert.True(response.IsSuccessStatusCode);
     }
@@ -143,7 +149,8 @@ public sealed class IntegrationTests
 
         var name = container.Name;
 
-        await Assert.ThrowsAsync<WslReadinessException>(() => container.StartAsync());
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await Assert.ThrowsAsync<WslReadinessException>(() => container.StartAsync(cancellationToken));
         Assert.False(Directory.Exists(WslInstanceStore.Default.GetInstanceDirectory(name)));
 
         await container.DisposeAsync();
@@ -157,9 +164,10 @@ public sealed class IntegrationTests
             .WithNetworkingMode(ContainerNetworkMode.Isolated)
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
-        var result = await container.ExecAsync("/bin/sh", ["-c", "echo offline-ok"]);
+        var result = await container.ExecAsync("/bin/sh", ["-c", "echo offline-ok"], cancellationToken: cancellationToken);
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("offline-ok", result.Stdout);
@@ -174,16 +182,17 @@ public sealed class IntegrationTests
             .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024)
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
-        var write = await container.ExecAsync("/bin/sh", ["-c", "echo persisted > /scratch/data.txt && cat /scratch/data.txt"]);
+        var write = await container.ExecAsync("/bin/sh", ["-c", "echo persisted > /scratch/data.txt && cat /scratch/data.txt"], cancellationToken: cancellationToken);
         Assert.Equal(0, write.ExitCode);
         Assert.Equal("persisted", write.Stdout.Trim());
 
-        await container.StopAsync();
-        await container.StartAsync();
+        await container.StopAsync(cancellationToken);
+        await container.StartAsync(cancellationToken);
 
-        var exists = await container.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"]);
+        var exists = await container.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"], cancellationToken: cancellationToken);
         Assert.NotEqual(0, exists.ExitCode);
     }
 
@@ -194,6 +203,7 @@ public sealed class IntegrationTests
         // pipeline runs with GITHUB_ACTIONS=1, so opt in for this test only.
         var previous = Environment.GetEnvironmentVariable(WslEnvironment.ReuseInCiVariable);
         Environment.SetEnvironmentVariable(WslEnvironment.ReuseInCiVariable, "1");
+        var cancellationToken = TestContext.Current.CancellationToken;
         try
         {
             // A per-run environment value makes the configuration hash unique, so the first
@@ -209,13 +219,13 @@ public sealed class IntegrationTests
             var storageDirectory = WslInstanceStore.Default.GetSessionStorageDirectory(name);
             try
             {
-                await first.StartAsync();
+                await first.StartAsync(cancellationToken);
                 Assert.True(first.IsStarted);
                 Assert.Contains(
-                    await ReadLogHistoryAsync(first),
+                    await ReadLogHistoryAsync(first, cancellationToken),
                     line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
 
-                var write = await first.ExecAsync("/bin/sh", ["-c", "echo persisted > /scratch/data.txt"]);
+                var write = await first.ExecAsync("/bin/sh", ["-c", "echo persisted > /scratch/data.txt"], cancellationToken: cancellationToken);
                 Assert.Equal(0, write.ExitCode);
 
                 await first.DisposeAsync();
@@ -232,16 +242,16 @@ public sealed class IntegrationTests
                     .WithReuse()
                     .Build();
                 Assert.Equal(name, second.Name);
-                await second.StartAsync();
+                await second.StartAsync(cancellationToken);
                 try
                 {
                     Assert.True(second.IsStarted);
                     Assert.DoesNotContain(
-                        await ReadLogHistoryAsync(second),
+                        await ReadLogHistoryAsync(second, cancellationToken),
                         line => line.Text.Contains("pulling image", StringComparison.OrdinalIgnoreCase));
 
                     // The scratch volume is recreated empty even though the session VHD persists.
-                    var exists = await second.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"]);
+                    var exists = await second.ExecAsync("/bin/sh", ["-c", "test -e /scratch/data.txt"], cancellationToken: cancellationToken);
                     Assert.NotEqual(0, exists.ExitCode);
                 }
                 finally
@@ -261,10 +271,11 @@ public sealed class IntegrationTests
     }
 
     /// <summary>Reads the replayed log history; a short window is enough because it is buffered.</summary>
-    private static async Task<List<LogLine>> ReadLogHistoryAsync(WslContainer container)
+    private static async Task<List<LogLine>> ReadLogHistoryAsync(WslContainer container, CancellationToken cancellationToken)
     {
         var lines = new List<LogLine>();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(3));
         try
         {
             await foreach (var line in container.SubscribeLogs(cancellation.Token))
@@ -287,12 +298,13 @@ public sealed class IntegrationTests
             .WithScratchVolume("scratch", "/scratch", 64UL * 1024 * 1024, VolumeAccess.ReadOnly, VhdAllocationType.Fixed)
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
-        var mount = await container.ExecAsync("/bin/sh", ["-c", "test -d /scratch"]);
+        var mount = await container.ExecAsync("/bin/sh", ["-c", "test -d /scratch"], cancellationToken: cancellationToken);
         Assert.Equal(0, mount.ExitCode);
 
-        var write = await container.ExecAsync("/bin/sh", ["-c", "echo nope > /scratch/data.txt"]);
+        var write = await container.ExecAsync("/bin/sh", ["-c", "echo nope > /scratch/data.txt"], cancellationToken: cancellationToken);
         Assert.NotEqual(0, write.ExitCode);
     }
 
@@ -306,12 +318,13 @@ public sealed class IntegrationTests
             .WithMemoryMegabytes(1024)
             .Build();
 
-        await container.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await container.StartAsync(cancellationToken);
 
-        var cpus = await container.ExecAsync("nproc");
+        var cpus = await container.ExecAsync("nproc", cancellationToken: cancellationToken);
         Assert.Equal(cpuCount, uint.Parse(cpus.Stdout.Trim(), CultureInfo.InvariantCulture));
 
-        var memory = await container.ExecAsync("/bin/sh", ["-c", "awk '/MemTotal/ {print $2}' /proc/meminfo"]);
+        var memory = await container.ExecAsync("/bin/sh", ["-c", "awk '/MemTotal/ {print $2}' /proc/meminfo"], cancellationToken: cancellationToken);
         var memoryKb = long.Parse(memory.Stdout.Trim(), CultureInfo.InvariantCulture);
         Assert.InRange(memoryKb, 300_000, 1_500_000);
     }
@@ -330,9 +343,10 @@ public sealed class IntegrationTests
                 .WithVolume(hostDirectory, "/workspace")
                 .Build();
 
-            await container.StartAsync();
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await container.StartAsync(cancellationToken);
 
-            var result = await container.ExecAsync("/bin/cat", ["/workspace/data.txt"]);
+            var result = await container.ExecAsync("/bin/cat", ["/workspace/data.txt"], cancellationToken: cancellationToken);
 
             Assert.Equal(0, result.ExitCode);
             Assert.Equal("mounted", result.Stdout);

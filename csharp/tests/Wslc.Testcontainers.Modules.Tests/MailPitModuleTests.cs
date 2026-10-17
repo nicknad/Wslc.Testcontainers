@@ -2,7 +2,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using Wslc.Testcontainers.Modules.MailPit;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;
@@ -25,7 +25,7 @@ public sealed class MailPitModuleTests
     {
         await using var mailpit = new MailPitBuilder().Build();
 
-        await mailpit.StartAsync();
+        await mailpit.StartAsync(TestContext.Current.CancellationToken);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));

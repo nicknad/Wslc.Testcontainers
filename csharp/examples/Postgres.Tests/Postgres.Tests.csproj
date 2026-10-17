@@ -17,6 +17,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Shared with the core and module test projects; see tests/Support. -->
+    <Compile Include="..\..\tests\Support\IntegrationFactAttribute.cs" Link="Support\IntegrationFactAttribute.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.PostgreSql\Wslc.Testcontainers.Modules.PostgreSql.csproj" />
   </ItemGroup>
 

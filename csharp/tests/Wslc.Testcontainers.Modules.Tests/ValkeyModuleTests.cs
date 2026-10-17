@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Wslc.Testcontainers.Modules.Valkey;
 using Xunit;
 
@@ -33,19 +33,21 @@ public sealed class ValkeyModuleTests
     {
         await using var valkey = new ValkeyBuilder().Build();
 
-        await valkey.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await valkey.StartAsync(cancellationToken);
 
         var endpoint = valkey.GetEndpoint();
         var separator = endpoint.LastIndexOf(':');
         using var client = new TcpClient();
         await client.ConnectAsync(
             endpoint[..separator],
-            int.Parse(endpoint[(separator + 1)..], CultureInfo.InvariantCulture));
+            int.Parse(endpoint[(separator + 1)..], CultureInfo.InvariantCulture),
+            cancellationToken);
         using var stream = client.GetStream();
 
-        await stream.WriteAsync(Encoding.ASCII.GetBytes("PING\r\n"));
+        await stream.WriteAsync(Encoding.ASCII.GetBytes("PING\r\n"), cancellationToken);
         var buffer = new byte[32];
-        var read = await stream.ReadAsync(buffer);
+        var read = await stream.ReadAsync(buffer, cancellationToken);
 
         Assert.StartsWith("+PONG", Encoding.ASCII.GetString(buffer, 0, read), StringComparison.Ordinal);
     }

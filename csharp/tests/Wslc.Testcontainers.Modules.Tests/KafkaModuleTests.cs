@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Net.Sockets;
 using Wslc.Testcontainers.Modules.Kafka;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;
@@ -32,7 +32,7 @@ public sealed class KafkaModuleTests
     {
         await using var kafka = new KafkaBuilder().Build();
 
-        await kafka.StartAsync();
+        await kafka.StartAsync(TestContext.Current.CancellationToken);
 
         var bootstrap = kafka.GetBootstrapServers();
         Assert.StartsWith("127.0.0.1:", bootstrap, StringComparison.Ordinal);
@@ -43,7 +43,8 @@ public sealed class KafkaModuleTests
         // advertised listener points at the Windows host, not the container).
         var endpoint = kafka.GetConnectEndpoint(KafkaContainer.DefaultPort);
         using var client = new TcpClient();
-        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        cancellation.CancelAfter(TimeSpan.FromSeconds(15));
         await client.ConnectAsync(endpoint.Address, endpoint.Port, cancellation.Token);
         using var stream = client.GetStream();
 

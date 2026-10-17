@@ -1,7 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
 using Wslc.Testcontainers.Modules.Nats;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;
@@ -40,7 +40,7 @@ public sealed class NatsModuleTests
     {
         await using var nats = new NatsBuilder().WithJetStream().Build();
 
-        await nats.StartAsync();
+        await nats.StartAsync(TestContext.Current.CancellationToken);
 
         var connectionString = nats.GetConnectionString();
         Assert.StartsWith("nats://127.0.0.1:", connectionString, StringComparison.Ordinal);

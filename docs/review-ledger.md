@@ -40,7 +40,7 @@ binary needs the runtime DLL).
 | R3-12 | C# MariaDB connection string stays hand-rolled (`Server=`/`User ID=`) | ACCEPTED | genuine format difference from `FormatConnectionString` (`Host=`/`Username=`) |
 | R3-13 | C++ test structure not mirrored to the C# folder layout | OPEN | former REV2-TEST-STRUCT |
 | R3-14 | No SBOM/dependency-update coverage for C++ gtest | OPEN | former REV2-SBOM/N5 |
-| R3-15 | `IntegrationFactAttribute` duplicated across test projects; `mklink /J` helper duplicated | OPEN | `Support/IntegrationFactAttribute.cs` ×2; `HostFileTests.cs:131-151`, `WslInstanceStoreTests.cs:149-163` |
+| R3-15 | `IntegrationFactAttribute` duplicated across test projects; `mklink /J` helper duplicated | PARTIAL | attribute folded into shared `tests/Support/IntegrationFactAttribute.cs` (linked via `<Compile Include>`); `mklink /J` still duplicated in `HostFileTests.cs:131-151`, `WslInstanceStoreTests.cs:149-163` |
 | R3-16 | Seven module tests copy-paste HttpClient/CancellationTokenSource setup | OPEN | ClickHouse/Elasticsearch/Keycloak/MailPit/Qdrant/Vault/WireMock |
 | R3-17 | Redis is the only module with no test in either language | OPEN | at least a builder/connection-string test |
 | R3-18 | Several wait-strategy tests assert only "did not throw" | OPEN | add probe/handler call counts |

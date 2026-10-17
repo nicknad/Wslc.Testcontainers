@@ -34,6 +34,19 @@ public static class WslEnvironment
     /// <summary>Overrides the session identifier used to name WSLC instances. Snapshotted once per process.</summary>
     public const string SessionIdVariable = "WSLC_SESSION_ID";
 
+    /// <summary>
+    /// Default session CPU cap applied when a builder does not call <c>WithCpuCount</c>. Lets a
+    /// host (e.g. CI) bound every session so leaked or concurrent sessions cannot starve the box.
+    /// </summary>
+    public const string CpuCountVariable = "WSLC_CPU_COUNT";
+
+    /// <summary>
+    /// Default session memory cap in megabytes applied when a builder does not call
+    /// <c>WithMemoryMegabytes</c>. Lets a host (e.g. CI) bound every session so leaked or
+    /// concurrent sessions cannot exhaust the runner's memory.
+    /// </summary>
+    public const string MemoryMegabytesVariable = "WSLC_MEMORY_MEGABYTES";
+
     internal static readonly TimeSpan DefaultWaitTimeoutValue = TimeSpan.FromSeconds(60);
 
     /// <summary>Maximum length of a session identifier.</summary>
@@ -158,6 +171,10 @@ public static class WslEnvironment
 
     internal static TimeSpan DefaultWaitTimeout => ParseTimeout(GetNonEmpty(TimeoutVariable)) ?? DefaultWaitTimeoutValue;
 
+    internal static uint? DefaultCpuCount => ParseCount(GetNonEmpty(CpuCountVariable), Internal.BuilderLimits.MaxCpuCount);
+
+    internal static uint? DefaultMemoryMegabytes => ParseCount(GetNonEmpty(MemoryMegabytesVariable), Internal.BuilderLimits.MaxMemoryMB);
+
     internal static bool ReuseAllowed =>
         !IsContinuousIntegration || (ParseBool(GetNonEmpty(ReuseInCiVariable)) ?? false);
 
@@ -238,6 +255,19 @@ public static class WslEnvironment
         }
 
         return TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var parsed) && parsed > TimeSpan.Zero
+            ? parsed
+            : null;
+    }
+
+    /// <summary>
+    /// Parses an unsigned count in [1, <paramref name="maximum"/>]; anything else (unset,
+    /// non-numeric, zero or out of range) yields null so callers fall back to the runtime default.
+    /// </summary>
+    internal static uint? ParseCount(string? value, uint maximum)
+    {
+        return uint.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var parsed) &&
+               parsed >= 1 &&
+               parsed <= maximum
             ? parsed
             : null;
     }

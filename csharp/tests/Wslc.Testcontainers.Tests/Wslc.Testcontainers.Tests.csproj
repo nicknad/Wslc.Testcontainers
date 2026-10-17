@@ -16,6 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Shared with the module and example test projects; see tests/Support. -->
+    <Compile Include="..\Support\IntegrationFactAttribute.cs" Link="Support\IntegrationFactAttribute.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Wslc.Testcontainers\Wslc.Testcontainers.csproj" />
   </ItemGroup>
 

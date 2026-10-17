@@ -26,6 +26,10 @@ jobs:
       # Heavy images cold-pull under CI load; 60s (the library default) is marginal. Builders
       # with explicit timeouts are unaffected; the rest get headroom against transient slowness.
       WSLC_TIMEOUT: "120"
+      # A hosted runner has ~7 GB RAM shared with WSL and the session VHDs. Cap every session so a
+      # leaked or concurrent one cannot exhaust memory; builders that set their own caps still win.
+      WSLC_CPU_COUNT: "2"
+      WSLC_MEMORY_MEGABYTES: "2048"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -56,6 +60,8 @@ jobs:
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
       WSLC_DATA_DIRECTORY: D:\a\wslc
       WSLC_TIMEOUT: "120"
+      WSLC_CPU_COUNT: "2"
+      WSLC_MEMORY_MEGABYTES: "2048"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -95,6 +101,8 @@ jobs:
       # C++ integration tests create sessions too; keep their VHDs off the tight C: drive.
       WSLC_DATA_DIRECTORY: D:\a\wslc
       WSLC_TIMEOUT: "120"
+      WSLC_CPU_COUNT: "2"
+      WSLC_MEMORY_MEGABYTES: "2048"
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-wsl

@@ -2,7 +2,7 @@ using System.Net.Http;
 using System.Net.Sockets;
 using System.Text;
 using Wslc.Testcontainers.Modules.MailPit;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;

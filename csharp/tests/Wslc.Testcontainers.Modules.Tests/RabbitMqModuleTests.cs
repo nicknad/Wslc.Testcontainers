@@ -1,6 +1,6 @@
 using System.Net.Sockets;
 using Wslc.Testcontainers.Modules.RabbitMq;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;

@@ -309,7 +309,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithPort(containerPort)` / `WithPort(port, bindAddress)` / `WithPort(port, IPAddress)` | Declare each Linux TCP port you probe or connect to. Host port is dynamic (`0` → runtime-assigned); resolve the address and port with `GetConnectEndpoint(containerPort)`. UDP mappings are not supported — the WSLC runtime returns `E_NOTIMPL` for them. The Windows side binds loopback (`127.0.0.1`) by default; pass a bind address (e.g. `"0.0.0.0"` or `IPAddress.Any`) to override. TCP/HTTP readiness probes honor the configured bind address. |
 | `WithPort(port, hostPort)` / `WithPort(port, hostPort, bindAddress)` | Reserve a specific Windows host port instead of a dynamic one. Use it for services that must advertise the address clients reach them on (e.g. Kafka's advertised listener); `StartAsync` fails if the host port is already in use. |
 | `WithNetworkingMode(mode)` | `Bridged` (default) or `Isolated` (no NIC — full isolation; no ports or network waits allowed; the only containment mode the runtime enforces). |
-| `WithCpuCount(n)` / `WithMemoryMegabytes(n)` | Caps for the session VM (megabytes). Null (default) leaves the runtime default. |
+| `WithCpuCount(n)` / `WithMemoryMegabytes(n)` | Caps for the session VM (megabytes). Unset falls back to `WSLC_CPU_COUNT`/`WSLC_MEMORY_MEGABYTES` when set, otherwise the runtime default. |
 | `WithScratchVolume(name, containerPath, sizeBytes, ...)` | Session VHD volume (native ext4, recreated empty every start). Prefer over bind mounts when data must not be exposed as Windows host files (the VHD still lives under the session storage directory). |
 | `WithWaitStrategy(s)` | Add a readiness condition. All must pass, run sequentially. |
 | `WithFile(hostPath, containerPath)` | Copy one Windows **file** (≤1 GiB, must exist) to an absolute Linux dest at startup. |
@@ -590,6 +590,8 @@ Guidance:
 | `WSLC_CLEANUP` | `0`/`false` disables automatic cleanup + orphan reaper. |
 | `WSLC_REUSE_IN_CI` | `1`/`true` allows reuse under CI (otherwise forced off). |
 | `WSLC_SESSION_ID` | Overrides session id in `wslc-{session}-{random}` names. Snapshotted per process. |
+| `WSLC_CPU_COUNT` | Default session CPU cap (integer) when a builder omits `WithCpuCount`. |
+| `WSLC_MEMORY_MEGABYTES` | Default session memory cap in MB when a builder omits `WithMemoryMegabytes`. |
 
 Truthy = `1/true/yes/on`; falsy = `0/false/no/off` (case-insensitive). Anything else
 is treated as unset.

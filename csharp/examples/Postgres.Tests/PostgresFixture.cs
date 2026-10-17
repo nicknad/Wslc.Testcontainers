@@ -1,4 +1,5 @@
 using Wslc.Testcontainers.Modules.PostgreSql;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Customers.Tests;

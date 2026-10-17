@@ -211,6 +211,40 @@ TEST(ContainerBuilder, WithCpuCountAndMemoryMegabytesRecordLimits)
     EXPECT_THROW(WslContainerBuilder{}.WithMemoryMegabytes(0), WslException);
 }
 
+TEST(ContainerBuilder, CpuAndMemoryDefaultsComeFromEnvironmentWhenUnset)
+{
+    ScopedEnvironmentVariable cpu(L"WSLC_CPU_COUNT", L"2");
+    ScopedEnvironmentVariable memory(L"WSLC_MEMORY_MEGABYTES", L"2048");
+
+    EXPECT_EQ(wslc::WslEnvironment::DefaultCpuCount(), std::optional<std::uint32_t>(2));
+    EXPECT_EQ(wslc::WslEnvironment::DefaultMemoryMegabytes(), std::optional<std::uint32_t>(2048));
+
+    // Build fills the gap from the Environment and stays valid; explicit values still win.
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithKeepAliveShell().Build());
+}
+
+TEST(ContainerBuilder, InvalidCpuAndMemoryEnvironmentValuesAreIgnored)
+{
+    ScopedEnvironmentVariable cpu(L"WSLC_CPU_COUNT", L"0");
+    ScopedEnvironmentVariable memory(L"WSLC_MEMORY_MEGABYTES", L"not-a-number");
+
+    EXPECT_EQ(wslc::WslEnvironment::DefaultCpuCount(), std::nullopt);
+    EXPECT_EQ(wslc::WslEnvironment::DefaultMemoryMegabytes(), std::nullopt);
+
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine").WithKeepAliveShell().Build());
+}
+
+TEST(ContainerBuilder, OutOfRangeCpuAndMemoryEnvironmentValuesAreIgnored)
+{
+    ScopedEnvironmentVariable cpu(L"WSLC_CPU_COUNT", L"65");
+    ScopedEnvironmentVariable memory(L"WSLC_MEMORY_MEGABYTES", L"1048577");
+
+    EXPECT_EQ(wslc::WslEnvironment::DefaultCpuCount(), std::nullopt);
+    EXPECT_EQ(wslc::WslEnvironment::DefaultMemoryMegabytes(), std::nullopt);
+}
+
 TEST(ContainerBuilder, WithNetworkingModeIsolatedRejectsPortsAndNetworkWaits)
 {
     WslContainerBuilder ports;

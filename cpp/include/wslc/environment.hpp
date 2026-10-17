@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -42,6 +43,19 @@ public:
     /// <summary>Overrides the session identifier used to Name WSLC instances. Snapshotted once per process.</summary>
     static constexpr const char* SessionIdVariable = "WSLC_SESSION_ID";
 
+    /// <summary>
+    /// Default session CPU cap applied when a builder does not call WithCpuCount. Lets a Host
+    /// (e.g. CI) bound every session so leaked or concurrent sessions cannot starve the box.
+    /// </summary>
+    static constexpr const char* CpuCountVariable = "WSLC_CPU_COUNT";
+
+    /// <summary>
+    /// Default session memory cap in megabytes applied when a builder does not call
+    /// WithMemoryMegabytes. Lets a Host (e.g. CI) bound every session so leaked or concurrent
+    /// sessions cannot exhaust the runner's memory.
+    /// </summary>
+    static constexpr const char* MemoryMegabytesVariable = "WSLC_MEMORY_MEGABYTES";
+
     /// <summary>Gets the configured default Image, when any.</summary>
     static std::optional<std::string> DefaultImage();
 
@@ -65,6 +79,18 @@ public:
 
     /// <summary>Gets the default Wait Timeout (WSLC_TIMEOUT, default 60s).</summary>
     static std::chrono::milliseconds DefaultWaitTimeout();
+
+    /// <summary>
+    /// Gets the default session CPU cap (WSLC_CPU_COUNT), or nullopt when unset. Out-of-range or
+    /// non-numeric values are treated as unset so callers fall back to the runtime default.
+    /// </summary>
+    static std::optional<std::uint32_t> DefaultCpuCount();
+
+    /// <summary>
+    /// Gets the default session memory cap in megabytes (WSLC_MEMORY_MEGABYTES), or nullopt when
+    /// unset. Out-of-range or non-numeric values are treated as unset.
+    /// </summary>
+    static std::optional<std::uint32_t> DefaultMemoryMegabytes();
 
     /// <summary>Gets a value indicating whether Reuse is allowed (disabled under CI unless WSLC_REUSE_IN_CI is
     /// set).</summary>

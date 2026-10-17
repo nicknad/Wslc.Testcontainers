@@ -1,5 +1,6 @@
 #include "wslc/environment.hpp"
 
+#include "internal/limits.hpp"
 #include "internal/util.hpp"
 
 #include <charconv>
@@ -168,6 +169,26 @@ std::optional<std::chrono::milliseconds> ParseClockTime(std::string_view value)
     return std::chrono::milliseconds(negative ? -total : total);
 }
 
+/// Parses an unsigned count in [1, maximum]; unset, non-numeric, zero or out-of-range inputs fail
+/// closed to nullopt so callers fall back to the runtime default.
+std::optional<std::uint32_t> ParseSessionCount(const std::optional<std::string>& value, std::uint32_t maximum)
+{
+    if (!value)
+    {
+        return std::nullopt;
+    }
+
+    const std::string text = internal::Trim(*value);
+    std::uint32_t parsed = 0;
+    const auto [ptr, error] = std::from_chars(text.data(), text.data() + text.size(), parsed);
+    if (error != std::errc{} || ptr != text.data() + text.size() || parsed < 1 || parsed > maximum)
+    {
+        return std::nullopt;
+    }
+
+    return parsed;
+}
+
 } // namespace
 
 std::optional<std::string> WslEnvironment::GetNonEmpty(const char* Name)
@@ -258,6 +279,16 @@ const std::string& WslEnvironment::SessionId()
 std::chrono::milliseconds WslEnvironment::DefaultWaitTimeout()
 {
     return ParseTimeout(GetNonEmpty(TimeoutVariable)).value_or(std::chrono::seconds(60));
+}
+
+std::optional<std::uint32_t> WslEnvironment::DefaultCpuCount()
+{
+    return ParseSessionCount(GetNonEmpty(CpuCountVariable), internal::c_maxCpuCount);
+}
+
+std::optional<std::uint32_t> WslEnvironment::DefaultMemoryMegabytes()
+{
+    return ParseSessionCount(GetNonEmpty(MemoryMegabytesVariable), internal::c_maxMemoryMb);
 }
 
 bool WslEnvironment::ReuseAllowed()

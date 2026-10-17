@@ -1,5 +1,5 @@
 using System.Net.Http;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Wslc.Testcontainers.Modules.Vault;
 using Xunit;
 

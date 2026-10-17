@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Net.Http;
 using Microsoft.WSL.Containers;
 using Wslc.Testcontainers.Provisioning;
-using Wslc.Testcontainers.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Wslc.Testcontainers.Waiting;
 using Xunit;
 

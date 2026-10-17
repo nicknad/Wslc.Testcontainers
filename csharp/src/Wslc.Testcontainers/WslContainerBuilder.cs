@@ -464,7 +464,20 @@ public sealed class WslContainerBuilder
             configuration.TarballPath is null &&
             WslEnvironment.DefaultImage is { } defaultImage)
         {
-            return configuration with { Image = defaultImage };
+            configuration = configuration with { Image = defaultImage };
+        }
+
+        // Process-wide session caps (WSLC_CPU_COUNT / WSLC_MEMORY_MEGABYTES). An explicit builder
+        // value always wins; these only fill the gap so leaked or concurrent sessions stay bounded
+        // on a constrained host such as a CI runner.
+        if (configuration.CpuCount is null && WslEnvironment.DefaultCpuCount is { } cpuCount)
+        {
+            configuration = configuration with { CpuCount = cpuCount };
+        }
+
+        if (configuration.MemorySizeInMB is null && WslEnvironment.DefaultMemoryMegabytes is { } memoryMegabytes)
+        {
+            configuration = configuration with { MemorySizeInMB = memoryMegabytes };
         }
 
         return configuration;

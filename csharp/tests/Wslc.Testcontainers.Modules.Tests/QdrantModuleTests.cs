@@ -1,6 +1,6 @@
 using System.Net.Http;
 using Wslc.Testcontainers.Modules.Qdrant;
-using Wslc.Testcontainers.Modules.Tests.Support;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;

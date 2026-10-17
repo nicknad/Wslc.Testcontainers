@@ -25,7 +25,7 @@ public sealed class MailPitModuleTests
     {
         await using var mailpit = new MailPitBuilder().Build();
 
-        await mailpit.StartAsync();
+        await mailpit.StartAsync(TestContext.Current.CancellationToken);
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));

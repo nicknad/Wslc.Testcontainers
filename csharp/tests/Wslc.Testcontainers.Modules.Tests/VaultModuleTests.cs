@@ -34,7 +34,7 @@ public sealed class VaultModuleTests
     {
         await using var vault = new VaultBuilder().Build();
 
-        await vault.StartAsync();
+        await vault.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("http://127.0.0.1:", vault.GetAddress(), StringComparison.Ordinal);
         Assert.Equal("root", vault.RootToken);

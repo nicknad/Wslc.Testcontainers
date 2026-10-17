@@ -33,7 +33,7 @@ public sealed class PostgreSqlModuleTests
     {
         await using var postgres = new PostgreSqlBuilder().Build();
 
-        await postgres.StartAsync();
+        await postgres.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("Host=127.0.0.1;", postgres.GetConnectionString(), StringComparison.Ordinal);
         var result = await postgres.ExecAsync(

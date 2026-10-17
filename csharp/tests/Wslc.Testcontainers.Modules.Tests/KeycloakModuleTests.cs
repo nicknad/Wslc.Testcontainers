@@ -39,7 +39,7 @@ public sealed class KeycloakModuleTests
             .WithWaitTimeout(TimeSpan.FromMinutes(3))
             .Build();
 
-        await keycloak.StartAsync();
+        await keycloak.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("http://127.0.0.1:", keycloak.GetEndpoint(), StringComparison.Ordinal);
         Assert.Equal("admin", keycloak.AdminUsername);

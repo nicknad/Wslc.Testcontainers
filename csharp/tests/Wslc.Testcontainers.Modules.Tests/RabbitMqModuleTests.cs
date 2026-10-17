@@ -33,23 +33,24 @@ public sealed class RabbitMqModuleTests
     {
         await using var rabbitmq = new RabbitMqBuilder().Build();
 
-        await rabbitmq.StartAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await rabbitmq.StartAsync(cancellationToken);
 
         Assert.StartsWith("amqp://rabbit:secret@127.0.0.1:", rabbitmq.GetConnectionString(), StringComparison.Ordinal);
         var endpoint = rabbitmq.GetConnectEndpoint(RabbitMqContainer.DefaultPort);
         using var client = new TcpClient();
-        await client.ConnectAsync(endpoint.Address, endpoint.Port);
+        await client.ConnectAsync(endpoint.Address, endpoint.Port, cancellationToken);
         using var stream = client.GetStream();
 
-        await stream.WriteAsync(AmqpProtocolHeader);
+        await stream.WriteAsync(AmqpProtocolHeader, cancellationToken);
         // AMQP 0-9-1: a server that accepts the protocol header replies with a method frame
         // (type 1, channel 0) carrying Connection.Start (class 10, method 10) rather than
         // echoing the header.
         var frameHeader = new byte[7];
-        await stream.ReadExactlyAsync(frameHeader);
+        await stream.ReadExactlyAsync(frameHeader, cancellationToken);
         var payloadSize = (frameHeader[3] << 24) | (frameHeader[4] << 16) | (frameHeader[5] << 8) | frameHeader[6];
         var payload = new byte[payloadSize];
-        await stream.ReadExactlyAsync(payload);
+        await stream.ReadExactlyAsync(payload, cancellationToken);
 
         Assert.Equal(1, frameHeader[0]);
         Assert.Equal(0, frameHeader[1]);

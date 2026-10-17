@@ -33,7 +33,7 @@ public sealed class ClickHouseModuleTests
     {
         await using var clickhouse = new ClickHouseBuilder().Build();
 
-        await clickhouse.StartAsync();
+        await clickhouse.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("Host=127.0.0.1;Port=", clickhouse.GetConnectionString(), StringComparison.Ordinal);
         var endpoint = clickhouse.GetConnectEndpoint(ClickHouseContainer.HttpPort);

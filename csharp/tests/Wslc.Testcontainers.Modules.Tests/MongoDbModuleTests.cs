@@ -28,7 +28,7 @@ public sealed class MongoDbModuleTests
     {
         await using var mongodb = new MongoDbBuilder().Build();
 
-        await mongodb.StartAsync();
+        await mongodb.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.StartsWith("mongodb://127.0.0.1:", mongodb.GetConnectionString(), StringComparison.Ordinal);
         var result = await mongodb.ExecAsync(
@@ -49,7 +49,7 @@ public sealed class MongoDbModuleTests
             .WithPassword("secret")
             .Build();
 
-        await mongodb.StartAsync();
+        await mongodb.StartAsync(TestContext.Current.CancellationToken);
 
         Assert.Contains("authSource=admin", mongodb.GetConnectionString(), StringComparison.Ordinal);
         var result = await mongodb.ExecAsync(

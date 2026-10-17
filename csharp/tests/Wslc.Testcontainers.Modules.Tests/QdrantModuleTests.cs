@@ -23,7 +23,7 @@ public sealed class QdrantModuleTests
     {
         await using var qdrant = new QdrantBuilder().Build();
 
-        await qdrant.StartAsync();
+        await qdrant.StartAsync(TestContext.Current.CancellationToken);
 
         var endpoint = qdrant.GetEndpoint();
         Assert.StartsWith("http://127.0.0.1:", endpoint, StringComparison.Ordinal);

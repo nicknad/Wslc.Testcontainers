@@ -169,7 +169,11 @@ wsl --update
 - .NET 9
 - .NET 10
 
-The library currently targets Windows because it depends on the WSL Containers runtime.
+Windows is a hard requirement, not a current limitation. WSL Containers is a Windows platform
+feature — its runtime is a stack of Windows components (`wslservice.exe`, `wslcsession.exe`, the
+Host Compute and Host Network services) with no counterpart on any other OS — so this library is
+Windows-only by design. The .NET targets are `-windows` TFMs and the C++ port links Win32-only
+libraries; neither builds or runs elsewhere.
 
 ### C++
 
@@ -204,6 +208,26 @@ For example:
 can be used when a test dependency should not have normal network access.
 
 Networking behavior is ultimately constrained by the underlying WSL Containers runtime.
+
+### Limits
+
+The networking surface in WSLC 3.0.1 consists of exactly two modes — `Bridged` (default) and
+`Isolated` (no NIC) — plus per-port TCP mappings onto Windows host ports (loopback by default,
+optional bind address). Everything else is unavailable, by upstream design rather than by
+omission in this library:
+
+- **No user-defined networks.** `wslc network create/connect/disconnect` is CLI-only, built on a
+  private runtime interface; the public C and WinRT SDKs expose none of it, and Microsoft has
+  announced no plans to.
+- **No cross-container networking.** This library uses one WSLC session per container, and WSLC
+  networks are session-scoped state — so even the `wslc` CLI cannot join containers from two
+  different sessions.
+- **No network aliases, DNS names, links or static container IPs** — CLI-only options, no SDK
+  equivalent.
+- **No UDP mappings** — the WSLC runtime returns `E_NOTIMPL` for UDP.
+- **No egress policy** — `Isolated` (removing the NIC) is the only enforcement the runtime
+  honors; see [Why no egress allowlist?](#why-no-egress-allowlist) below.
+- **No `host`, macvlan, ipvlan or overlay networking.**
 
 ## Security considerations
 

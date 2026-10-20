@@ -11,6 +11,7 @@ permissions:
 jobs:
   unit-windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: csharp
@@ -41,6 +42,7 @@ jobs:
     # the rest of the suite is Windows-only by design (Build() throws PlatformNotSupported).
     # Pinned to the current LTS image; ubuntu-latest starts migrating to Ubuntu 26 in October 2026.
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: csharp
@@ -53,6 +55,7 @@ jobs:
 
   cpp-windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Cache WSL Containers SDK
@@ -81,6 +84,7 @@ jobs:
 
   cpp-lint:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -175,6 +179,7 @@ jobs:
 
   cpp-asan:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Cache WSL Containers SDK
@@ -206,6 +211,7 @@ jobs:
   packages:
     needs: [unit-windows, guard-linux, cpp-windows, cpp-lint, cpp-asan]
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: csharp

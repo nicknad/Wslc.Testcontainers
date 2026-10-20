@@ -25,13 +25,17 @@ namespace wslc::internal
 /// History is capped at 10k lines in a ring buffer and snapshots are cached until the Next
 /// Publish, so readiness polls that call <c>GetRecentLogs</c> do not allocate a fresh vector on
 /// every check. Each subscriber queue is bounded (1k, drop-oldest) so an abandoned stream cannot
-/// grow memory without bound.
+/// grow memory without bound. Individual lines are capped at <see cref="MaxLineBytes"/>, so a
+/// container that emits one giant line cannot fill the history with multi-megabyte strings.
 /// </remarks>
 class LogBroadcaster
 {
 public:
     static constexpr std::size_t MaxHistory = 10'000;
     static constexpr std::size_t MaxSubscriberBuffered = 1'000;
+
+    /// <summary>Maximum UTF-8 bytes kept for one published line.</summary>
+    static constexpr std::size_t MaxLineBytes = 8u * 1024u;
 
     /// <summary>Queued lines and completion State for a single log stream.</summary>
     struct Subscriber

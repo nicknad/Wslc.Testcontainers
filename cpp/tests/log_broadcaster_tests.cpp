@@ -76,6 +76,18 @@ TEST(LogBroadcaster, CompletedBroadcastersReplayHistory)
     EXPECT_TRUE(subscriber->Closed);
 }
 
+TEST(LogBroadcaster, OversizedLinesAreCapped)
+{
+    LogBroadcaster broadcaster;
+    broadcaster.Publish(LogLine::Diagnostic(std::string(LogBroadcaster::MaxLineBytes * 4, 'x')));
+
+    const auto snapshot = broadcaster.Snapshot();
+
+    ASSERT_EQ(snapshot->size(), 1u);
+    EXPECT_LE((*snapshot)[0].Text.size(), LogBroadcaster::MaxLineBytes);
+    EXPECT_NE((*snapshot)[0].Text.find("bytes omitted"), std::string::npos);
+}
+
 TEST(LogBroadcaster, HistoryIsBounded)
 {
     LogBroadcaster broadcaster;

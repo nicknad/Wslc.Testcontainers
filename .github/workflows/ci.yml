@@ -89,21 +89,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - name: Ensure clang-format/clang-tidy (LLVM 20.1.8)
-        shell: pwsh
-        run: |
-          $llvmVersion = '20.1.8'
-          $current = ''
-          if (Get-Command clang-format -ErrorAction SilentlyContinue) {
-            $current = (clang-format --version) -replace '^.*version\s+', ''
-          }
-          if (-not $current.StartsWith($llvmVersion)) {
-            choco install llvm --version=$llvmVersion -y --no-progress --allow-downgrade
-            $env:PATH = "C:\Program Files\LLVM\bin;$env:PATH"
-            "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          }
-          clang-format --version
-          clang-tidy --version
+      - uses: ./.github/actions/setup-llvm
       - name: Check formatting
         shell: pwsh
         run: |

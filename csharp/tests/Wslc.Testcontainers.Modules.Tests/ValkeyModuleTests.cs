@@ -1,8 +1,8 @@
 using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
-using Wslc.Testcontainers.Testing;
 using Wslc.Testcontainers.Modules.Valkey;
+using Wslc.Testcontainers.Testing;
 using Xunit;
 
 namespace Wslc.Testcontainers.Modules.Tests;

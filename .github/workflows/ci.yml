@@ -139,13 +139,17 @@ jobs:
       - name: Resolve clang-tidy base revision
         id: base
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
         run: |
           $base = ''
-          if ('${{ github.event_name }}' -eq 'pull_request') {
-            git fetch --no-tags origin ${{ github.base_ref }}
-            $base = (git merge-base "origin/${{ github.base_ref }}" HEAD).Trim()
-          } elseif ('${{ github.event_name }}' -eq 'push') {
-            $base = '${{ github.event.before }}'
+          if ($env:EVENT_NAME -eq 'pull_request') {
+            git fetch --no-tags origin $env:BASE_REF
+            $base = (git merge-base "origin/$env:BASE_REF" HEAD).Trim()
+          } elseif ($env:EVENT_NAME -eq 'push') {
+            $base = $env:EVENT_BEFORE
             if ($base) {
               git cat-file -e "$base^{commit}" 2>$null
               if ($LASTEXITCODE -ne 0) { $base = '' }
@@ -159,8 +163,10 @@ jobs:
           exit 0
       - name: clang-tidy (changed files; warnings are errors)
         shell: pwsh
+        env:
+          TIDY_BASE: ${{ steps.base.outputs.base }}
         run: |
-          $base = '${{ steps.base.outputs.base }}'
+          $base = $env:TIDY_BASE
           if ($base) {
             ./cpp/scripts/Run-ClangTidy.ps1 -Changed -Base $base -BuildDir cpp/build-tidy
           } else {

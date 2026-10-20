@@ -1,0 +1,8 @@
+{
+  "cmake.sourceDirectory": "${workspaceFolder}/cpp",
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": true,
+  "dotnet.defaultSolution": "csharp/Wslc.Testcontainers.slnx",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true
+}

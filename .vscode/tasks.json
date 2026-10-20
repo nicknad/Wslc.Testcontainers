@@ -1,0 +1,112 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build: .NET",
+      "type": "shell",
+      "command": "dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal",
+      "options": {
+        "cwd": "${workspaceFolder}/csharp"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test: .NET (unit)",
+      "type": "shell",
+      "command": "dotnet test --solution Wslc.Testcontainers.slnx -c Release --no-build -v minimal",
+      "options": {
+        "cwd": "${workspaceFolder}/csharp"
+      },
+      "dependsOn": "build: .NET",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "test: .NET (integration)",
+      "type": "shell",
+      "command": "dotnet test --solution Wslc.Testcontainers.slnx -c Release --no-build -v minimal",
+      "options": {
+        "cwd": "${workspaceFolder}/csharp",
+        "env": {
+          "WSLC_RUN_INTEGRATION": "1"
+        }
+      },
+      "dependsOn": "build: .NET",
+      "problemMatcher": []
+    },
+    {
+      "label": "format: .NET",
+      "type": "shell",
+      "command": "dotnet format Wslc.Testcontainers.slnx --no-restore",
+      "options": {
+        "cwd": "${workspaceFolder}/csharp"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "verify: release checks",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File ./scripts/Verify-Package.ps1 -ChecksOnly",
+      "options": {
+        "cwd": "${workspaceFolder}/csharp"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "cmake: configure (dev)",
+      "type": "shell",
+      "command": "cmake --preset dev",
+      "options": {
+        "cwd": "${workspaceFolder}/cpp"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "build: C++ (dev)",
+      "type": "shell",
+      "command": "cmake --build --preset dev",
+      "options": {
+        "cwd": "${workspaceFolder}/cpp"
+      },
+      "dependsOn": "cmake: configure (dev)",
+      "group": "build",
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test: C++ (dev)",
+      "type": "shell",
+      "command": "ctest --preset dev",
+      "options": {
+        "cwd": "${workspaceFolder}/cpp"
+      },
+      "dependsOn": "build: C++ (dev)",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "clang-tidy: changed",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File ./cpp/scripts/Run-ClangTidy.ps1 -Changed",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "git: install hooks",
+      "type": "shell",
+      "command": "pwsh -NoProfile -File ./cpp/scripts/Install-GitHooks.ps1",
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

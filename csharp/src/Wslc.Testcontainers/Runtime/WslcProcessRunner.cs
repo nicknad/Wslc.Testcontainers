@@ -160,7 +160,7 @@ internal static class WslcProcessRunner
             await using var stdin = process.NativeProcess.GetInputStream().AsStreamForWrite();
             var buffer = new byte[64 * 1024];
             long total = 0;
-            for (;;)
+            for (; ; )
             {
                 var read = await sourceStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
                 if (read == 0)

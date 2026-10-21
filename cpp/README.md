@@ -48,16 +48,31 @@ automatically; on a clean machine fetch it explicitly:
 
 ```powershell
 ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
-cmake -S cpp -B cpp/build -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
-cmake --build cpp/build --config Release
-ctest --test-dir cpp/build -C Release --output-on-failure
+cmake --preset dev
+cmake --build --preset dev
+ctest --preset dev
+```
+
+The presets (`cpp/CMakePresets.json`) use Ninja and live in the directories CI and the
+tooling expect: `dev` → `cpp/build`, `asan` → `cpp/build-asan`, `tidy` →
+`cpp/build-tidy`, `analyze` → `cpp/build-analyze`. Run them from a Visual Studio developer
+prompt (or after the MSVC environment is initialized). If `cpp/build` was previously
+configured with another generator, remove it once before using `dev`.
+
+Without presets, the equivalent configure is:
+
+```powershell
+cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release `
+  -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+cmake --build cpp/build
+ctest --test-dir cpp/build --output-on-failure
 ```
 
 Integration tests pull public images and need a real runtime; they are skipped unless enabled:
 
 ```powershell
 $env:WSLC_RUN_INTEGRATION = "1"
-ctest --test-dir cpp/build -C Release -R "Integration" --output-on-failure
+ctest --preset dev -R "Integration"
 ```
 
 ### Build options

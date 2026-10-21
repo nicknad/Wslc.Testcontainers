@@ -13,23 +13,10 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v7
-      - name: Ensure clang-format/clang-tidy (LLVM 20.1.8)
-        shell: pwsh
-        run: |
-          $llvmVersion = '20.1.8'
-          $current = ''
-          if (Get-Command clang-tidy -ErrorAction SilentlyContinue) {
-            $current = (clang-tidy --version) -replace '^.*version\s+', ''
-          }
-          if (-not $current.StartsWith($llvmVersion)) {
-            choco install llvm --version=$llvmVersion -y --no-progress --allow-downgrade
-            $env:PATH = "C:\Program Files\LLVM\bin;$env:PATH"
-            "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          }
-          clang-tidy --version
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: ./.github/actions/setup-llvm
       - name: Cache WSL Containers SDK
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/.packages
           key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
@@ -37,7 +24,7 @@ jobs:
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
       - name: Cache GoogleTest source
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/build-analyze/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}

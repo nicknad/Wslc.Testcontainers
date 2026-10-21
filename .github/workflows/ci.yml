@@ -11,6 +11,7 @@ permissions:
 jobs:
   unit-windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: csharp
@@ -25,8 +26,8 @@ jobs:
           - net9.0-windows10.0.19041.0
           - net10.0-windows10.0.19041.0
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
@@ -41,22 +42,24 @@ jobs:
     # the rest of the suite is Windows-only by design (Build() throws PlatformNotSupported).
     # Pinned to the current LTS image; ubuntu-latest starts migrating to Ubuntu 26 in October 2026.
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: csharp
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
 
   cpp-windows:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Cache WSL Containers SDK
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/.packages
           key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
@@ -64,7 +67,7 @@ jobs:
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
       - name: Cache GoogleTest source
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/build/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
@@ -81,25 +84,12 @@ jobs:
 
   cpp-lint:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - name: Ensure clang-format/clang-tidy (LLVM 20.1.8)
-        shell: pwsh
-        run: |
-          $llvmVersion = '20.1.8'
-          $current = ''
-          if (Get-Command clang-format -ErrorAction SilentlyContinue) {
-            $current = (clang-format --version) -replace '^.*version\s+', ''
-          }
-          if (-not $current.StartsWith($llvmVersion)) {
-            choco install llvm --version=$llvmVersion -y --no-progress --allow-downgrade
-            $env:PATH = "C:\Program Files\LLVM\bin;$env:PATH"
-            "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          }
-          clang-format --version
-          clang-tidy --version
+      - uses: ./.github/actions/setup-llvm
       - name: Check formatting
         shell: pwsh
         run: |
@@ -115,7 +105,7 @@ jobs:
             throw 'clang-format check failed'
           }
       - name: Cache WSL Containers SDK
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/.packages
           key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
@@ -123,7 +113,7 @@ jobs:
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
       - name: Cache GoogleTest source
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/build-tidy/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
@@ -139,13 +129,17 @@ jobs:
       - name: Resolve clang-tidy base revision
         id: base
         shell: pwsh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          EVENT_BEFORE: ${{ github.event.before }}
         run: |
           $base = ''
-          if ('${{ github.event_name }}' -eq 'pull_request') {
-            git fetch --no-tags origin ${{ github.base_ref }}
-            $base = (git merge-base "origin/${{ github.base_ref }}" HEAD).Trim()
-          } elseif ('${{ github.event_name }}' -eq 'push') {
-            $base = '${{ github.event.before }}'
+          if ($env:EVENT_NAME -eq 'pull_request') {
+            git fetch --no-tags origin $env:BASE_REF
+            $base = (git merge-base "origin/$env:BASE_REF" HEAD).Trim()
+          } elseif ($env:EVENT_NAME -eq 'push') {
+            $base = $env:EVENT_BEFORE
             if ($base) {
               git cat-file -e "$base^{commit}" 2>$null
               if ($LASTEXITCODE -ne 0) { $base = '' }
@@ -159,8 +153,10 @@ jobs:
           exit 0
       - name: clang-tidy (changed files; warnings are errors)
         shell: pwsh
+        env:
+          TIDY_BASE: ${{ steps.base.outputs.base }}
         run: |
-          $base = '${{ steps.base.outputs.base }}'
+          $base = $env:TIDY_BASE
           if ($base) {
             ./cpp/scripts/Run-ClangTidy.ps1 -Changed -Base $base -BuildDir cpp/build-tidy
           } else {
@@ -169,10 +165,11 @@ jobs:
 
   cpp-asan:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Cache WSL Containers SDK
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/.packages
           key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
@@ -180,7 +177,7 @@ jobs:
         shell: pwsh
         run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
       - name: Cache GoogleTest source
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: cpp/build-asan/_deps/googletest-src
           key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
@@ -200,6 +197,7 @@ jobs:
   packages:
     needs: [unit-windows, guard-linux, cpp-windows, cpp-lint, cpp-asan]
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: csharp
@@ -207,11 +205,16 @@ jobs:
       NUGET_PACKAGES: D:\a\.nuget\packages
       NUGET_HTTP_CACHE_PATH: D:\a\.nuget\v3-cache
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: 10.0.x
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
+      - name: Verify formatting
+        run: dotnet format Wslc.Testcontainers.slnx --verify-no-changes --no-restore --verbosity minimal
+      - name: Static release checks (version lockstep, PublicAPI promotion)
+        shell: pwsh
+        run: ./scripts/Verify-Package.ps1 -ChecksOnly
       - run: dotnet pack src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages
@@ -229,7 +232,7 @@ jobs:
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj -c Release --no-build -o artifacts/packages
       - run: dotnet pack src/Wslc.Testcontainers.Modules.Kafka/Wslc.Testcontainers.Modules.Kafka.csproj -c Release --no-build -o artifacts/packages
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: packages
           path: csharp/artifacts/packages

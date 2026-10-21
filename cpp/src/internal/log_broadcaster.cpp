@@ -1,17 +1,22 @@
 #include "internal/log_broadcaster.hpp"
 
+#include "internal/text_truncation.hpp"
+
 namespace wslc::internal
 {
 
 void LogBroadcaster::Publish(const LogLine& line)
 {
+    const LogLine capped =
+        line.Text.size() > MaxLineBytes ? LogLine{line.Source, CapText(line.Text, MaxLineBytes), line.Timestamp} : line;
+
     std::lock_guard lock(m_gate);
     if (m_completed)
     {
         return;
     }
 
-    m_history[(m_head + m_count) % MaxHistory] = line;
+    m_history[(m_head + m_count) % MaxHistory] = capped;
     if (m_count == MaxHistory)
     {
         m_head = (m_head + 1) % MaxHistory;
@@ -26,7 +31,7 @@ void LogBroadcaster::Publish(const LogLine& line)
     for (const auto& subscriber : m_subscribers)
     {
         std::lock_guard subscriber_lock(subscriber->Mutex);
-        subscriber->Queue.push_back(line);
+        subscriber->Queue.push_back(capped);
         if (subscriber->Queue.size() > MaxSubscriberBuffered)
         {
             subscriber->Queue.pop_front();

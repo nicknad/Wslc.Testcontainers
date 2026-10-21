@@ -24,6 +24,12 @@ All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
   platform guard fails fast on ARM64, the ARM64 CI job was removed, and the release script rejects
   non-AMD64 hosts. All unit and real-runtime integration testing targets x64.
 
+### Fixed
+
+- Captured log lines (C# and C++) are capped at 8 KiB, keeping the head and tail around an explicit
+  omission marker. Previously a single newline-free line could reach 256 KiB, so a noisy container
+  could grow the 10k-line history and per-subscriber queues into multi-gigabyte memory use.
+
 ## 0.5.0
 
 ### Added

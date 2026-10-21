@@ -1,0 +1,30 @@
+name: Setup LLVM
+description: >-
+  Restores LLVM 20.1.8 (clang-format/clang-tidy) from the Actions cache and installs it
+  with Chocolatey on a cache miss, then exposes the toolchain on PATH.
+
+runs:
+  using: composite
+  steps:
+    - name: Cache LLVM
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: C:\Program Files\LLVM
+        key: ${{ runner.os }}-llvm-20.1.8
+
+    - name: Ensure clang-format/clang-tidy (LLVM 20.1.8)
+      shell: pwsh
+      run: |
+        $llvmVersion = '20.1.8'
+        $bin = 'C:\Program Files\LLVM\bin'
+        $tidy = Join-Path $bin 'clang-tidy.exe'
+        $current = ''
+        if (Test-Path -LiteralPath $tidy) {
+          $current = ((& $tidy --version) -join ' ') -replace '^.*version\s+', ''
+        }
+        if (-not $current.Trim().StartsWith($llvmVersion)) {
+          choco install llvm --version=$llvmVersion -y --no-progress --allow-downgrade
+        }
+        $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        & (Join-Path $bin 'clang-format.exe') --version
+        & $tidy --version

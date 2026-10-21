@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csharp",
+    "ms-vscode.cmake-tools",
+    "ms-vscode.cpptools",
+    "editorconfig.editorconfig",
+    "github.vscode-github-actions"
+  ]
+}

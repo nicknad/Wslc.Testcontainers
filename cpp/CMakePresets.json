@@ -1,0 +1,94 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "dev",
+      "displayName": "Developer build (Ninja, Release)",
+      "description": "Default inner-loop build. compile_commands.json feeds clangd and Run-ClangTidy.",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build"
+    },
+    {
+      "name": "asan",
+      "displayName": "AddressSanitizer build",
+      "description": "Unit tests under MSVC AddressSanitizer (UBSan as well when compiling with Clang).",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-asan",
+      "cacheVariables": {
+        "WSLC_BUILD_EXAMPLES": "OFF",
+        "WSLC_ENABLE_SANITIZERS": "ON"
+      }
+    },
+    {
+      "name": "tidy",
+      "displayName": "clang-tidy build",
+      "description": "compile_commands.json for Run-ClangTidy -Changed. Matches the CI lint build directory.",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-tidy",
+      "cacheVariables": {
+        "WSLC_BUILD_EXAMPLES": "OFF"
+      }
+    },
+    {
+      "name": "analyze",
+      "displayName": "clang-analyzer build",
+      "description": "compile_commands.json for the full clang-analyzer pass. Matches the scheduled analyze workflow.",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build-analyze",
+      "cacheVariables": {
+        "WSLC_BUILD_EXAMPLES": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev"
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "targets": [
+        "wslc_tests"
+      ]
+    },
+    {
+      "name": "tidy",
+      "configurePreset": "tidy"
+    },
+    {
+      "name": "analyze",
+      "configurePreset": "analyze"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "asan",
+      "configurePreset": "asan",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

@@ -9,12 +9,17 @@ namespace Wslc.Testcontainers.Internal;
 /// publish, so readiness polls that call <c>GetRecentLogs</c> do not allocate a fresh array
 /// on every check. Each subscriber channel is bounded (1k, DropOldest) so an abandoned
 /// <c>SubscribeLogs</c> enumeration cannot grow memory without bound; still, callers must
-/// cancel/dispose log streams promptly (see <c>LogDumper</c>).
+/// cancel/dispose log streams promptly (see <c>LogDumper</c>). Individual lines are capped at
+/// <see cref="MaxLineBytes"/>; a container that emits a single giant line is truncated (head and
+/// tail kept) instead of filling the history with multi-megabyte strings.
 /// </remarks>
 internal sealed class LogBroadcaster
 {
     private const int MaxHistory = 10_000;
     private const int MaxSubscriberBuffered = 1_000;
+
+    /// <summary>Maximum UTF-8 bytes kept for one published line.</summary>
+    internal const int MaxLineBytes = 8 * 1024;
     private readonly object _gate = new();
     private readonly LogLine[] _history = new LogLine[MaxHistory];
     private readonly List<Channel<LogLine>> _subscribers = new();
@@ -27,6 +32,11 @@ internal sealed class LogBroadcaster
 
     public void Publish(LogLine line)
     {
+        if (line.Text.Length > MaxLineBytes)
+        {
+            line = new LogLine(line.Source, TextTruncation.Cap(line.Text, MaxLineBytes), line.Timestamp);
+        }
+
         lock (_gate)
         {
             if (_completed)

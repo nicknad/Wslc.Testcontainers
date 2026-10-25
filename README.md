@@ -97,6 +97,7 @@ The .NET implementation currently includes modules for:
 - Redis
 - Valkey
 - MariaDB
+- SQL Server (Developer edition)
 - RabbitMQ
 - MongoDB
 - NATS

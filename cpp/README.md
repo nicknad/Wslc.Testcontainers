@@ -145,7 +145,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` |
 
 Behavioral notes:
 
@@ -176,6 +176,7 @@ Typed module builders live in `cpp/modules/`:
 #include <wslc/modules/rabbitmq.hpp>
 #include <wslc/modules/redis.hpp>
 #include <wslc/modules/rustfs.hpp>
+#include <wslc/modules/sqlserver.hpp>
 #include <wslc/modules/valkey.hpp>
 #include <wslc/modules/wiremock.hpp>
 #include <wslc/modules/vault.hpp>
@@ -199,6 +200,11 @@ wslc::modules::MariaDbBuilder mariadbBuilder;
 auto mariadb = mariadbBuilder.WithPassword("secret").Build();
 mariadb.Start();
 const std::string mysql = mariadb.GetConnectionString();
+
+wslc::modules::SqlServerBuilder sqlServerBuilder;
+auto sqlserver = sqlServerBuilder.WithPassword("yourStrong(!)Password").Build();
+sqlserver.Start();
+const std::string msSql = sqlserver.GetConnectionString();
 
 wslc::modules::RabbitMqBuilder rabbitMqBuilder;
 auto rabbitmq = rabbitMqBuilder.Build();

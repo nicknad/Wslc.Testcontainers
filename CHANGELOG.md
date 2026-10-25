@@ -2,10 +2,16 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
-## Unreleased
+## 0.6.0
 
 ### Added
 
+- `Modules.SqlServer` (C#) / `wslc_sqlserver` (C++): SQL Server 2022 Developer
+  (`mcr.microsoft.com/mssql/server:2022-latest`, `MSSQL_PID=Developer`, port 1433, `sqlcmd`
+  `SELECT 1` readiness, `GetConnectionString()` for Microsoft.Data.SqlClient targeting the
+  `master` database). The module requests a 4 GB session because `sqlservr` requires at least
+  2000 MB. The image does not create additional databases; create them through
+  `Exec`/`ExecAsync`.
 - `ExecShellAsync(script, options?, token)` (C#) / `ExecShell(script, options?, token)` (C++): runs a
   script through `/bin/sh -c` so pipelines, redirection, globbing and shell builtins are available
   where `Exec`/`ExecAsync` (no shell) cannot express them.

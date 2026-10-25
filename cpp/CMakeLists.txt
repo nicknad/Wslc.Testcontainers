@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Wslc.Testcontainers.Cpp VERSION 0.5.0 LANGUAGES CXX)
+project(Wslc.Testcontainers.Cpp VERSION 0.6.0 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")
@@ -211,6 +211,12 @@ add_library(wslc::mariadb ALIAS wslc_mariadb)
 target_include_directories(wslc_mariadb PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mariadb/include")
 target_link_libraries(wslc_mariadb PUBLIC wslc)
 wslc_apply_strict_options(wslc_mariadb)
+
+add_library(wslc_sqlserver STATIC modules/sqlserver/sqlserver.cpp)
+add_library(wslc::sqlserver ALIAS wslc_sqlserver)
+target_include_directories(wslc_sqlserver PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/sqlserver/include")
+target_link_libraries(wslc_sqlserver PUBLIC wslc)
+wslc_apply_strict_options(wslc_sqlserver)
 
 add_library(wslc_rabbitmq STATIC modules/rabbitmq/rabbitmq.cpp)
 add_library(wslc::rabbitmq ALIAS wslc_rabbitmq)

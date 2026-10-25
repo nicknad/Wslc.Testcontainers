@@ -22,6 +22,7 @@
 #include "wslc/modules/qdrant.hpp"
 #include "wslc/modules/rabbitmq.hpp"
 #include "wslc/modules/rustfs.hpp"
+#include "wslc/modules/sqlserver.hpp"
 #include "wslc/modules/valkey.hpp"
 #include "wslc/modules/wiremock.hpp"
 #include "wslc/modules/vault.hpp"
@@ -628,6 +629,34 @@ TEST(IntegrationModules, MariaDbModuleStartsAndServesQueries)
     }
 
     mariadb.Dispose();
+}
+
+TEST(IntegrationModules, SqlServerModuleStartsAndServesQueries)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::SqlServerBuilder builder;
+    auto sqlserver = builder.Build();
+    try
+    {
+        sqlserver.Start();
+
+        EXPECT_NE(sqlserver.GetConnectionString().find("Server=127.0.0.1,"), std::string::npos);
+        wslc::ExecOptions options;
+        options.Environment["SQLCMDPASSWORD"] = "yourStrong(!)Password";
+        options.Timeout = 60s;
+        const auto result = sqlserver.Exec("/opt/mssql-tools18/bin/sqlcmd",
+                                           {"-S", "localhost", "-U", "sa", "-C", "-b", "-Q", "SELECT 1"}, options);
+        EXPECT_EQ(result.ExitCode, 0);
+        EXPECT_NE(result.Stdout.find('1'), std::string::npos);
+    }
+    catch (...)
+    {
+        sqlserver.Dispose();
+        throw;
+    }
+
+    sqlserver.Dispose();
 }
 
 TEST(IntegrationModules, RabbitMqModuleStartsAndAnswersPing)

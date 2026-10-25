@@ -1,0 +1,8 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.SqlServer.SqlServerContainer.DefaultPort = 1433 -> int
+Wslc.Testcontainers.Modules.SqlServer.SqlServerBuilder
+Wslc.Testcontainers.Modules.SqlServer.SqlServerBuilder.Build() -> Wslc.Testcontainers.Modules.SqlServer.SqlServerContainer!
+Wslc.Testcontainers.Modules.SqlServer.SqlServerBuilder.SqlServerBuilder() -> void
+Wslc.Testcontainers.Modules.SqlServer.SqlServerBuilder.WithPassword(string! password) -> Wslc.Testcontainers.Modules.SqlServer.SqlServerBuilder!
+Wslc.Testcontainers.Modules.SqlServer.SqlServerContainer
+Wslc.Testcontainers.Modules.SqlServer.SqlServerContainer.GetConnectionString() -> string!

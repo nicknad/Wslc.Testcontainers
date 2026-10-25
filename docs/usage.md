@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/SQL Server/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -65,6 +65,7 @@ dotnet add package Wslc.Testcontainers.Modules.PostgreSql
 dotnet add package Wslc.Testcontainers.Modules.Redis
 dotnet add package Wslc.Testcontainers.Modules.Valkey
 dotnet add package Wslc.Testcontainers.Modules.MariaDb
+dotnet add package Wslc.Testcontainers.Modules.SqlServer
 dotnet add package Wslc.Testcontainers.Modules.RabbitMq
 dotnet add package Wslc.Testcontainers.Modules.MongoDb
 dotnet add package Wslc.Testcontainers.Modules.Nats
@@ -140,6 +141,21 @@ await using var mariadb = new MariaDbBuilder().WithPassword("secret").Build();
 await mariadb.StartAsync();
 var mySql = mariadb.GetConnectionString(); // Server=127.0.0.1;Port=<dynamic>;...
 ```
+
+SQL Server Developer (Microsoft.Data.SqlClient connection string):
+
+```csharp
+using Wslc.Testcontainers.Modules.SqlServer;
+
+await using var sqlServer = new SqlServerBuilder().WithPassword("yourStrong(!)Password").Build();
+await sqlServer.StartAsync();
+var msSql = sqlServer.GetConnectionString(); // Server=127.0.0.1,<dynamic>;Database=master;User Id=sa;...
+```
+
+The image does not create databases; `GetConnectionString()` targets `master`. Create additional
+databases with `ExecAsync` (for example via `sqlcmd`) or point the connection string at an existing
+database. The SA password must satisfy the SQL Server complexity policy. The module requests a
+4 GB session because `sqlservr` requires at least 2000 MB.
 
 RabbitMQ (AMQP 0-9-1 connection URI):
 
@@ -278,7 +294,7 @@ is the usual preset: image, KRaft environment and readiness waits.
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

@@ -52,6 +52,9 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
   `Ready to accept connections`, `GetEndpoint()` as `host:port` (Redis-compatible).
 - `Wslc.Testcontainers.Modules.MariaDb`: TCP 3306 + log `ready for connections`,
   `GetConnectionString()` for MySqlConnector.
+- `Wslc.Testcontainers.Modules.SqlServer`: TCP 1433 + `sqlcmd` `SELECT 1` readiness,
+  `GetConnectionString()` for Microsoft.Data.SqlClient (SQL Server Developer, database
+  `master`, 4 GB session because `sqlservr` requires at least 2000 MB).
 - `Wslc.Testcontainers.Modules.RabbitMq`: TCP 5672 + log `Server startup complete`,
   `GetConnectionString()` as an `amqp://` URI.
 - `Wslc.Testcontainers.Modules.MongoDb`: TCP 27017 + log `Waiting for connections`

@@ -110,6 +110,7 @@ The .NET implementation currently includes modules for:
 - Keycloak
 - Elasticsearch
 - Kafka
+- Azure Storage (Azurite)
 
 Modules are intended to make common integration-test dependencies require minimal test setup.
 

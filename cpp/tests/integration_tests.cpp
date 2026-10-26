@@ -10,6 +10,7 @@
 #include "internal/util.hpp"
 #include "support/integration.hpp"
 #include "wslc/exceptions.hpp"
+#include "wslc/modules/azurite.hpp"
 #include "wslc/modules/clickhouse.hpp"
 #include "wslc/modules/keycloak.hpp"
 #include "wslc/modules/elasticsearch.hpp"
@@ -706,6 +707,47 @@ TEST(IntegrationModules, KafkaModuleStartsAndServesMetadata)
     }
 
     kafka.Dispose();
+}
+
+TEST(IntegrationModules, AzuriteModuleStartsAndServesAllStorageServices)
+{
+    WSLC_SKIP_UNLESS_INTEGRATION();
+
+    wslc::modules::AzuriteBuilder builder;
+    auto azurite = builder.Build();
+    try
+    {
+        azurite.Start();
+
+        const std::string blob = azurite.GetBlobEndpoint();
+        EXPECT_EQ(blob.find("http://127.0.0.1:"), 0u);
+        EXPECT_NE(blob.find("/devstoreaccount1"), std::string::npos);
+        const std::string connectionString = azurite.GetConnectionString();
+        EXPECT_NE(connectionString.find("BlobEndpoint=" + blob + ";"), std::string::npos);
+        EXPECT_NE(connectionString.find("QueueEndpoint=" + azurite.GetQueueEndpoint() + ";"), std::string::npos);
+        EXPECT_NE(connectionString.find("TableEndpoint=" + azurite.GetTableEndpoint() + ";"), std::string::npos);
+
+        // Azurite requires SharedKey authentication, so unauthenticated requests are rejected with
+        // a 4xx status. Any non-5xx response proves each service is listening and serving. Node is
+        // the Image's own runtime, so no extra client is needed inside the container.
+        const char* script = R"(const http=require('http');)"
+                             R"(const ports=[10000,10001,10002];)"
+                             R"(let left=ports.length;)"
+                             R"(for(const port of ports){)"
+                             R"(http.get('http://127.0.0.1:'+port+'/devstoreaccount1',r=>{)"
+                             R"(if(r.statusCode>=500){process.exit(1);})"
+                             R"(if(--left===0){process.exit(0);}})"
+                             R"().on('error',()=>process.exit(1));})";
+        const auto result = azurite.Exec("node", {"-e", script});
+        EXPECT_EQ(result.ExitCode, 0) << result.Stderr << result.Stdout;
+    }
+    catch (...)
+    {
+        azurite.Dispose();
+        throw;
+    }
+
+    azurite.Dispose();
 }
 
 TEST(IntegrationModules, MongoDbModuleStartsAndServesPing)

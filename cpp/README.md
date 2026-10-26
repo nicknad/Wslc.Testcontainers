@@ -145,7 +145,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` |
 
 Behavioral notes:
 
@@ -163,6 +163,7 @@ Behavioral notes:
 Typed module builders live in `cpp/modules/`:
 
 ```cpp
+#include <wslc/modules/azurite.hpp>
 #include <wslc/modules/clickhouse.hpp>
 #include <wslc/modules/keycloak.hpp>
 #include <wslc/modules/elasticsearch.hpp>
@@ -264,6 +265,12 @@ wslc::modules::KafkaBuilder kafkaBuilder;
 auto kafka = kafkaBuilder.Build();
 kafka.Start();
 const std::string bootstrapServers = kafka.GetBootstrapServers(); // 127.0.0.1:<fixed host port>
+
+wslc::modules::AzuriteBuilder azuriteBuilder;
+auto azurite = azuriteBuilder.Build();
+azurite.Start();
+const std::string storage = azurite.GetConnectionString(); // explicit Blob/Queue/Table endpoints
+const std::string blob = azurite.GetBlobEndpoint();        // http://host:port/devstoreaccount1
 ```
 
 > **Kafka reserves a fixed host port.** A broker tells clients to reconnect to its advertised

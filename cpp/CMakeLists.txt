@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Wslc.Testcontainers.Cpp VERSION 0.6.0 LANGUAGES CXX)
+project(Wslc.Testcontainers.Cpp VERSION 0.7.0 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")
@@ -284,6 +284,12 @@ add_library(wslc::kafka ALIAS wslc_kafka)
 target_include_directories(wslc_kafka PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/kafka/include")
 target_link_libraries(wslc_kafka PUBLIC wslc PRIVATE wil::headers)
 wslc_apply_strict_options(wslc_kafka)
+
+add_library(wslc_azurite STATIC modules/azurite/azurite.cpp)
+add_library(wslc::azurite ALIAS wslc_azurite)
+target_include_directories(wslc_azurite PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/azurite/include")
+target_link_libraries(wslc_azurite PUBLIC wslc)
+wslc_apply_strict_options(wslc_azurite)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

@@ -38,6 +38,7 @@
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Keycloak\Wslc.Testcontainers.Modules.Keycloak.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Elasticsearch\Wslc.Testcontainers.Modules.Elasticsearch.csproj" />
     <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Kafka\Wslc.Testcontainers.Modules.Kafka.csproj" />
+    <ProjectReference Include="..\..\src\Wslc.Testcontainers.Modules.Azurite\Wslc.Testcontainers.Modules.Azurite.csproj" />
   </ItemGroup>
 
 </Project>

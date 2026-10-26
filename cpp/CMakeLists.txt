@@ -285,6 +285,12 @@ target_include_directories(wslc_kafka PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/module
 target_link_libraries(wslc_kafka PUBLIC wslc PRIVATE wil::headers)
 wslc_apply_strict_options(wslc_kafka)
 
+add_library(wslc_azurite STATIC modules/azurite/azurite.cpp)
+add_library(wslc::azurite ALIAS wslc_azurite)
+target_include_directories(wslc_azurite PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/azurite/include")
+target_link_libraries(wslc_azurite PUBLIC wslc)
+wslc_apply_strict_options(wslc_azurite)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

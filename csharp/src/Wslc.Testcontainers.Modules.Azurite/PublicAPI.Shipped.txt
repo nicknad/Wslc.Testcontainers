@@ -1,0 +1,14 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.AccountKey = "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" -> string!
+const Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.AccountName = "devstoreaccount1" -> string!
+const Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.BlobPort = 10000 -> int
+const Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.QueuePort = 10001 -> int
+const Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.TablePort = 10002 -> int
+Wslc.Testcontainers.Modules.Azurite.AzuriteBuilder
+Wslc.Testcontainers.Modules.Azurite.AzuriteBuilder.AzuriteBuilder() -> void
+Wslc.Testcontainers.Modules.Azurite.AzuriteBuilder.Build() -> Wslc.Testcontainers.Modules.Azurite.AzuriteContainer!
+Wslc.Testcontainers.Modules.Azurite.AzuriteContainer
+Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.GetBlobEndpoint() -> string!
+Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.GetConnectionString() -> string!
+Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.GetQueueEndpoint() -> string!
+Wslc.Testcontainers.Modules.Azurite.AzuriteContainer.GetTableEndpoint() -> string!

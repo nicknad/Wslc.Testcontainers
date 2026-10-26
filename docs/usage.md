@@ -78,6 +78,7 @@ dotnet add package Wslc.Testcontainers.Modules.Vault
 dotnet add package Wslc.Testcontainers.Modules.Keycloak
 dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
 dotnet add package Wslc.Testcontainers.Modules.Kafka
+dotnet add package Wslc.Testcontainers.Modules.Azurite
 ```
 
 ## Quickstart
@@ -286,6 +287,20 @@ dynamic port cannot be advertised). The runtime fails fast at `StartAsync` if th
 in use, so avoid starting several Kafka containers in parallel. Everything else about the module
 is the usual preset: image, KRaft environment and readiness waits.
 
+Azure Storage (Azurite, Blob + Queue + Table):
+
+```csharp
+using Wslc.Testcontainers.Modules.Azurite;
+
+await using var azurite = new AzuriteBuilder().Build();
+await azurite.StartAsync();
+var storage = azurite.GetConnectionString(); // explicit Blob/Queue/Table endpoints
+var blobEndpoint = azurite.GetBlobEndpoint(); // http://host:port/devstoreaccount1
+```
+
+`UseDevelopmentStorage=true` cannot be used because the host ports are dynamic; the module renders
+the full connection string, including the well-known `devstoreaccount1` account.
+
 ## Core concepts
 
 | Concept | Description |
@@ -294,7 +309,7 @@ is the usual preset: image, KRaft environment and readiness waits.
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`, `AzuriteBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()` / `GetBlobEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

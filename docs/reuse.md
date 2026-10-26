@@ -82,6 +82,9 @@ Don't memorize waits per image. Each module encapsulates its own readiness:
 - `Wslc.Testcontainers.Modules.Kafka`: TCP 9092 + log `Kafka Server started`, `GetBootstrapServers()`
   as `127.0.0.1:<host-port>`; single-node KRaft. Reserves a fixed loopback host port that the broker
   advertises, so the host port is part of the reuse identity.
+- `Wslc.Testcontainers.Modules.Azurite`: TCP 10000 (Blob) + the queue/table ports, readiness via
+  three `successfully listening` log lines, `GetBlobEndpoint()` / `GetQueueEndpoint()` /
+  `GetTableEndpoint()` and `GetConnectionString()` with explicit mapped endpoint URLs.
 
 Prefer a new module over `WithPostgresDefaults()` extensions on the core
 builder: the core stays generic, presets stay versioned with their image.

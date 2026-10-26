@@ -2,6 +2,15 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## Unreleased
+
+### Added
+
+- `Modules.Azurite` (C#) / `wslc_azurite` (C++): Azurite 3.37.0 Azure Storage emulator (Blob 10000,
+  Queue 10001, Table 10002, readiness after all three services log `successfully listening`). Exposes
+  `GetBlobEndpoint()` / `GetQueueEndpoint()` / `GetTableEndpoint()` and `GetConnectionString()` with
+  explicit mapped-host endpoints and the well-known `devstoreaccount1` account.
+
 ## 0.6.0
 
 ### Added

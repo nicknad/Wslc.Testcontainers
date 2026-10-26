@@ -67,6 +67,7 @@ dotnet add package Wslc.Testcontainers.Modules.Vault
 dotnet add package Wslc.Testcontainers.Modules.Keycloak
 dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
 dotnet add package Wslc.Testcontainers.Modules.Kafka
+dotnet add package Wslc.Testcontainers.Modules.Azurite
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -253,6 +254,7 @@ using Wslc.Testcontainers.Modules.Vault;
 using Wslc.Testcontainers.Modules.Keycloak;
 using Wslc.Testcontainers.Modules.Elasticsearch;
 using Wslc.Testcontainers.Modules.Kafka;
+using Wslc.Testcontainers.Modules.Azurite;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -317,6 +319,11 @@ var rest = elasticsearch.GetEndpoint(); // http://host:port
 await using var kafka = new KafkaBuilder().Build();
 await kafka.StartAsync();
 var bootstrapServers = kafka.GetBootstrapServers(); // 127.0.0.1:<fixed host port>
+
+await using var azurite = new AzuriteBuilder().Build();
+await azurite.StartAsync();
+var storage = azurite.GetConnectionString(); // explicit Blob/Queue/Table endpoints
+var blob = azurite.GetBlobEndpoint();         // http://host:port/devstoreaccount1
 ```
 
 > **Kafka reserves a fixed host port.** A broker tells clients to reconnect to its advertised

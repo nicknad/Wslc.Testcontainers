@@ -36,8 +36,6 @@ namespace
 {
 
 constexpr std::chrono::milliseconds c_abortGracePeriod{2000};
-constexpr std::chrono::milliseconds c_mainProcessGracePeriod{2000};
-constexpr std::chrono::milliseconds c_containerStopTimeout{10000};
 constexpr int c_maxReuseLockAttempts = 100;
 constexpr std::chrono::milliseconds c_reuseLockRetryDelay{300};
 constexpr int c_maxPortResolveAttempts = 200;
@@ -857,7 +855,7 @@ void WslContainer::Impl::DisposeMainProcess(std::vector<std::string>& failures)
 
     try
     {
-        process->Kill(c_mainProcessGracePeriod, std::stop_token{});
+        process->Kill(configuration.StopTimeout, std::stop_token{});
         process->Dispose();
     }
     catch (const std::exception& exception)
@@ -879,7 +877,7 @@ void WslContainer::Impl::StopAndDeleteContainer(std::vector<std::string>& failur
 
     PWSTR error = nullptr;
     HRESULT result = WslcStopContainer(containerHandle->get(), WSLC_SIGNAL_SIGTERM,
-                                       static_cast<std::uint32_t>(c_containerStopTimeout.count() / 1000), &error);
+                                       static_cast<std::uint32_t>(configuration.StopTimeout.count() / 1000), &error);
     if (error != nullptr)
     {
         CoTaskMemFree(error);

@@ -10,10 +10,10 @@
 
 .EXAMPLE
   ./cpp/scripts/Install-WslcSdk.ps1
-  ./cpp/scripts/Install-WslcSdk.ps1 -Version 3.0.1 -Destination cpp/.packages
+  ./cpp/scripts/Install-WslcSdk.ps1 -Version 3.0.3 -Destination cpp/.packages
 #>
 param(
-  [string]$Version = '3.0.1',
+  [string]$Version = '3.0.3',
   [string]$Destination = (Join-Path $PSScriptRoot '..\.packages'),
   [string]$Sha512 = ''
 )
@@ -22,7 +22,7 @@ $ErrorActionPreference = 'Stop'
 
 # SHA512 pin for each supported SDK version (hex, verified against nuget.org).
 $pinnedHashes = @{
-  '3.0.1' = 'AE6836D4AEF1CAF172A8782BB42EF1B2B3980240B818F61A23229CB0A8B286D6FDD3998F86FBE9ADDBAA4D24F63BCF7919FD75235ADFD5E749C9B750869FDDEC'
+  '3.0.3' = 'E8D8F971D6B41CFE4710AD58C20EDB9AB8EC6C0E1DCDCEC56505DC03EC39C42C2B8C6947FB0FF0031A28756CDAD04F0E9123108D3A371927966B8314D2C7FF3B'
 }
 
 if (-not $Sha512) {

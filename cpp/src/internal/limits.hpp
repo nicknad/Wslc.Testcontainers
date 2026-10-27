@@ -31,6 +31,8 @@ inline constexpr std::uint64_t c_maxScratchVolumeBytes = 1ull << 40;
 inline constexpr std::uint64_t c_maxTarballBytes = c_maxScratchVolumeBytes;
 inline constexpr std::chrono::milliseconds c_maxStartupTimeout = std::chrono::hours(24);
 inline constexpr std::chrono::milliseconds c_maxExecTimeout = std::chrono::hours(24);
+inline constexpr std::chrono::milliseconds c_minStopTimeout = std::chrono::seconds(1);
+inline constexpr std::chrono::milliseconds c_maxStopTimeout = std::chrono::hours(24);
 
 inline void RequireCpuCount(std::uint32_t cpuCount)
 {
@@ -99,6 +101,20 @@ inline void RequireExecTimeout(std::chrono::milliseconds timeout)
     {
         throw WslException("Exec timeout " + FormatMilliseconds(timeout) + "s exceeds the maximum of " +
                            FormatMilliseconds(c_maxExecTimeout) + "s (24 h).");
+    }
+}
+
+inline void RequireStopTimeout(std::chrono::milliseconds timeout)
+{
+    if (timeout < c_minStopTimeout)
+    {
+        throw WslException("Stop timeout must be at least 1 second.");
+    }
+
+    if (timeout > c_maxStopTimeout)
+    {
+        throw WslException("Stop timeout " + FormatMilliseconds(timeout) + "s exceeds the maximum of " +
+                           FormatMilliseconds(c_maxStopTimeout) + "s (24 h).");
     }
 }
 

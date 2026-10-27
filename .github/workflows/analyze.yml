@@ -36,7 +36,7 @@ jobs:
         run: |
           cmake -S cpp -B cpp/build-analyze -G Ninja -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWSLC_BUILD_EXAMPLES=OFF `
-            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
       - name: clang-analyzer (full project; warnings are errors)
         shell: pwsh
         run: ./cpp/scripts/Run-ClangTidy.ps1 -All -BuildDir cpp/build-analyze -ConfigFile cpp/.clang-tidy-analyzer

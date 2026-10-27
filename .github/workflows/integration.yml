@@ -124,7 +124,7 @@ jobs:
         shell: pwsh
         env:
           WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build/_deps/googletest-src
-        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
       - name: Build C++ tests
         run: cmake --build cpp/build --parallel
       - name: Run C++ integration tests

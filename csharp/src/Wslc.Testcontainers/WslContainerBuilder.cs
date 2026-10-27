@@ -444,6 +444,19 @@ public sealed class WslContainerBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the grace period after SIGTERM before the runtime kills the init process, used by
+    /// <see cref="WslContainer.StopAsync"/> and <see cref="WslContainer.DisposeAsync"/>. Must be
+    /// between 1 second and 24 hours; default 10 seconds. The process-exit cleanup hook stays
+    /// capped at 2 seconds so a crashed test cannot hang shutdown.
+    /// </summary>
+    public WslContainerBuilder WithStopTimeout(TimeSpan timeout)
+    {
+        BuilderLimits.RequireStopTimeout(timeout);
+        _configuration = _configuration with { StopTimeout = timeout };
+        return this;
+    }
+
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
     /// <exception cref="WslException">
     /// The configuration is incomplete or inconsistent: no image source, ports or network waits

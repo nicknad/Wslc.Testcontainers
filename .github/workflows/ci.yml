@@ -76,7 +76,7 @@ jobs:
         shell: pwsh
         env:
           WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build/_deps/googletest-src
-        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
       - name: Build
         run: cmake --build cpp/build --parallel
       - name: Unit tests
@@ -125,7 +125,7 @@ jobs:
         run: |
           cmake -S cpp -B cpp/build-tidy -G Ninja -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWSLC_BUILD_EXAMPLES=OFF `
-            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
       - name: Resolve clang-tidy base revision
         id: base
         shell: pwsh
@@ -188,7 +188,7 @@ jobs:
           WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-asan/_deps/googletest-src
         run: |
           cmake -S cpp -B cpp/build-asan -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_SANITIZERS=ON `
-            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
       - name: Build
         run: cmake --build cpp/build-asan --target wslc_tests --parallel
       - name: Unit tests under ASan

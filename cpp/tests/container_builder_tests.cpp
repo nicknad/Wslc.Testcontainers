@@ -585,6 +585,18 @@ TEST(ContainerBuilder, ReadinessTimeoutCapIsInclusiveAndRejectsLongerTimeoutsBef
     EXPECT_THROW(WslContainerBuilder{}.WithReadinessTimeout(std::chrono::hours(24 * 3650)), WslException);
 }
 
+TEST(ContainerBuilder, StopTimeoutIsBounded)
+{
+    WslContainerBuilder builder;
+    EXPECT_NO_THROW(builder.WithImage("alpine")
+                        .WithKeepAliveShell()
+                        .WithStopTimeout(wslc::internal::c_minStopTimeout)
+                        .WithStopTimeout(wslc::internal::c_maxStopTimeout)
+                        .Build());
+    EXPECT_THROW(WslContainerBuilder{}.WithStopTimeout(wslc::internal::c_minStopTimeout - 1ms), WslException);
+    EXPECT_THROW(WslContainerBuilder{}.WithStopTimeout(wslc::internal::c_maxStopTimeout + 1s), WslException);
+}
+
 TEST(ContainerBuilder, BuildLimitsWaitStrategies)
 {
     WslContainerBuilder builder;

@@ -1,3 +1,1 @@
 #nullable enable
-const Wslc.Testcontainers.WslEnvironment.CpuCountVariable = "WSLC_CPU_COUNT" -> string!
-const Wslc.Testcontainers.WslEnvironment.MemoryMegabytesVariable = "WSLC_MEMORY_MEGABYTES" -> string!

@@ -27,6 +27,14 @@ boundary against hostile code running inside a container:
   it was not explicitly given — but anything mounted writable is fully exposed.
 - **No image trust.** Images are pulled without signature verification; pin digests
   and prefer minimal images for anything sensitive.
+- **Enterprise policy can block pulls.** Intune can disable WSL containers and restrict
+  pulls to an approved registry allow list. Module presets pull from Docker Hub
+  (`docker.io`) and Microsoft Container Registry (`mcr.microsoft.com`); on managed
+  devices, mirror those images to an approved registry (override with `WithImage` or
+  `WSLC_DEFAULT_IMAGE`) or the pull fails before startup.
+- **Container activity is visible to MDE.** Defender for Endpoint reports process, file
+  and network activity from WSL containers and correlates it with the Windows host.
+  Treat test containers as auditable host activity, not a private sandbox.
 - **Shared-host resources.** Without `WithCpuCount`/`WithMemoryMegabytes` a container can
   consume unbounded CPU/memory.
 
@@ -347,6 +355,7 @@ not share files, ports, or processes. Instances are named `wslc-{session}-{rando
 | `WithVolume(host, container)` / `WithVolume(..., VolumeAccess)` | Mount an existing Windows **directory** (host, container order, like `docker run -v`). Prefer read-only unless the test must write back. |
 | `WithReuse(true)` | Keep session storage (and cached images) between runs; name is a config hash. Disabled under CI unless `WSLC_REUSE_IN_CI=1`. See `reuse.md`. |
 | `WithReadinessTimeout(t)` | Whole-`StartAsync` budget. Must be ≥ sum of wait timeouts (validated at `Build()`). Default 120 s. Module builders set per-wait timeouts with `WithWaitTimeout(t)` and derive startup as `2*t+30 s`. |
+| `WithStopTimeout(t)` | Grace period after SIGTERM before the runtime kills the init process, used by `StopAsync`/`DisposeAsync`. Between 1 s and 24 h; default 10 s. The process-exit cleanup hook stays capped at 2 s. |
 
 ## Lifecycle and cleanup
 
@@ -364,6 +373,8 @@ await container.StopAsync();  // optional: stop but keep storage
 - `StartAsync()` may be called again after `StopAsync()`. Ephemeral instances restart with
   clean storage; `WithReuse(true)` instances reuse the session VHD (cached images) and only
   their scratch volumes are recreated empty.
+- `WithStopTimeout(t)` sets how long a graceful stop waits for the init process after SIGTERM
+  (default 10 s; 1 s–24 h). The process-exit cleanup hook intentionally stays at 2 s.
 - Lifecycle calls are serialized; `Exec`/`Copy`/`StartProcess` issued concurrently
   with `DisposeAsync` fail fast instead of corrupting state.
 - A process-exit hook does best-effort cleanup on crash; next `StartAsync()` reaps
@@ -478,7 +489,7 @@ await using var agent = new WslContainerBuilder()
 The library cannot enforce a destination allowlist on this runtime, so it does not
 expose an API that pretends to:
 
-- On the current WSLC runtime (WSL 3.0.1), containers are started without
+- On the current WSLC runtime (WSL 3.0.3), containers are started without
   `CAP_NET_ADMIN` (the capability set is the Docker default minus network admin).
   `iptables`/`nftables` inside the container can neither read nor modify the ruleset,
   and because the capability is also absent from the bounding set, no in-container
@@ -542,7 +553,7 @@ Notes:
 - `CopyToAsync` requires the host file to exist; `CopyFromAsync` creates parent dirs.
 - Init-process output, exec output and `StartProcess` output all flow through `SubscribeLogs()`.
 
-## Volumes — prefer copy over mount
+## Volumes — copy for isolation, mount for large read-only data
 
 ```csharp
 // Seed config at startup (no host write-back):
@@ -555,10 +566,20 @@ Notes:
 ```
 
 Under the hood mounts use VirtioFS (`/mnt` → bind mount into the container).
-For databases prefer named data to stay inside the VM; for fixtures prefer
-`WithFile`/`CopyToAsync` over a writable mount so the container cannot mutate the
-repo. Mounts are the main host-escape surface — never mount `C:\` or a repo root
-writable in agent scenarios (see below).
+For databases prefer named data to stay inside the VM. For fixtures choose by
+semantics, not only speed:
+
+- **Writable mount**: only for live exchange. It is a host write path and the main
+  host-escape surface — never mount `C:\` or a repo root writable in agent scenarios.
+- **Read-only mount**: fine for large fixture trees read many times; it avoids the
+  startup copy but still exposes the host paths read-only.
+- **`WithFile`/`CopyToAsync`**: best when the container must not see or mutate the host
+  path, and for repeated reads: the file lives on the container filesystem.
+
+Measured locally with WSLC 3.0.3 (256 MiB file, warm cache): a bind-mount read took
+~0.5–0.8 s; `CopyToAsync` took ~1.3–1.7 s plus ~0.08 s per in-VM read (~3 GiB/s). Mount
+wins for a single pass; copy wins when the fixture is read repeatedly and keeps the host
+path out of the container.
 
 ## xUnit patterns
 
@@ -630,7 +651,7 @@ is treated as unset.
 ## Architecture (why tests are isolated)
 
 From the [WSLC architecture deep dive](https://devblogs.microsoft.com/commandline/wslc-architecture-deep-dive/)
-(`Microsoft.WSL.Containers` 3.0.1, `wslcsdk.h`):
+(`Microsoft.WSL.Containers` 3.0.3, `wslcsdk.h`):
 
 - **Session model.** `wslservice.exe` (privileged) spawns one `wslcsession.exe` per
   session running as the calling user. WSLC creates **one session per container**
@@ -639,7 +660,7 @@ From the [WSLC architecture deep dive](https://devblogs.microsoft.com/commandlin
   session's VM, not to all test containers.
 - **Storage.** Each session has its own storage VHD (`.../instances/<name>/storage`).
   Windows-path volumes are VirtioFS shares (mounted under `/mnt` in the VM, then bind-
-  mounted into the container — ~2× plan9). `WithScratchVolume` provisions a scratch VHD
+  mounted into the container). `WithScratchVolume` provisions a scratch VHD
   volume instead: native ext4 inside the VM, recreated empty every start.
 - **Networking ("Consommé").** VM traffic goes as Ethernet frames over a virtio queue
   to a user-mode Windows process that provides DNS, TCP/UDP routing and port mapping.
@@ -647,7 +668,7 @@ From the [WSLC architecture deep dive](https://devblogs.microsoft.com/commandlin
   user process. WSLC defaults to `ContainerNetworkMode.Bridged` with dynamic TCP port
   mappings onto Windows loopback (optionally pinned with a bind address);
   `WithNetworkingMode(Isolated)` removes the NIC (the only enforced containment). There is
-  no egress policy mechanism in WSLC 3.0.1: containers do not receive `CAP_NET_ADMIN`
+  no egress policy mechanism in WSLC 3.0.3: containers do not receive `CAP_NET_ADMIN`
   and the runtime exposes no outbound filter.
 
 ## Agent containment note

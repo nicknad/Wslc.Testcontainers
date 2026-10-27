@@ -5,7 +5,7 @@
   <ItemGroup>
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
-    <PackageVersion Include="Microsoft.WSL.Containers" Version="3.0.1" />
+    <PackageVersion Include="Microsoft.WSL.Containers" Version="3.0.3" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>

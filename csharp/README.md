@@ -33,7 +33,7 @@ var connectionString = postgres.GetConnectionString();
 > directory rather than avoiding Windows storage entirely.
 >
 > **Egress allowlisting is intentionally not provided.** On the current WSLC runtime
-> (WSL 3.0.1) containers are not granted `CAP_NET_ADMIN` (the runtime seeds only a
+> (WSL 3.0.3) containers are not granted `CAP_NET_ADMIN` (the runtime seeds only a
 > Docker-like default capability set), so an in-container `iptables` policy can never be
 > installed, and the container settings exposed by the SDK contain no outbound policy
 > API either. The only enforcement the runtime currently honors is removing the NIC
@@ -119,6 +119,7 @@ If `WSLC_DEFAULT_IMAGE` is set, it is used when no source is configured.
 | `WithVolume(hostPath, containerPath)` / `WithVolume(..., VolumeAccess)` | Mounts a Windows directory. Order is host, container. |
 | `WithReuse(true)`                                                 | Keeps session storage (and cached images) between runs (see Reuse). |
 | `WithReadinessTimeout(timeout)`                                   | Readiness budget that bounds the whole startup (must be ≥ sum of wait timeouts). Default 120 s. |
+| `WithStopTimeout(timeout)`                                        | Grace period after SIGTERM before the runtime kills the init process (1 s–24 h). Default 10 s. |
 
 ## Working with the container
 

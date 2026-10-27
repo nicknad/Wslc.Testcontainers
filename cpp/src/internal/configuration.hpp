@@ -72,6 +72,12 @@ struct Configuration
     std::optional<std::uint32_t> MemoryMb;
     std::optional<bool> Reuse;
     std::chrono::milliseconds StartupTimeout = std::chrono::seconds(120);
+
+    /// <summary>
+    /// Grace period after SIGTERM before the runtime kills the init process. Default 10 s.
+    /// Not part of the reuse identity: it changes shutdown behavior, not provisioning.
+    /// </summary>
+    std::chrono::milliseconds StopTimeout = std::chrono::seconds(10);
 };
 
 /// <summary>Generates collision-free session names and recognizes WSLC-owned resources.</summary>

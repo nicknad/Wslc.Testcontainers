@@ -336,6 +336,13 @@ WslContainerBuilder& WslContainerBuilder::WithReadinessTimeout(std::chrono::mill
     return *this;
 }
 
+WslContainerBuilder& WslContainerBuilder::WithStopTimeout(std::chrono::milliseconds timeout)
+{
+    internal::RequireStopTimeout(timeout);
+    m_state->configuration.StopTimeout = timeout;
+    return *this;
+}
+
 WslContainer WslContainerBuilder::Build()
 {
     WslPlatform::ThrowIfUnsupported();

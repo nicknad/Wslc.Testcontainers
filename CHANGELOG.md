@@ -2,6 +2,21 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.8.0
+
+### Added
+
+- `WithStopTimeout(...)` (C# and C++) configures the SIGTERM grace period used by
+  `StopAsync`/`DisposeAsync` (1 s–24 h, default 10 s). The process-exit cleanup hook stays
+  capped at 2 s.
+
+### Changed
+
+- `Microsoft.WSL.Containers` bumped to 3.0.3 for C# and C++; the SDK surface is unchanged, so
+  the WSL 3.0.3 baseline adds runtime fixes only.
+- Documentation now covers Intune registry allow lists (managed devices may block the module
+  presets' `docker.io`/`mcr.microsoft.com` pulls) and MDE visibility of container activity.
+
 ## 0.7.0
 
 ### Added

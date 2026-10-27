@@ -63,7 +63,7 @@ Without presets, the equivalent configure is:
 
 ```powershell
 cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release `
-  -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.1"
+  -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
 cmake --build cpp/build
 ctest --test-dir cpp/build --output-on-failure
 ```
@@ -133,7 +133,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `WithWaitStrategy(strategy)` | `WithWaitStrategy(std::shared_ptr<IWaitStrategy>)` |
 | `WithFile` / `WithVolume` / `WithScratchVolume` | same names |
 | `WithNetworkingMode` / `WithCpuCount` / `WithMemoryMegabytes` | same names |
-| `WithReuse` / `WithReadinessTimeout` | same names |
+| `WithReuse` / `WithReadinessTimeout` / `WithStopTimeout` | same names |
 | `Build()` → `WslContainer` | `Build()` → `wslc::WslContainer` (move-only) |
 | `StartAsync` / `StopAsync` / `DisposeAsync` | `Start(token)` / `Stop(token)` / `Dispose()` |
 | `ExecAsync(command, args, options, token)` | `Exec(command, args, options, token)` |

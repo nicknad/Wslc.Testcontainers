@@ -51,6 +51,12 @@ internal sealed record WslContainerConfiguration
     public bool? Reuse { get; init; }
 
     public TimeSpan StartupTimeout { get; init; } = TimeSpan.FromSeconds(120);
+
+    /// <summary>
+    /// Grace period after SIGTERM before the runtime kills the init process. Default 10 s.
+    /// Not part of the reuse identity: it changes shutdown behavior, not provisioning.
+    /// </summary>
+    public TimeSpan StopTimeout { get; init; } = TimeSpan.FromSeconds(10);
 }
 
 internal sealed record WslFileCopy(string Source, string Destination);

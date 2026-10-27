@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Wslc.Testcontainers.Cpp VERSION 0.7.0 LANGUAGES CXX)
+project(Wslc.Testcontainers.Cpp VERSION 0.8.0 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")

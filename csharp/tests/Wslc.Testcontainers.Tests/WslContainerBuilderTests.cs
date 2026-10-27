@@ -645,6 +645,23 @@ public sealed class WslContainerBuilderTests
     }
 
     [Fact]
+    public void Stop_timeout_defaults_to_ten_seconds_and_is_bounded()
+    {
+        var container = new WslContainerBuilder().WithImage("alpine").WithKeepAliveShell().Build();
+        Assert.Equal(TimeSpan.FromSeconds(10), container.Configuration.StopTimeout);
+
+        var builder = new WslContainerBuilder()
+            .WithImage("alpine").WithKeepAliveShell()
+            .WithStopTimeout(TimeSpan.FromMinutes(2));
+        Assert.Equal(TimeSpan.FromMinutes(2), builder.Build().Configuration.StopTimeout);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithStopTimeout(TimeSpan.Zero));
+        Assert.Throws<ArgumentOutOfRangeException>(() => builder.WithStopTimeout(TimeSpan.FromMilliseconds(999)));
+        Assert.Throws<ArgumentOutOfRangeException>(
+            () => builder.WithStopTimeout(BuilderLimits.MaxStopTimeout + TimeSpan.FromSeconds(1)));
+    }
+
+    [Fact]
     public void Wait_strategy_count_cap_is_enforced_at_build()
     {
         var builder = new WslContainerBuilder()

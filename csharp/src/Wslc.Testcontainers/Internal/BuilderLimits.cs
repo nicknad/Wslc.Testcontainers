@@ -49,6 +49,12 @@ internal static class BuilderLimits
     /// <summary>Maximum exec timeout.</summary>
     public static readonly TimeSpan MaxExecTimeout = TimeSpan.FromHours(24);
 
+    /// <summary>Minimum stop timeout (the runtime accepts whole seconds).</summary>
+    public static readonly TimeSpan MinStopTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>Maximum stop timeout.</summary>
+    public static readonly TimeSpan MaxStopTimeout = TimeSpan.FromHours(24);
+
     public static void RequireCpuCount(uint cpuCount) =>
         RequirePositiveAtMost(cpuCount, MaxCpuCount, nameof(cpuCount), "CPU count", $"{MaxCpuCount}");
 
@@ -66,6 +72,22 @@ internal static class BuilderLimits
     public static void RequireExecTimeout(TimeSpan timeout) =>
         RequirePositiveAtMost(timeout, MaxExecTimeout, nameof(timeout), "Exec timeout",
                               $"{MaxExecTimeout.TotalHours:0.###}h");
+
+    public static void RequireStopTimeout(TimeSpan timeout)
+    {
+        if (timeout < MinStopTimeout)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(timeout), timeout, $"Stop timeout must be at least {MinStopTimeout.TotalSeconds:0}s.");
+        }
+
+        if (timeout > MaxStopTimeout)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(timeout), timeout,
+                $"Stop timeout {timeout} exceeds the maximum of {MaxStopTimeout.TotalHours:0.###}h.");
+        }
+    }
 
     private static void RequirePositiveAtMost<T>(T value, T maximum, string parameterName, string description,
                                                  string maximumText)

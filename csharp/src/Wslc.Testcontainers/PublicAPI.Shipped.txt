@@ -1,7 +1,9 @@
 #nullable enable
 const Wslc.Testcontainers.WslEnvironment.CleanupVariable = "WSLC_CLEANUP" -> string!
+const Wslc.Testcontainers.WslEnvironment.CpuCountVariable = "WSLC_CPU_COUNT" -> string!
 const Wslc.Testcontainers.WslEnvironment.DataDirectoryVariable = "WSLC_DATA_DIRECTORY" -> string!
 const Wslc.Testcontainers.WslEnvironment.DefaultImageVariable = "WSLC_DEFAULT_IMAGE" -> string!
+const Wslc.Testcontainers.WslEnvironment.MemoryMegabytesVariable = "WSLC_MEMORY_MEGABYTES" -> string!
 const Wslc.Testcontainers.WslEnvironment.ReuseInCiVariable = "WSLC_REUSE_IN_CI" -> string!
 const Wslc.Testcontainers.WslEnvironment.ReuseVariable = "WSLC_REUSE" -> string!
 const Wslc.Testcontainers.WslEnvironment.SessionIdVariable = "WSLC_SESSION_ID" -> string!
@@ -138,6 +140,7 @@ Wslc.Testcontainers.WslContainerBuilder.WithFile(string! hostPath, string! conta
 Wslc.Testcontainers.WslContainerBuilder.WithPort(int port) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithReuse(bool reuse = true) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithReadinessTimeout(System.TimeSpan timeout) -> Wslc.Testcontainers.WslContainerBuilder!
+Wslc.Testcontainers.WslContainerBuilder.WithStopTimeout(System.TimeSpan timeout) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithVolume(string! hostPath, string! containerPath) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithVolume(string! hostPath, string! containerPath, Wslc.Testcontainers.VolumeAccess access) -> Wslc.Testcontainers.WslContainerBuilder!
 Wslc.Testcontainers.WslContainerBuilder.WithWaitStrategy(Wslc.Testcontainers.Waiting.IWaitStrategy! strategy) -> Wslc.Testcontainers.WslContainerBuilder!

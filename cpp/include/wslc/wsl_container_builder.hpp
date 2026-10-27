@@ -183,6 +183,14 @@ public:
     /// </summary>
     WslContainerBuilder& WithReadinessTimeout(std::chrono::milliseconds timeout);
 
+    /// <summary>
+    /// Sets the grace period after SIGTERM before the runtime kills the init process, used by
+    /// <c>Stop</c> and <c>Dispose</c>. Must be between 1 second and 24 hours; default 10 seconds.
+    /// The process-exit cleanup hook stays capped at 2 seconds so a crashed test cannot hang
+    /// shutdown.
+    /// </summary>
+    WslContainerBuilder& WithStopTimeout(std::chrono::milliseconds timeout);
+
     /// <summary>Validates the configuration and creates the container. The container is not started.</summary>
     WslContainer Build();
 

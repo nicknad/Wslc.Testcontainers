@@ -839,6 +839,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
         try
         {
+            await _mainProcess.KillAsync(_configuration.StopTimeout, CancellationToken.None).ConfigureAwait(false);
             await _mainProcess.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -856,7 +857,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             return;
         }
 
-        TryStep(failures, () => _container.Stop(Signal.SIGTERM, TimeSpan.FromSeconds(10)), IsBenignRuntimeError);
+        TryStep(failures, () => _container.Stop(Signal.SIGTERM, _configuration.StopTimeout), IsBenignRuntimeError);
         TryStep(failures, () => _container.Delete(DeleteContainerOption.Force), IsBenignRuntimeError);
         _container = null;
     }

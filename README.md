@@ -213,7 +213,7 @@ Networking behavior is ultimately constrained by the underlying WSL Containers r
 
 ### Limits
 
-The networking surface in WSLC 3.0.1 consists of exactly two modes — `Bridged` (default) and
+The networking surface in WSLC 3.0.3 consists of exactly two modes — `Bridged` (default) and
 `Isolated` (no NIC) — plus per-port TCP mappings onto Windows host ports (loopback by default,
 optional bind address). Everything else is unavailable, by upstream design rather than by
 omission in this library:
@@ -245,6 +245,11 @@ In particular:
 - the runtime does not currently provide the usual seccomp/capability/user-namespace controls
 - host-directory mounts can provide write access to the Windows host
 - the library does not provide a mechanism for arbitrary in-container egress allowlisting
+- image pulls are subject to host policy: Microsoft Intune can disable WSL containers or restrict
+  pulls to an approved registry allow list, so tests pulling from `docker.io` or
+  `mcr.microsoft.com` may fail on managed devices
+- Microsoft Defender for Endpoint can surface container process, file and network activity and
+  attribute it to the Windows host
 
 Do **not** use the default configuration to execute untrusted or agent-generated code.
 

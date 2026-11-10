@@ -10,7 +10,8 @@ public sealed class MosquittoBuilder : WslModuleBuilder<MosquittoBuilder>
     /// <summary>Initializes the builder with the default Mosquitto image and readiness preset.</summary>
     public MosquittoBuilder()
         : base(
-            "docker.io/library/eclipse-mosquitto:2.1.2",
+            // Docker Hub publishes the Alpine image as 2.1.2-alpine; there is no plain 2.1.2 tag.
+            "docker.io/library/eclipse-mosquitto:2.1.2-alpine",
             MosquittoContainer.DefaultPort,
             // Mosquitto logs "mosquitto version <version> running" once its listener sockets are
             // open. The version-independent tail is the readiness token: the earlier

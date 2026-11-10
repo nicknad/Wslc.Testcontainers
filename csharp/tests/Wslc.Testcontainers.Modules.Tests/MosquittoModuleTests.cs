@@ -22,7 +22,7 @@ public sealed class MosquittoModuleTests
     {
         var container = new MosquittoBuilder().Build();
 
-        Assert.Equal("docker.io/library/eclipse-mosquitto:2.1.2", container.Image);
+        Assert.Equal("docker.io/library/eclipse-mosquitto:2.1.2-alpine", container.Image);
         Assert.Equal(1883, MosquittoContainer.DefaultPort);
         Assert.False(container.IsStarted);
     }

@@ -8,6 +8,7 @@
     <Project Path="src/Wslc.Testcontainers.Modules.SqlServer/Wslc.Testcontainers.Modules.SqlServer.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.Mosquitto/Wslc.Testcontainers.Modules.Mosquitto.csproj" />
+    <Project Path="src/Wslc.Testcontainers.Modules.Artemis/Wslc.Testcontainers.Modules.Artemis.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.MongoDb/Wslc.Testcontainers.Modules.MongoDb.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj" />
     <Project Path="src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj" />

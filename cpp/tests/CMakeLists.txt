@@ -41,6 +41,7 @@ add_executable(wslc_tests
   copy_cancel_tests.cpp
   environment_tests.cpp
   exceptions_tests.cpp
+  fault_shim_tests.cpp
   image_resolver_tests.cpp
   instance_store_tests.cpp
   iso8601_tests.cpp

@@ -156,6 +156,7 @@ add_library(wslc STATIC
   src/environment.cpp
   src/exceptions.cpp
   src/exec.cpp
+  src/faults/fault_shim.cpp
   src/log_line.cpp
   src/log_stream.cpp
   src/platform.cpp

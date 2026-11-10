@@ -1,0 +1,78 @@
+name: Setup C++ build
+description: >-
+  Restores the WSL Containers SDK and the pinned FetchContent sources (GoogleTest,
+  nlohmann/json, WIL), initializes the MSVC developer environment, and configures the
+  CMake build. Restored sources keep configure offline; on a cold cache FetchContent
+  downloads the pinned tarballs and the configure is retried because the GitHub CDN
+  intermittently answers 5xx.
+
+inputs:
+  build-dir:
+    description: CMake build directory; FetchContent keeps its sources under `<build-dir>/_deps`.
+    required: true
+  configure-args:
+    description: Additional arguments for the initial `cmake` configure (space-separated).
+    required: false
+    default: ""
+  sdk-version:
+    description: Microsoft.WSL.Containers package version restored under `cpp/.packages`.
+    required: false
+    default: "3.0.3"
+
+runs:
+  using: composite
+  steps:
+    - name: Cache WSL Containers SDK
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: cpp/.packages
+        key: ${{ runner.os }}-wslc-sdk-${{ inputs.sdk-version }}-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
+
+    - name: Fetch WSL Containers SDK
+      shell: pwsh
+      run: ./cpp/scripts/Install-WslcSdk.ps1 -Version ${{ inputs.sdk-version }} -Destination cpp/.packages
+
+    # The source pins live in cpp/CMakeLists.txt and cpp/tests/CMakeLists.txt; keying on
+    # them keeps a stale cache from shadowing a version bump.
+    - name: Restore fetched sources
+      id: sources
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          ${{ inputs.build-dir }}/_deps/googletest-src
+          ${{ inputs.build-dir }}/_deps/nlohmann_json-src
+          ${{ inputs.build-dir }}/_deps/wil-src
+        key: ${{ runner.os }}-cpp-sources-${{ inputs.build-dir }}-${{ hashFiles('cpp/CMakeLists.txt', 'cpp/tests/CMakeLists.txt') }}
+
+    - uses: ./.github/actions/setup-msvc
+
+    - name: Configure
+      shell: pwsh
+      env:
+        WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/${{ inputs.build-dir }}/_deps/googletest-src
+        WSLC_JSON_SOURCE_DIR: ${{ github.workspace }}/${{ inputs.build-dir }}/_deps/nlohmann_json-src
+        WSLC_WIL_SOURCE_DIR: ${{ github.workspace }}/${{ inputs.build-dir }}/_deps/wil-src
+        WSLC_SOURCES_CACHE_HIT: ${{ steps.sources.outputs.cache-hit }}
+        WSLC_CONFIGURE_ARGS: ${{ inputs.configure-args }}
+        WSLC_BUILD_DIR: ${{ inputs.build-dir }}
+        WSLC_SDK_VERSION: ${{ inputs.sdk-version }}
+      run: |
+        # CMakeLists.txt uses a source directory only when it exists, so exporting all three
+        # is safe on a cold cache. Only the download path is worth retrying: with the sources
+        # restored from cache a failure is a real build/configuration error, so fail fast.
+        $attempts = if ($env:WSLC_SOURCES_CACHE_HIT -eq 'true') { 1 } else { 3 }
+        $configureArgs = @($env:WSLC_CONFIGURE_ARGS -split '\s+' | Where-Object { $_ })
+        for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+          Write-Host "Configuring $env:WSLC_BUILD_DIR (attempt $attempt/$attempts)"
+          & cmake -S cpp -B $env:WSLC_BUILD_DIR -G Ninja @configureArgs `
+            "-DWSLC_SDK_ROOT=$PWD/cpp/.packages/Microsoft.WSL.Containers.$env:WSLC_SDK_VERSION"
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          Write-Warning "cmake configure failed (exit $LASTEXITCODE), attempt $attempt/$attempts."
+          if ($attempt -lt $attempts) {
+            # A failed FetchContent download leaves a half-populated tree; start the retry
+            # from a clean _deps so the pinned tarballs are fetched again.
+            Remove-Item -Recurse -Force (Join-Path $env:WSLC_BUILD_DIR '_deps') -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds (10 * $attempt)
+          }
+        }
+        exit 1

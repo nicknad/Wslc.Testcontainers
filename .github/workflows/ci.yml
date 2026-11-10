@@ -58,25 +58,10 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Cache WSL Containers SDK
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - uses: ./.github/actions/setup-cpp-build
         with:
-          path: cpp/.packages
-          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
-      - name: Fetch WSL Containers SDK
-        shell: pwsh
-        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
-      - name: Cache GoogleTest source
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: cpp/build/_deps/googletest-src
-          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ./.github/actions/setup-msvc
-      - name: Configure
-        shell: pwsh
-        env:
-          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build/_deps/googletest-src
-        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
+          build-dir: cpp/build
+          configure-args: -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build cpp/build --parallel
       - name: Unit tests
@@ -104,28 +89,12 @@ jobs:
             $failed | ForEach-Object { Write-Host "needs formatting: $_" }
             throw 'clang-format check failed'
           }
-      - name: Cache WSL Containers SDK
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - uses: ./.github/actions/setup-cpp-build
         with:
-          path: cpp/.packages
-          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
-      - name: Fetch WSL Containers SDK
-        shell: pwsh
-        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
-      - name: Cache GoogleTest source
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: cpp/build-tidy/_deps/googletest-src
-          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ./.github/actions/setup-msvc
-      - name: Configure (compile_commands.json)
-        shell: pwsh
-        env:
-          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-tidy/_deps/googletest-src
-        run: |
-          cmake -S cpp -B cpp/build-tidy -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWSLC_BUILD_EXAMPLES=OFF `
-            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
+          build-dir: cpp/build-tidy
+          configure-args: >-
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DWSLC_BUILD_EXAMPLES=OFF
       - name: Resolve clang-tidy base revision
         id: base
         shell: pwsh
@@ -168,27 +137,12 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Cache WSL Containers SDK
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - uses: ./.github/actions/setup-cpp-build
         with:
-          path: cpp/.packages
-          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
-      - name: Fetch WSL Containers SDK
-        shell: pwsh
-        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
-      - name: Cache GoogleTest source
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: cpp/build-asan/_deps/googletest-src
-          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ./.github/actions/setup-msvc
-      - name: Configure (AddressSanitizer)
-        shell: pwsh
-        env:
-          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-asan/_deps/googletest-src
-        run: |
-          cmake -S cpp -B cpp/build-asan -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_BUILD_EXAMPLES=OFF -DWSLC_ENABLE_SANITIZERS=ON `
-            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
+          build-dir: cpp/build-asan
+          configure-args: >-
+            -DCMAKE_BUILD_TYPE=Release -DWSLC_BUILD_EXAMPLES=OFF
+            -DWSLC_ENABLE_SANITIZERS=ON
       - name: Build
         run: cmake --build cpp/build-asan --target wslc_tests --parallel
       - name: Unit tests under ASan

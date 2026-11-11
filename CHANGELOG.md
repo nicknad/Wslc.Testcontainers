@@ -2,6 +2,28 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.9.0
+
+### Added
+
+- `net11.0-windows10.0.19041.0` is a shipped target framework for the C# packages, alongside
+  `net8.0-windows10.0.19041.0` and `net10.0-windows10.0.19041.0`. The framework list now lives
+  in one place (`csharp/Directory.Build.props`) and CI derives its test matrix from it, so the
+  next framework bump is a one-line change (per ADR-0010).
+
+### Changed
+
+- The repository builds with the .NET 11 SDK: `global.json` pins the `11.0.1xx` band, and the
+  Windows platform pins are unchanged (`10.0.19041.0` floor, Windows SDK projection
+  `10.0.26100.80`). `Microsoft.WSL.Containers` 3.0.3 still resolves its `net8.0-windows`
+  projection on every target framework.
+
+### Removed
+
+- `net9.0-windows10.0.19041.0` is no longer shipped: .NET 9 reached end of support on
+  2026-11-10. Consumers on .NET 9 must move to .NET 10 or .NET 11; the net8 and net10 assets
+  are unchanged.
+
 ## 0.8.0
 
 ### Added

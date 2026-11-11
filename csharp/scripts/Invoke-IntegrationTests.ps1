@@ -48,7 +48,7 @@ param(
     [switch]$AllowUnelevated,
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
-    [string]$Framework = "net10.0-windows10.0.19041.0",
+    [string]$Framework = "net11.0-windows10.0.19041.0",
     [string]$Project = "tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj"
 )
 

@@ -53,7 +53,7 @@ see [Egress policy](#egress-policy-not-offered).
   with container support.
   Verify with `wsl --status` / `wsl --version`; in code `StartAsync()` fails fast
   with `WslRuntimeException` when components are missing.
-- .NET 8, 9 or 10 on Windows. Building the repo needs the .NET 10 SDK
+- .NET 8, 10 or 11 on Windows. Building the repo needs the .NET 11 SDK
   (`global.json`); test options are passed after `--` (Microsoft Testing Platform).
 
 ```powershell

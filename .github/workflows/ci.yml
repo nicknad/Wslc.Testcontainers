@@ -9,7 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  tfms:
+    # The framework list lives in csharp/Directory.Build.props (per ADR-0010). CI reads it here
+    # instead of keeping a second, hand-maintained copy in the matrices below.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.enumerate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 11.0.1xx
+      - id: enumerate
+        shell: bash
+        run: |
+          tfms=$(dotnet msbuild csharp/src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -nologo -getProperty:WslcTargetFrameworks | grep -E '^net[0-9]' | tail -n 1)
+          matrix=$(printf '%s' "$tfms" | tr ';' '\n' | sed 's/.*/"&"/' | paste -sd, -)
+          echo "matrix=[$matrix]" >> "$GITHUB_OUTPUT"
+
   unit-windows:
+    needs: tfms
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -21,18 +41,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tfm:
-          - net8.0-windows10.0.19041.0
-          - net9.0-windows10.0.19041.0
-          - net10.0-windows10.0.19041.0
+        tfm: ${{ fromJSON(needs.tfms.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
           dotnet-version: |
             8.0.x
-            9.0.x
             10.0.x
+            11.0.1xx
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} --no-build -v minimal -- --filter "FullyQualifiedName!~Integration"
       - run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f ${{ matrix.tfm }} --no-build -v minimal
@@ -50,8 +67,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: 10.0.x
-      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
+          dotnet-version: 11.0.1xx
+      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net11.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
 
   cpp-windows:
     runs-on: windows-latest
@@ -208,7 +225,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.1xx
       - run: dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal
       - name: Verify formatting
         run: dotnet format Wslc.Testcontainers.slnx --verify-no-changes --no-restore --verbosity minimal

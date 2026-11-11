@@ -1,1 +1,9 @@
 #nullable enable
+const Wslc.Testcontainers.Modules.Artemis.ArtemisContainer.DefaultPort = 1883 -> int
+Wslc.Testcontainers.Modules.Artemis.ArtemisBuilder
+Wslc.Testcontainers.Modules.Artemis.ArtemisBuilder.ArtemisBuilder() -> void
+Wslc.Testcontainers.Modules.Artemis.ArtemisBuilder.Build() -> Wslc.Testcontainers.Modules.Artemis.ArtemisContainer!
+Wslc.Testcontainers.Modules.Artemis.ArtemisBuilder.WithCredentials(string! username, string! password) -> Wslc.Testcontainers.Modules.Artemis.ArtemisBuilder!
+Wslc.Testcontainers.Modules.Artemis.ArtemisContainer
+Wslc.Testcontainers.Modules.Artemis.ArtemisContainer.GetConnectionString() -> string!
+Wslc.Testcontainers.Modules.Artemis.ArtemisContainer.GetConnectionString(System.Net.IPEndPoint! endpoint) -> string!

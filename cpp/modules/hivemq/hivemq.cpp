@@ -8,8 +8,7 @@ namespace wslc::modules
 HiveMqBuilder::HiveMqBuilder()
     // Docker Hub publishes the CE Image under calendar versions. 2026.5 is a real tag, and the
     // repository only accepts immutable digits-first tags.
-    : WslModuleBuilder<HiveMqBuilder>("docker.io/hivemq/hivemq-ce:2026.5",
-                                      HiveMqContainer::DefaultPort,
+    : WslModuleBuilder<HiveMqBuilder>("docker.io/hivemq/hivemq-ce:2026.5", HiveMqContainer::DefaultPort,
                                       // HiveMQ logs "Started HiveMQ in <n>ms" after its listener accepts
                                       // clients. The version-independent prefix is the readiness token:
                                       // the earlier "Starting HiveMQ" line does not contain it, so it

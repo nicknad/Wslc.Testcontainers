@@ -67,6 +67,7 @@ std::vector<unsigned char> Packet(unsigned char header, std::span<const unsigned
 {
     std::vector<unsigned char> packet{header};
     std::size_t remaining = body.size();
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-do-while): an empty body still needs one length byte.
     do
     {
         unsigned char encoded = static_cast<unsigned char>(remaining % 128);

@@ -2,6 +2,21 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.10.0
+
+### Added
+
+- `Wslc.Testcontainers.Modules.Mosquitto`, `Wslc.Testcontainers.Modules.HiveMq` and
+  `Wslc.Testcontainers.Modules.Artemis` are published packages for the first time. The modules
+  were in the source tree but the release workflow packed a hand-kept project list that never
+  included them, so 0.9.0 shipped without MQTT broker packages.
+
+### Changed
+
+- The release workflow and `scripts/Verify-Package.ps1` pack every project under `src/` instead
+  of enumerating nineteen project paths, so a new module ships without editing either file
+  (per ADR-0010).
+
 ## 0.9.0
 
 ### Added

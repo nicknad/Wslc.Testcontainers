@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/SQL Server/RabbitMQ/Mosquitto/HiveMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/SQL Server/RabbitMQ/Mosquitto/HiveMQ/Artemis/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -77,6 +77,7 @@ dotnet add package Wslc.Testcontainers.Modules.SqlServer
 dotnet add package Wslc.Testcontainers.Modules.RabbitMq
 dotnet add package Wslc.Testcontainers.Modules.Mosquitto
 dotnet add package Wslc.Testcontainers.Modules.HiveMq
+dotnet add package Wslc.Testcontainers.Modules.Artemis
 dotnet add package Wslc.Testcontainers.Modules.MongoDb
 dotnet add package Wslc.Testcontainers.Modules.Nats
 dotnet add package Wslc.Testcontainers.Modules.MailPit
@@ -207,6 +208,27 @@ The pinned image keeps HiveMQ's bundled allow-all extension enabled
 (`HIVEMQ_ALLOW_ALL_CLIENTS=true`), so anonymous clients connect without credentials. The builder
 also renders a caller-supplied endpoint with `GetConnectionString(IPEndPoint)`. For fault
 scenarios, see [Fault injection](#fault-injection).
+
+ActiveMQ Artemis (MQTT URL; anonymous by default):
+
+```csharp
+using Wslc.Testcontainers.Modules.Artemis;
+
+await using var artemis = new ArtemisBuilder().Build();
+await artemis.StartAsync();
+var mqtt = artemis.GetConnectionString(); // mqtt://host:port
+
+// Optional named user, rendered as userinfo:
+await using var authenticated = new ArtemisBuilder()
+    .WithCredentials("user", "secret")
+    .Build();
+await authenticated.StartAsync();
+var authenticatedMqtt = authenticated.GetConnectionString(); // mqtt://user:secret@host:port
+```
+
+The pinned Alpine image creates its broker instance on first start and the generated
+configuration exposes MQTT on 1883, so the preset supplies no `broker.xml`. Anonymous login is
+enabled by default; `WithCredentials` creates a named user and includes it in the URL.
 
 MongoDB (driver connection string; root credentials optional):
 
@@ -426,7 +448,7 @@ Operational rules:
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MosquittoBuilder`, `HiveMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`, `AzuriteBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()` / `GetBlobEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MosquittoBuilder`, `HiveMqBuilder`, `ArtemisBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`, `AzuriteBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()` / `GetBlobEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

@@ -1,0 +1,8 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.HiveMq.HiveMqContainer.DefaultPort = 1883 -> int
+Wslc.Testcontainers.Modules.HiveMq.HiveMqBuilder
+Wslc.Testcontainers.Modules.HiveMq.HiveMqBuilder.Build() -> Wslc.Testcontainers.Modules.HiveMq.HiveMqContainer!
+Wslc.Testcontainers.Modules.HiveMq.HiveMqBuilder.HiveMqBuilder() -> void
+Wslc.Testcontainers.Modules.HiveMq.HiveMqContainer
+Wslc.Testcontainers.Modules.HiveMq.HiveMqContainer.GetConnectionString() -> string!
+Wslc.Testcontainers.Modules.HiveMq.HiveMqContainer.GetConnectionString(System.Net.IPEndPoint! endpoint) -> string!

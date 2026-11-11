@@ -15,28 +15,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup-llvm
-      - name: Cache WSL Containers SDK
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - uses: ./.github/actions/setup-cpp-build
         with:
-          path: cpp/.packages
-          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
-      - name: Fetch WSL Containers SDK
-        shell: pwsh
-        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
-      - name: Cache GoogleTest source
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: cpp/build-analyze/_deps/googletest-src
-          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ./.github/actions/setup-msvc
-      - name: Configure (compile_commands.json)
-        shell: pwsh
-        env:
-          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build-analyze/_deps/googletest-src
-        run: |
-          cmake -S cpp -B cpp/build-analyze -G Ninja -DCMAKE_BUILD_TYPE=Release `
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DWSLC_BUILD_EXAMPLES=OFF `
-            -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
+          build-dir: cpp/build-analyze
+          configure-args: >-
+            -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+            -DWSLC_BUILD_EXAMPLES=OFF
       - name: clang-analyzer (full project; warnings are errors)
         shell: pwsh
         run: ./cpp/scripts/Run-ClangTidy.ps1 -All -BuildDir cpp/build-analyze -ConfigFile cpp/.clang-tidy-analyzer

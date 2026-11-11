@@ -1,7 +1,7 @@
 # Usage — containers for testing
 
 This guide shows how to use `Wslc.Testcontainers` for .NET integration tests.
-It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/SQL Server/RabbitMQ/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
+It covers the core container, the PostgreSql/Redis/Valkey/MariaDB/SQL Server/RabbitMQ/Mosquitto/HiveMQ/Artemis/MongoDB/NATS/Mailpit/RustFS/WireMock/Qdrant/ClickHouse/Vault/Keycloak/Elasticsearch/Kafka modules, and the xUnit patterns
 used in `examples/`. For failure triage see `troubleshooting.md`; for caching
 semantics see `reuse.md`.
 
@@ -53,7 +53,7 @@ see [Egress policy](#egress-policy-not-offered).
   with container support.
   Verify with `wsl --status` / `wsl --version`; in code `StartAsync()` fails fast
   with `WslRuntimeException` when components are missing.
-- .NET 8, 9 or 10 on Windows. Building the repo needs the .NET 10 SDK
+- .NET 8, 10 or 11 on Windows. Building the repo needs the .NET 11 SDK
   (`global.json`); test options are passed after `--` (Microsoft Testing Platform).
 
 ```powershell
@@ -75,6 +75,9 @@ dotnet add package Wslc.Testcontainers.Modules.Valkey
 dotnet add package Wslc.Testcontainers.Modules.MariaDb
 dotnet add package Wslc.Testcontainers.Modules.SqlServer
 dotnet add package Wslc.Testcontainers.Modules.RabbitMq
+dotnet add package Wslc.Testcontainers.Modules.Mosquitto
+dotnet add package Wslc.Testcontainers.Modules.HiveMq
+dotnet add package Wslc.Testcontainers.Modules.Artemis
 dotnet add package Wslc.Testcontainers.Modules.MongoDb
 dotnet add package Wslc.Testcontainers.Modules.Nats
 dotnet add package Wslc.Testcontainers.Modules.MailPit
@@ -175,6 +178,57 @@ await using var rabbitmq = new RabbitMqBuilder().Build();
 await rabbitmq.StartAsync();
 var amqp = rabbitmq.GetConnectionString(); // amqp://user:pass@host:port/
 ```
+
+Eclipse Mosquitto (MQTT URL for any MQTT client library):
+
+```csharp
+using Wslc.Testcontainers.Modules.Mosquitto;
+
+await using var mosquitto = new MosquittoBuilder().Build();
+await mosquitto.StartAsync();
+var mqtt = mosquitto.GetConnectionString(); // mqtt://host:port
+```
+
+The pinned image ships a working configuration (listener 1883, `allow_anonymous true`), so the
+preset supplies no config file. The builder also renders a caller-supplied endpoint with
+`GetConnectionString(IPEndPoint)`. For reconnects, keepalive timeouts and last-will scenarios, see
+[Fault injection](#fault-injection).
+
+HiveMQ Community Edition (a second, JVM-based MQTT broker):
+
+```csharp
+using Wslc.Testcontainers.Modules.HiveMq;
+
+await using var hivemq = new HiveMqBuilder().Build();
+await hivemq.StartAsync();
+var mqtt = hivemq.GetConnectionString(); // mqtt://host:port
+```
+
+The pinned image keeps HiveMQ's bundled allow-all extension enabled
+(`HIVEMQ_ALLOW_ALL_CLIENTS=true`), so anonymous clients connect without credentials. The builder
+also renders a caller-supplied endpoint with `GetConnectionString(IPEndPoint)`. For fault
+scenarios, see [Fault injection](#fault-injection).
+
+ActiveMQ Artemis (MQTT URL; anonymous by default):
+
+```csharp
+using Wslc.Testcontainers.Modules.Artemis;
+
+await using var artemis = new ArtemisBuilder().Build();
+await artemis.StartAsync();
+var mqtt = artemis.GetConnectionString(); // mqtt://host:port
+
+// Optional named user, rendered as userinfo:
+await using var authenticated = new ArtemisBuilder()
+    .WithCredentials("user", "secret")
+    .Build();
+await authenticated.StartAsync();
+var authenticatedMqtt = authenticated.GetConnectionString(); // mqtt://user:secret@host:port
+```
+
+The pinned Alpine image creates its broker instance on first start and the generated
+configuration exposes MQTT on 1883, so the preset supplies no `broker.xml`. Anonymous login is
+enabled by default; `WithCredentials` creates a named user and includes it in the URL.
 
 MongoDB (driver connection string; root credentials optional):
 
@@ -309,6 +363,83 @@ var blobEndpoint = azurite.GetBlobEndpoint(); // http://host:port/devstoreaccoun
 `UseDevelopmentStorage=true` cannot be used because the host ports are dynamic; the module renders
 the full connection string, including the well-known `devstoreaccount1` account.
 
+## Fault injection
+
+MQTT clients behave differently when the network misbehaves: reconnects, keepalive timeouts,
+last-will delivery and QoS 1 redelivery only appear when a connection drops or goes silent. The
+fault relay makes that reproducible without stopping the broker, and without a helper inside the
+container.
+
+The relay is opt-in and protocol-blind. It listens on Windows loopback in front of a container
+port, forwards bytes unchanged, and injects transport faults on demand. It needs no image change,
+no extra container port, and no Linux capabilities. See [ADR-0009](adr/0009-fault-relay.md) for
+the decision and the alternatives that were rejected.
+
+Attach it after the broker is started, then point the client at the relay endpoint instead of the
+broker:
+
+```csharp
+using Wslc.Testcontainers.Faults;
+using Wslc.Testcontainers.Modules.Mosquitto;
+
+await using var broker = new MosquittoBuilder().Build();
+await broker.StartAsync();
+
+// Dials the broker's dynamic host port once per accepted client connection.
+await using var relay = FaultShim.Attach(broker.GetConnectEndpoint(MosquittoContainer.DefaultPort));
+
+using var client = factory.CreateClient(broker.GetConnectionString(relay.Endpoint));
+await client.ConnectAsync();
+
+relay.Latency(TimeSpan.FromSeconds(2), FaultDirection.BrokerToClient); // slow CONNACK
+relay.Inject(FaultMode.Reset);                                          // ungraceful drop now
+relay.Arm(2, FaultMode.Stall);                                          // next two connections go silent
+relay.Clear();                                                          // back to normal
+```
+
+```cpp
+#include <wslc/faults/fault_shim.hpp>
+#include <wslc/modules/mosquitto.hpp>
+
+auto broker = wslc::modules::MosquittoBuilder{}.Build();
+broker.Start();
+
+auto relay = wslc::faults::FaultShim::Attach(
+    broker.GetConnectEndpoint(wslc::modules::MosquittoContainer::DefaultPort));
+auto uri = broker.GetConnectionString(relay.Endpoint());
+
+relay.Inject(wslc::faults::FaultMode::Reset);
+relay.Clear();
+broker.Dispose();
+```
+
+| Mode | What the other side observes | Use it for |
+| --- | --- | --- |
+| `Reset` | RST: the broker sees an ungraceful drop, so last-will fires and QoS 1 redelivers | crash paths, reconnect and redelivery |
+| `Close` | A send-side shutdown on one leg only: a true half-open link | half-open detection |
+| `Stall` | Bytes stop flowing while sockets stay open, so PINGREQ goes unanswered | keepalive and PINGRESP timeouts |
+| `Latency` | Every chunk in the selected direction is delayed by a fixed duration | slow CONNACK/SUBACK/PUBLISH |
+| `Arm(n, mode)` | The mode applies from accept time to the next `n` connections | retry storms, "first N reconnects fail" |
+
+`Inject` applies to connections that are already relayed and returns how many it touched; `0`
+means nothing was connected, not that the fault failed. `FaultDirection` selects
+`ClientToBroker`, `BrokerToClient` or `Both`. `LiveConnections` is a cheap count, useful for
+waiting until a client is actually attached.
+
+Operational rules:
+
+- Keep the relay per test. Dispose it **before** the container; after a `StopAsync`/`StartAsync`
+  cycle the mapped host port can change, so attach a new relay.
+- Readiness waits target the container's direct endpoint, and the relay does not exist during
+  `StartAsync`, so a broken broker cannot be masked by it.
+- The direct endpoint stays usable while the relay is attached. Use it for assertions that must
+  not measure the loopback hop, such as latency budgets.
+- The relay never inspects or fabricates MQTT packets. Authentication rejection, maximum
+  connections, keepalive negotiation and broker-side redelivery policy are broker configuration:
+  set them through `ConfigureContainer` with the module's `WithFile`/`WithEnvironment` escape
+  hatch. Byte duplication, reordering and bandwidth throttling are deliberately not offered,
+  because they corrupt a protocol stream rather than model a network fault.
+
 ## Core concepts
 
 | Concept | Description |
@@ -317,7 +448,7 @@ the full connection string, including the well-known `devstoreaccount1` account.
 | `WslContainer` / `IWslContainer` | One disposable container in its own WSL session. `Build()` creates, `StartAsync()` provisions + waits. |
 | `Wait` / `IWaitStrategy` | Readiness conditions. `StartAsync()` returns only after all pass. |
 | `IWslProcess` | Long-running process from `StartProcess` — caller must dispose it. |
-| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`, `AzuriteBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()` / `GetBlobEndpoint()`). Prefer over hand-rolled builder chains. |
+| Modules (`PostgreSqlBuilder`, `RedisBuilder`, `ValkeyBuilder`, `MariaDbBuilder`, `SqlServerBuilder`, `RabbitMqBuilder`, `MosquittoBuilder`, `HiveMqBuilder`, `ArtemisBuilder`, `MongoDbBuilder`, `NatsBuilder`, `MailPitBuilder`, `RustFsBuilder`, `WireMockBuilder`, `QdrantBuilder`, `ClickHouseBuilder`, `VaultBuilder`, `KeycloakBuilder`, `ElasticsearchBuilder`, `KafkaBuilder`, `AzuriteBuilder`) | Versioned presets: image + port + waits + connection helpers (`GetConnectionString()` / `GetEndpoint()` / `GetBootstrapServers()` / `GetBlobEndpoint()`). Prefer over hand-rolled builder chains. |
 
 Isolation model: each `WslContainer` owns a dedicated WSL **session** with its own
 storage (`%LOCALAPPDATA%\Wslc\instances\<wslc-name>\storage`), so parallel tests do

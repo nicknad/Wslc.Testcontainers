@@ -76,6 +76,18 @@ function Assert-VersionLockstep {
   Write-Host "ok: C# VersionPrefix numeric part and C++ CMake project VERSION are both $csharpVersion"
 }
 
+# The shipped target frameworks live in one place: Directory.Build.props (per ADR-0010).
+# Both "every TFM" and "the newest TFM" are derived from it here, so a framework bump does
+# not need a matching edit in this script.
+function Get-TargetFrameworks {
+  $propsPath = (Join-Path $PSScriptRoot '..\Directory.Build.props' | Resolve-Path).Path
+  $props = Get-Content -LiteralPath $propsPath -Raw
+  if ($props -notmatch '<WslcTargetFrameworks>([^<]+)</WslcTargetFrameworks>') {
+    throw "Could not parse WslcTargetFrameworks from $propsPath."
+  }
+  return @($Matches[1].Split(';') | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+}
+
 # Refuses to ship an unfrozen surface: an assembly with unshipped public-surface lines
 # and no shipped baseline must be promoted first. Assemblies that already have a shipped
 # baseline may keep accumulating new unshipped entries.
@@ -162,8 +174,10 @@ if ($ChecksOnly) {
 Step 'Build'
 Invoke-Native 'build' { dotnet build Wslc.Testcontainers.slnx -c Release --nologo -v minimal }
 
-Step 'Unit tests (net8/9/10, no integration)'
-foreach ($tfm in @('net8.0-windows10.0.19041.0', 'net9.0-windows10.0.19041.0', 'net10.0-windows10.0.19041.0')) {
+$tfms = Get-TargetFrameworks
+$newestTfm = $tfms[-1]
+Step "Unit tests ($($tfms -join ', '), no integration)"
+foreach ($tfm in $tfms) {
   Invoke-Native "unit ($tfm)" {
     # Do not pass --nologo to dotnet test under the Microsoft Testing Platform:
     # it makes the test app discover zero tests and exit 5. Options for the test
@@ -199,10 +213,13 @@ Step 'Smoke install (local feed)'
 $feed = (Resolve-Path artifacts/packages).Path
 $smoke = Join-Path ([System.IO.Path]::GetTempPath()) ("wslc-smoke-" + [System.Guid]::NewGuid().ToString('N'))
 if (Test-Path $smoke) { Remove-Item -Recurse -Force $smoke }
-dotnet new console -o $smoke -f net10.0 --no-restore | Out-Null
+# A fresh consumer picks the newest shipped TFM; derive its bare form (net11.0) from the
+# windows-specific one so the smoke test follows the framework list (per ADR-0010).
+$newestBase = ($newestTfm -split '-')[0]
+dotnet new console -o $smoke -f $newestBase --no-restore | Out-Null
 $csproj = Get-ChildItem "$smoke/*.csproj" | Select-Object -First 1
 (Get-Content $csproj.FullName -Raw) `
-  -replace '<TargetFramework>net10\.0</TargetFramework>', '<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>' `
+  -replace [regex]::Escape("<TargetFramework>$newestBase</TargetFramework>"), "<TargetFramework>$newestTfm</TargetFramework>" `
   | Set-Content $csproj.FullName
 Invoke-Native 'smoke add package' { dotnet add $csproj.FullName package Wslc.Testcontainers --version "$Version" --source "$feed" }
 Invoke-Native 'smoke build' { dotnet build $csproj.FullName -c Release --nologo -v minimal }
@@ -216,11 +233,11 @@ if ($RunIntegration) {
   Invoke-Native 'core integration' {
     # No --nologo: see the unit test step comment.
     dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj `
-      -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter 'FullyQualifiedName~Integration'
+      -c Release -f $newestTfm --no-build -v minimal -- --filter 'FullyQualifiedName~Integration'
   }
   Invoke-Native 'module integration' {
     dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj `
-      -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal
+      -c Release -f $newestTfm --no-build -v minimal
   }
   Invoke-Native 'Postgres module' {
     dotnet test examples/Postgres.Tests/Postgres.Tests.csproj -c Release -v minimal

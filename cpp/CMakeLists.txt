@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(Wslc.Testcontainers.Cpp VERSION 0.8.0 LANGUAGES CXX)
+project(Wslc.Testcontainers.Cpp VERSION 0.9.0 LANGUAGES CXX)
 
 if(NOT WIN32)
   message(FATAL_ERROR "Wslc.Testcontainers C++ requires Windows (WSL containers are Windows-only).")
@@ -156,6 +156,7 @@ add_library(wslc STATIC
   src/environment.cpp
   src/exceptions.cpp
   src/exec.cpp
+  src/faults/fault_shim.cpp
   src/log_line.cpp
   src/log_stream.cpp
   src/platform.cpp
@@ -290,6 +291,24 @@ add_library(wslc::azurite ALIAS wslc_azurite)
 target_include_directories(wslc_azurite PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/azurite/include")
 target_link_libraries(wslc_azurite PUBLIC wslc)
 wslc_apply_strict_options(wslc_azurite)
+
+add_library(wslc_mosquitto STATIC modules/mosquitto/mosquitto.cpp)
+add_library(wslc::mosquitto ALIAS wslc_mosquitto)
+target_include_directories(wslc_mosquitto PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mosquitto/include")
+target_link_libraries(wslc_mosquitto PUBLIC wslc)
+wslc_apply_strict_options(wslc_mosquitto)
+
+add_library(wslc_hivemq STATIC modules/hivemq/hivemq.cpp)
+add_library(wslc::hivemq ALIAS wslc_hivemq)
+target_include_directories(wslc_hivemq PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/hivemq/include")
+target_link_libraries(wslc_hivemq PUBLIC wslc)
+wslc_apply_strict_options(wslc_hivemq)
+
+add_library(wslc_artemis STATIC modules/artemis/artemis.cpp)
+add_library(wslc::artemis ALIAS wslc_artemis)
+target_include_directories(wslc_artemis PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/artemis/include")
+target_link_libraries(wslc_artemis PUBLIC wslc)
+wslc_apply_strict_options(wslc_artemis)
 
 # ---------------------------------------------------------------------------
 # Tests and examples

@@ -11,7 +11,7 @@ nothing failed the build on new warnings.
 
 - `TreatWarningsAsErrors`, `WarningLevel 9999`, and `EnforceCodeStyleInBuild`
   are on for the whole repo. The build must stay at zero warnings and zero
-  errors on all TFMs (`net8/net9/net10-windows`).
+  errors on all TFMs (`net8/net10/net11-windows`).
 - Full `AnalysisMode:All` stays off: several `All` rules conflict with
   intentional API shape (exception ctors, `And()` name, `CancellationToken`
   position for overload compatibility) and with `net8` APIs

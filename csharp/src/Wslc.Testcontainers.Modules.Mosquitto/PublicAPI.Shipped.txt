@@ -1,0 +1,8 @@
+#nullable enable
+const Wslc.Testcontainers.Modules.Mosquitto.MosquittoContainer.DefaultPort = 1883 -> int
+Wslc.Testcontainers.Modules.Mosquitto.MosquittoBuilder
+Wslc.Testcontainers.Modules.Mosquitto.MosquittoBuilder.Build() -> Wslc.Testcontainers.Modules.Mosquitto.MosquittoContainer!
+Wslc.Testcontainers.Modules.Mosquitto.MosquittoBuilder.MosquittoBuilder() -> void
+Wslc.Testcontainers.Modules.Mosquitto.MosquittoContainer
+Wslc.Testcontainers.Modules.Mosquitto.MosquittoContainer.GetConnectionString() -> string!
+Wslc.Testcontainers.Modules.Mosquitto.MosquittoContainer.GetConnectionString(System.Net.IPEndPoint! endpoint) -> string!

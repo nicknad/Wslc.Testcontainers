@@ -32,16 +32,16 @@ jobs:
       WSLC_MEMORY_MEGABYTES: "2048"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.1xx
       - uses: ./.github/actions/setup-wsl
       - name: Build C# tests
         working-directory: csharp
         run: dotnet build tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release --nologo -v minimal
       - name: Run C# integration tests
         working-directory: csharp
-        run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName~Integration"
+        run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net11.0-windows10.0.19041.0 --no-build -v minimal -- --filter "FullyQualifiedName~Integration"
         env:
           WSLC_RUN_INTEGRATION: "1"
       - name: Collect WSL diagnostics on failure
@@ -64,13 +64,13 @@ jobs:
       WSLC_MEMORY_MEGABYTES: "2048"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.1xx
       - uses: ./.github/actions/setup-wsl
       - name: Run module integration tests (real containers)
         working-directory: csharp
-        run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal
+        run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f net11.0-windows10.0.19041.0 -v minimal
         env:
           WSLC_RUN_INTEGRATION: "1"
       - name: Run Postgres module tests (real container)
@@ -106,25 +106,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: ./.github/actions/setup-wsl
-      - name: Cache WSL Containers SDK
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      - uses: ./.github/actions/setup-cpp-build
         with:
-          path: cpp/.packages
-          key: ${{ runner.os }}-wslc-sdk-${{ hashFiles('cpp/scripts/Install-WslcSdk.ps1') }}
-      - name: Fetch WSL Containers SDK
-        shell: pwsh
-        run: ./cpp/scripts/Install-WslcSdk.ps1 -Destination cpp/.packages
-      - name: Cache GoogleTest source
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: cpp/build/_deps/googletest-src
-          key: ${{ runner.os }}-${{ github.job }}-gtest-src-${{ hashFiles('cpp/tests/CMakeLists.txt') }}
-      - uses: ./.github/actions/setup-msvc
-      - name: Configure C++ tests
-        shell: pwsh
-        env:
-          WSLC_GTEST_SOURCE_DIR: ${{ github.workspace }}/cpp/build/_deps/googletest-src
-        run: cmake -S cpp -B cpp/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DWSLC_SDK_ROOT="$PWD/cpp/.packages/Microsoft.WSL.Containers.3.0.3"
+          build-dir: cpp/build
+          configure-args: -DCMAKE_BUILD_TYPE=Release
       - name: Build C++ tests
         run: cmake --build cpp/build --parallel
       - name: Run C++ integration tests

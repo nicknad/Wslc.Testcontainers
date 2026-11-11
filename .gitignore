@@ -28,3 +28,7 @@ _deps/
 *.log
 Thumbs.db
 .DS_Store
+
+# Local specs, tickets and agent worktrees
+.scratch/
+.worktrees/

@@ -30,6 +30,49 @@ dotnet test --project tests/Wslc.Testcontainers.Tests -- --filter "FullyQualifie
 Without the variable, `[IntegrationFact]` tests skip with the reason printed.
 Test-app options go after `--` under the Microsoft Testing Platform.
 
+### Running integration tests from this checkout
+
+`dotnet test` cannot be relied on locally: its Microsoft.Testing.Platform
+handshake may fail with `UnauthorizedAccessException` on a named pipe before any
+test runs (observed on this machine, outside any sandbox). The test assembly is a
+runnable xUnit v3 host, so use the script, which builds and then invokes that host
+directly:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File csharp/scripts/Invoke-IntegrationTests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File csharp/scripts/Invoke-IntegrationTests.ps1 -Project tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -Class "*Mosquitto*"
+powershell -NoProfile -ExecutionPolicy Bypass -File csharp/scripts/Invoke-IntegrationTests.ps1 -Method Wslc.Testcontainers.Tests.IntegrationTests.Runtime_components_are_available
+```
+
+`powershell` is Windows PowerShell 5.1, which this checkout targets. `pwsh`
+(PowerShell 7) works too when installed, but it is not on a stock Windows box.
+`-ExecutionPolicy Bypass` is needed when the machine policy leaves only signed
+scripts enabled; the repo's own scripts are unsigned.
+
+It sets `WSLC_RUN_INTEGRATION=1`, disables the package vulnerability audit (the
+restore otherwise fails with `NU1900` when `api.nuget.org` is unreachable), and
+disables the shared compiler server (a confined shell cancels `csc`). Run it from
+an **elevated** terminal; the WSLC API rejects non-elevated processes (see below).
+
+### When WSLC returns E_ACCESSDENIED or UnauthorizedAccessException
+
+Two different denials, with different fixes:
+
+- `wsl --status`, `wsl -l -v` and `wslc.exe` inside the DSH agent sandbox fail
+  with `E_ACCESSDENIED` while `wsl --version` still prints a version. The
+  sandbox's process token is refused even though `WSLService` is running. Run the
+  command from a normal terminal; no repo setting changes this.
+- `Microsoft.WSL.Containers` throws `UnauthorizedAccessException` at
+  `WslcService.GetMissingComponents()`. This is confirmed to be an elevation
+  requirement on the developer machine: the same test passes from an elevated
+  PowerShell and fails from a normal one, while `wslc container list` works in
+  both. The CI integration job runs as an elevated runner user, which is why it
+  never sees this. Run the verification script from an elevated terminal.
+
+An agent cannot elevate, so local verification is driven from the operator's
+elevated window. Do not debug ports, images or wait strategies until `wslc info`
+and the `Runtime_components_are_available` test both pass.
+
 ## Readiness timeout triage
 
 `StartAsync()` throws `WslReadinessException` when a wait strategy never

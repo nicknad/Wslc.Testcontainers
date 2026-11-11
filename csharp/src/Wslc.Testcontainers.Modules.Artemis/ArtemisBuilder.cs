@@ -54,13 +54,15 @@ public sealed class ArtemisBuilder : WslModuleBuilder<ArtemisBuilder>
     protected override WslContainerBuilder Configure(WslContainerBuilder builder) =>
         builder
             // docker-run.sh feeds these to `artemis create` on first start and to the generated
-            // artemis-users.properties. The image's ENTRYPOINT is not executed by WSLC, so the
-            // script has to be the configured command; "run" is the image CMD it execs.
+            // artemis-users.properties.
             .WithEnvironment("ARTEMIS_USER", _username)
             .WithEnvironment("ARTEMIS_PASSWORD", _password)
             // The image defaults to --require-login; tests connect without a user by default.
             .WithEnvironment("ANONYMOUS_LOGIN", "true")
             // The image WORKDIR: docker-run.sh creates ./etc and ./bin relative to it.
             .WithWorkingDirectory("/var/lib/artemis-instance")
-            .WithCommand("/docker-run.sh", "run");
+            // The image ENTRYPOINT (/docker-run.sh) is what creates the broker instance and execs
+            // ./bin/artemis, so the configured command is its argument: the image CMD "run".
+            // Passing the script path here would append a second /docker-run.sh to the entrypoint.
+            .WithCommand("run");
 }

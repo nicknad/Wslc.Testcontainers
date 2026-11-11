@@ -17,6 +17,10 @@ public sealed class ArtemisModuleTests
     private const byte SubscribePacketType = 0x82;
     private const byte SubackPacketType = 0x90;
 
+    private readonly ITestOutputHelper _output;
+
+    public ArtemisModuleTests(ITestOutputHelper output) => _output = output;
+
     [Fact]
     public void Builds_with_the_default_image_and_port()
     {
@@ -74,7 +78,22 @@ public sealed class ArtemisModuleTests
         await using var artemis = new ArtemisBuilder().Build();
 
         var cancellationToken = TestContext.Current.CancellationToken;
-        await artemis.StartAsync(cancellationToken);
+        try
+        {
+            await artemis.StartAsync(cancellationToken);
+        }
+        catch (WslReadinessException exception)
+        {
+            // Readiness failures are usually a broker log line we did not predict; print the
+            // bounded tail so the next run does not need a rebuild to diagnose.
+            _output.WriteLine(exception.Describe());
+            foreach (var line in artemis.GetRecentLogs(100))
+            {
+                _output.WriteLine(line.ToString());
+            }
+
+            throw;
+        }
 
         Assert.StartsWith("mqtt://127.0.0.1:", artemis.GetConnectionString(), StringComparison.Ordinal);
         var endpoint = artemis.GetConnectEndpoint(ArtemisContainer.DefaultPort);

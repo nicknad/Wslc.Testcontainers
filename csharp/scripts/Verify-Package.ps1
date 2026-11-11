@@ -194,9 +194,13 @@ foreach ($tfm in $tfms) {
 # 6. Pack + verify contents
 Step 'Pack'
 New-Item -ItemType Directory -Force artifacts/packages | Out-Null
-foreach ($p in @('src/Wslc.Testcontainers/Wslc.Testcontainers.csproj', 'src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj', 'src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj', 'src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj', 'src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj', 'src/Wslc.Testcontainers.Modules.SqlServer/Wslc.Testcontainers.Modules.SqlServer.csproj', 'src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj', 'src/Wslc.Testcontainers.Modules.MongoDb/Wslc.Testcontainers.Modules.MongoDb.csproj', 'src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj', 'src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj', 'src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj', 'src/Wslc.Testcontainers.Modules.WireMock/Wslc.Testcontainers.Modules.WireMock.csproj', 'src/Wslc.Testcontainers.Modules.Qdrant/Wslc.Testcontainers.Modules.Qdrant.csproj', 'src/Wslc.Testcontainers.Modules.ClickHouse/Wslc.Testcontainers.Modules.ClickHouse.csproj', 'src/Wslc.Testcontainers.Modules.Vault/Wslc.Testcontainers.Modules.Vault.csproj', 'src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj', 'src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj', 'src/Wslc.Testcontainers.Modules.Kafka/Wslc.Testcontainers.Modules.Kafka.csproj', 'src/Wslc.Testcontainers.Modules.Azurite/Wslc.Testcontainers.Modules.Azurite.csproj')) {
-  Invoke-Native "pack ($p)" {
-    dotnet pack $p -c Release --no-build -o artifacts/packages /p:Version="$Version" --nologo -v minimal
+# Every project under src/ ships (they all set IsPackable=true), so pack the directory
+# instead of a hand-kept list: a new module is released without editing this script
+# (per ADR-0010).
+$projects = @(Get-ChildItem -Path src -Recurse -Filter "*.csproj" -File)
+foreach ($project in $projects) {
+  Invoke-Native "pack ($($project.BaseName))" {
+    dotnet pack $project.FullName -c Release --no-build -o artifacts/packages /p:Version="$Version" --nologo -v minimal
   }
 }
 

@@ -154,25 +154,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts/packages | Out-Null
-          dotnet pack src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.PostgreSql/Wslc.Testcontainers.Modules.PostgreSql.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Redis/Wslc.Testcontainers.Modules.Redis.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Valkey/Wslc.Testcontainers.Modules.Valkey.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.MariaDb/Wslc.Testcontainers.Modules.MariaDb.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.SqlServer/Wslc.Testcontainers.Modules.SqlServer.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.RabbitMq/Wslc.Testcontainers.Modules.RabbitMq.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.MongoDb/Wslc.Testcontainers.Modules.MongoDb.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Nats/Wslc.Testcontainers.Modules.Nats.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.MailPit/Wslc.Testcontainers.Modules.MailPit.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.RustFs/Wslc.Testcontainers.Modules.RustFs.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.WireMock/Wslc.Testcontainers.Modules.WireMock.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Qdrant/Wslc.Testcontainers.Modules.Qdrant.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.ClickHouse/Wslc.Testcontainers.Modules.ClickHouse.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Vault/Wslc.Testcontainers.Modules.Vault.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Keycloak/Wslc.Testcontainers.Modules.Keycloak.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Elasticsearch/Wslc.Testcontainers.Modules.Elasticsearch.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Kafka/Wslc.Testcontainers.Modules.Kafka.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
-          dotnet pack src/Wslc.Testcontainers.Modules.Azurite/Wslc.Testcontainers.Modules.Azurite.csproj -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+          # Every project under src/ ships: they all set IsPackable=true and are packed for the
+          # frameworks in Directory.Build.props. Packing the directory instead of a hand-kept
+          # list means a new module ships without editing this workflow (per ADR-0010).
+          $projects = Get-ChildItem src -Recurse -Filter *.csproj -File
+          foreach ($project in $projects) {
+            dotnet pack $project.FullName -c Release --no-build -o artifacts/packages /p:Version="$env:VERSION" --nologo -v minimal
+            if ($LASTEXITCODE -ne 0) { throw "Failed to pack $($project.BaseName) (exit $LASTEXITCODE)." }
+          }
           Get-ChildItem artifacts/packages
       - name: Install smoke test (local feed, outside repo)
         shell: pwsh

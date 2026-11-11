@@ -48,6 +48,7 @@ add_executable(wslc_tests
   line_assembler_tests.cpp
   log_broadcaster_tests.cpp
   log_line_tests.cpp
+  mosquitto_fault_tests.cpp
   mosquitto_module_tests.cpp
   naming_tests.cpp
   platform_tests.cpp

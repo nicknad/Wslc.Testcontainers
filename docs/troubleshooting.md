@@ -30,6 +30,25 @@ dotnet test --project tests/Wslc.Testcontainers.Tests -- --filter "FullyQualifie
 Without the variable, `[IntegrationFact]` tests skip with the reason printed.
 Test-app options go after `--` under the Microsoft Testing Platform.
 
+### Fault injection triage
+
+When a test uses the `FaultShim` relay and misbehaves:
+
+- `Inject` returning `0` means no connection was relayed yet, not that the fault
+  failed. Wait for `LiveConnections > 0`, or connect first and then inject.
+- A `Stall` is indistinguishable from a broker-side silent drop by design. Before
+  concluding the broker is broken, call `Clear()` and open a fresh connection, or
+  connect to the container's direct endpoint.
+- The relay is disposed before the container. Using a disposed shim throws;
+  reusing a shim after `StopAsync`/`StartAsync` targets a stale host port, so
+  attach a new one.
+- The relay adds a loopback hop. If an assertion measures latency, use the direct
+  endpoint; the hop is not what the test is about.
+- The relay never fabricates MQTT packets. If a scenario needs an authentication
+  rejection or a specific CONNACK code, configure the broker through the module's
+  escape hatch instead of injecting it.
+
+
 ## Readiness timeout triage
 
 `StartAsync()` throws `WslReadinessException` when a wait strategy never

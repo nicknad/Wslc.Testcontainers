@@ -145,7 +145,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MosquittoBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MosquittoBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` |
 
 Behavioral notes:
 
@@ -171,6 +171,7 @@ Typed module builders live in `cpp/modules/`:
 #include <wslc/modules/mailpit.hpp>
 #include <wslc/modules/mariadb.hpp>
 #include <wslc/modules/mongodb.hpp>
+#include <wslc/modules/mosquitto.hpp>
 #include <wslc/modules/nats.hpp>
 #include <wslc/modules/postgresql.hpp>
 #include <wslc/modules/qdrant.hpp>
@@ -211,6 +212,11 @@ wslc::modules::RabbitMqBuilder rabbitMqBuilder;
 auto rabbitmq = rabbitMqBuilder.Build();
 rabbitmq.Start();
 const std::string amqp = rabbitmq.GetConnectionString();
+
+wslc::modules::MosquittoBuilder mosquittoBuilder;
+auto mosquitto = mosquittoBuilder.Build();
+mosquitto.Start();
+const std::string mqtt = mosquitto.GetConnectionString(); // mqtt://host:port
 
 wslc::modules::MongoDbBuilder mongoBuilder;
 auto mongodb = mongoBuilder.Build();

@@ -292,6 +292,12 @@ target_include_directories(wslc_azurite PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modu
 target_link_libraries(wslc_azurite PUBLIC wslc)
 wslc_apply_strict_options(wslc_azurite)
 
+add_library(wslc_mosquitto STATIC modules/mosquitto/mosquitto.cpp)
+add_library(wslc::mosquitto ALIAS wslc_mosquitto)
+target_include_directories(wslc_mosquitto PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/mosquitto/include")
+target_link_libraries(wslc_mosquitto PUBLIC wslc)
+wslc_apply_strict_options(wslc_mosquitto)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

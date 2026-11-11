@@ -145,7 +145,7 @@ uses `std::stop_token` instead of `CancellationToken`, and process handles are R
 | `Wait.ForWsl()` | `wslc::waiting::ForWsl()` |
 | `strategy.And(other)` | `strategy->And(other)` |
 | `Wait.ForWsl().Until(name, condition)` | `ForWsl().Until(name, std::function<bool(IWaitTarget&, std::stop_token)>)` |
-| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MosquittoBuilder` / `HiveMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MosquittoBuilder` / `HiveMqBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` |
+| `PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MosquittoBuilder` / `HiveMqBuilder` / `ArtemisBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` | `wslc::modules::PostgreSqlBuilder` / `RedisBuilder` / `ValkeyBuilder` / `MariaDbBuilder` / `SqlServerBuilder` / `RabbitMqBuilder` / `MosquittoBuilder` / `HiveMqBuilder` / `ArtemisBuilder` / `MongoDbBuilder` / `NatsBuilder` / `MailPitBuilder` / `RustFsBuilder` / `WireMockBuilder` / `QdrantBuilder` / `ClickHouseBuilder` / `VaultBuilder` / `KeycloakBuilder` / `ElasticsearchBuilder` / `KafkaBuilder` / `AzuriteBuilder` |
 
 Behavioral notes:
 
@@ -163,6 +163,7 @@ Behavioral notes:
 Typed module builders live in `cpp/modules/`:
 
 ```cpp
+#include <wslc/modules/artemis.hpp>
 #include <wslc/modules/azurite.hpp>
 #include <wslc/modules/clickhouse.hpp>
 #include <wslc/modules/keycloak.hpp>
@@ -218,6 +219,16 @@ wslc::modules::MosquittoBuilder mosquittoBuilder;
 auto mosquitto = mosquittoBuilder.Build();
 mosquitto.Start();
 const std::string mqtt = mosquitto.GetConnectionString(); // mqtt://host:port
+
+wslc::modules::ArtemisBuilder artemisBuilder;
+auto artemis = artemisBuilder.Build();
+artemis.Start();
+const std::string artemisMqtt = artemis.GetConnectionString(); // mqtt://host:port
+
+// Optional named user, rendered as percent-encoded userinfo:
+auto authenticated = wslc::modules::ArtemisBuilder{}.WithCredentials("user", "secret").Build();
+authenticated.Start();
+const std::string authenticatedMqtt = authenticated.GetConnectionString(); // mqtt://user:secret@host:port
 
 wslc::modules::MongoDbBuilder mongoBuilder;
 auto mongodb = mongoBuilder.Build();

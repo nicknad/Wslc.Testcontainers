@@ -304,6 +304,12 @@ target_include_directories(wslc_hivemq PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modul
 target_link_libraries(wslc_hivemq PUBLIC wslc)
 wslc_apply_strict_options(wslc_hivemq)
 
+add_library(wslc_artemis STATIC modules/artemis/artemis.cpp)
+add_library(wslc::artemis ALIAS wslc_artemis)
+target_include_directories(wslc_artemis PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/artemis/include")
+target_link_libraries(wslc_artemis PUBLIC wslc)
+wslc_apply_strict_options(wslc_artemis)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

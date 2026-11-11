@@ -48,8 +48,27 @@ jobs:
             throw "CHANGELOG.md mentions neither $v nor Unreleased. Move Unreleased notes to a '## $v' heading before releasing."
           }
 
+  tfms:
+    # The framework list lives in csharp/Directory.Build.props (per ADR-0010); CI reads it here
+    # instead of keeping a second, hand-maintained copy in the matrix below.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.enumerate.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: 11.0.1xx
+      - id: enumerate
+        shell: bash
+        run: |
+          tfms=$(dotnet msbuild csharp/src/Wslc.Testcontainers/Wslc.Testcontainers.csproj -nologo -getProperty:WslcTargetFrameworks | grep -E '^net[0-9]' | tail -n 1)
+          matrix=$(printf '%s' "$tfms" | tr ';' '\n' | sed 's/.*/"&"/' | paste -sd, -)
+          echo "matrix=[$matrix]" >> "$GITHUB_OUTPUT"
+
   unit:
-    needs: resolve-version
+    needs: [resolve-version, tfms]
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
@@ -61,18 +80,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        tfm:
-          - net8.0-windows10.0.19041.0
-          - net9.0-windows10.0.19041.0
-          - net10.0-windows10.0.19041.0
+        tfm: ${{ fromJSON(needs.tfms.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
           dotnet-version: |
             8.0.x
-            9.0.x
             10.0.x
+            11.0.1xx
       - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f ${{ matrix.tfm }} -v minimal -- --filter "FullyQualifiedName!~Integration"
       - run: dotnet test tests/Wslc.Testcontainers.Modules.Tests/Wslc.Testcontainers.Modules.Tests.csproj -c Release -f ${{ matrix.tfm }} -v minimal
 
@@ -102,8 +118,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
-          dotnet-version: 10.0.x
-      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net10.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
+          dotnet-version: 11.0.1xx
+      - run: dotnet test tests/Wslc.Testcontainers.Tests/Wslc.Testcontainers.Tests.csproj -c Release -f net11.0-windows10.0.19041.0 -v minimal -- --filter "FullyQualifiedName~WslPlatform"
 
   integration:
     needs: [unit, cpp-unit, guard-linux]
@@ -129,7 +145,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
         with:
-          dotnet-version: 10.0.x
+          dotnet-version: 11.0.1xx
       - name: Static release checks (version lockstep, PublicAPI promotion)
         shell: pwsh
         run: ./scripts/Verify-Package.ps1 -ChecksOnly
@@ -164,10 +180,17 @@ jobs:
           $feed = (Resolve-Path artifacts/packages).Path
           $smoke = Join-Path $env:RUNNER_TEMP 'wslc-smoke'
           if (Test-Path $smoke) { Remove-Item -Recurse -Force $smoke }
-          dotnet new console -o $smoke -f net10.0 --no-restore | Out-Null
+          # Smoke-test the newest shipped TFM (ADR-0010), read from the single framework list.
+          $props = Get-Content Directory.Build.props -Raw
+          if ($props -notmatch '<WslcTargetFrameworks>([^<]+)</WslcTargetFrameworks>') {
+            throw 'Could not parse WslcTargetFrameworks from Directory.Build.props.'
+          }
+          $newest = $Matches[1].Split(';')[-1].Trim()
+          $base = ($newest -split '-')[0]
+          dotnet new console -o $smoke -f $base --no-restore | Out-Null
           $csproj = Get-ChildItem "$smoke/*.csproj" | Select-Object -First 1
           (Get-Content $csproj.FullName -Raw) `
-            -replace '<TargetFramework>net10\.0</TargetFramework>', '<TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>' `
+            -replace [regex]::Escape("<TargetFramework>$base</TargetFramework>"), "<TargetFramework>$newest</TargetFramework>" `
             | Set-Content $csproj.FullName
           dotnet add $csproj.FullName package Wslc.Testcontainers --version "$env:VERSION" --source "$feed"
           dotnet build $csproj.FullName -c Release --nologo -v minimal

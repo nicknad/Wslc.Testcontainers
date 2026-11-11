@@ -1,1 +1,18 @@
 #nullable enable
+Wslc.Testcontainers.Faults.FaultDirection
+Wslc.Testcontainers.Faults.FaultDirection.Both = 2 -> Wslc.Testcontainers.Faults.FaultDirection
+Wslc.Testcontainers.Faults.FaultDirection.BrokerToClient = 1 -> Wslc.Testcontainers.Faults.FaultDirection
+Wslc.Testcontainers.Faults.FaultDirection.ClientToBroker = 0 -> Wslc.Testcontainers.Faults.FaultDirection
+Wslc.Testcontainers.Faults.FaultMode
+Wslc.Testcontainers.Faults.FaultMode.Close = 1 -> Wslc.Testcontainers.Faults.FaultMode
+Wslc.Testcontainers.Faults.FaultMode.Reset = 0 -> Wslc.Testcontainers.Faults.FaultMode
+Wslc.Testcontainers.Faults.FaultMode.Stall = 2 -> Wslc.Testcontainers.Faults.FaultMode
+Wslc.Testcontainers.Faults.FaultShim
+Wslc.Testcontainers.Faults.FaultShim.Arm(int connections, Wslc.Testcontainers.Faults.FaultMode mode, Wslc.Testcontainers.Faults.FaultDirection direction = Wslc.Testcontainers.Faults.FaultDirection.Both) -> void
+Wslc.Testcontainers.Faults.FaultShim.Clear() -> void
+Wslc.Testcontainers.Faults.FaultShim.DisposeAsync() -> System.Threading.Tasks.ValueTask
+Wslc.Testcontainers.Faults.FaultShim.Endpoint.get -> System.Net.IPEndPoint!
+Wslc.Testcontainers.Faults.FaultShim.Inject(Wslc.Testcontainers.Faults.FaultMode mode, Wslc.Testcontainers.Faults.FaultDirection direction = Wslc.Testcontainers.Faults.FaultDirection.Both) -> int
+Wslc.Testcontainers.Faults.FaultShim.Latency(System.TimeSpan delay, Wslc.Testcontainers.Faults.FaultDirection direction = Wslc.Testcontainers.Faults.FaultDirection.Both) -> void
+Wslc.Testcontainers.Faults.FaultShim.LiveConnections.get -> int
+static Wslc.Testcontainers.Faults.FaultShim.Attach(System.Net.IPEndPoint! target) -> Wslc.Testcontainers.Faults.FaultShim!

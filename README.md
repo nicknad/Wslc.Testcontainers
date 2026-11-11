@@ -78,7 +78,7 @@ general-purpose container tooling.
 - Ephemeral containers
 - Direct integration with WSL Containers
 - No Docker Engine dependency
-- .NET 8, 9 and 10 support
+- .NET 8, 10 and 11 support
 - Windows x64 (AMD64)
 - Real-runtime integration tests
 - Container networking configuration
@@ -168,8 +168,8 @@ wsl --update
 ### .NET
 
 - .NET 8
-- .NET 9
 - .NET 10
+- .NET 11
 
 Windows is a hard requirement, not a current limitation. WSL Containers is a Windows platform
 feature — its runtime is a stack of Windows components (`wslservice.exe`, `wslcsession.exe`, the

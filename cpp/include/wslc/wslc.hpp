@@ -5,6 +5,7 @@
 #include "wslc/environment.hpp"
 #include "wslc/exceptions.hpp"
 #include "wslc/exec.hpp"
+#include "wslc/faults/fault_shim.hpp"
 #include "wslc/log_line.hpp"
 #include "wslc/log_stream.hpp"
 #include "wslc/platform.hpp"

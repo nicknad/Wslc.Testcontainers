@@ -298,6 +298,12 @@ target_include_directories(wslc_mosquitto PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/mo
 target_link_libraries(wslc_mosquitto PUBLIC wslc)
 wslc_apply_strict_options(wslc_mosquitto)
 
+add_library(wslc_hivemq STATIC modules/hivemq/hivemq.cpp)
+add_library(wslc::hivemq ALIAS wslc_hivemq)
+target_include_directories(wslc_hivemq PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/modules/hivemq/include")
+target_link_libraries(wslc_hivemq PUBLIC wslc)
+wslc_apply_strict_options(wslc_hivemq)
+
 # ---------------------------------------------------------------------------
 # Tests and examples
 # ---------------------------------------------------------------------------

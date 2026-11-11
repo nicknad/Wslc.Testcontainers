@@ -44,7 +44,7 @@ var connectionString = postgres.GetConnectionString();
 
 - Windows 10 2004+ or Windows 11 (x64 / AMD64). ARM64 is not supported or tested.
 - WSL **2.9.3 or newer** with container support: `wsl --install` (or `wsl --update`)
-- .NET 8, 9 or 10 on Windows
+- .NET 8, 10 or 11 on Windows
 
 ## Install
 
@@ -68,6 +68,9 @@ dotnet add package Wslc.Testcontainers.Modules.Keycloak
 dotnet add package Wslc.Testcontainers.Modules.Elasticsearch
 dotnet add package Wslc.Testcontainers.Modules.Kafka
 dotnet add package Wslc.Testcontainers.Modules.Azurite
+dotnet add package Wslc.Testcontainers.Modules.Mosquitto
+dotnet add package Wslc.Testcontainers.Modules.HiveMq
+dotnet add package Wslc.Testcontainers.Modules.Artemis
 ```
 
 Versions come from `Directory.Build.props` (`VersionPrefix`, see `CHANGELOG.md`).
@@ -256,6 +259,9 @@ using Wslc.Testcontainers.Modules.Keycloak;
 using Wslc.Testcontainers.Modules.Elasticsearch;
 using Wslc.Testcontainers.Modules.Kafka;
 using Wslc.Testcontainers.Modules.Azurite;
+using Wslc.Testcontainers.Modules.Mosquitto;
+using Wslc.Testcontainers.Modules.HiveMq;
+using Wslc.Testcontainers.Modules.Artemis;
 
 await using var postgres = new PostgreSqlBuilder().WithPassword("secret").Build();
 await postgres.StartAsync();
@@ -325,6 +331,18 @@ await using var azurite = new AzuriteBuilder().Build();
 await azurite.StartAsync();
 var storage = azurite.GetConnectionString(); // explicit Blob/Queue/Table endpoints
 var blob = azurite.GetBlobEndpoint();         // http://host:port/devstoreaccount1
+
+await using var mosquitto = new MosquittoBuilder().Build();
+await mosquitto.StartAsync();
+var mqtt = mosquitto.GetConnectionString(); // mqtt://host:port; the shipped config allows anonymous clients
+
+await using var hivemq = new HiveMqBuilder().Build();
+await hivemq.StartAsync();
+var hivemqMqtt = hivemq.GetConnectionString(); // mqtt://host:port; the preset sets HIVEMQ_ALLOW_ALL_CLIENTS
+
+await using var artemis = new ArtemisBuilder().WithCredentials("mqtt-user", "mqtt-pass").Build();
+await artemis.StartAsync();
+var artemisMqtt = artemis.GetConnectionString(); // mqtt://user:pass@host:port; anonymous without WithCredentials
 ```
 
 > **Kafka reserves a fixed host port.** A broker tells clients to reconnect to its advertised

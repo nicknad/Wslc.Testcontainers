@@ -111,6 +111,9 @@ The .NET implementation currently includes modules for:
 - Elasticsearch
 - Kafka
 - Azure Storage (Azurite)
+- Mosquitto
+- HiveMQ Community Edition
+- ActiveMQ Artemis
 
 Modules are intended to make common integration-test dependencies require minimal test setup.
 

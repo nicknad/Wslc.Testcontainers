@@ -2,6 +2,15 @@
 
 All notable changes to the `Wslc.Testcontainers*` packages and the C++ port.
 
+## 0.10.1
+
+### Fixed
+
+- The README packed into every `.nupkg` (and rendered on nuget.org) still said ".NET 8, 9 or 10"
+  and listed only the original modules. It now documents .NET 8, 10 and 11 and the Mosquitto,
+  HiveMQ and ActiveMQ Artemis packages, with MQTT connection-string examples for each.
+  Documentation only: no code, API or behavior change.
+
 ## 0.10.0
 
 ### Added

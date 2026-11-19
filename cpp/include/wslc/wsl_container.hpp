@@ -30,7 +30,7 @@ struct Configuration;
 /// <c>Dispose</c>.
 /// </summary>
 /// <remarks>
-/// Lifecycle transitions (Start/Stop/Dispose) are serialized. Commands, copies and
+/// Lifecycle transitions (Start/Stop/Kill/Dispose) are serialized. Commands, copies and
 /// long-running processes are intentionally not gated: starting one while the container stops
 /// aborts that operation with an exception instead of corrupting State.
 /// </remarks>
@@ -78,6 +78,18 @@ public:
     /// directory. Destruction deletes ephemeral storage; reusable instances are preserved.
     /// </summary>
     void Stop(std::stop_token token = {});
+
+    /// <summary>
+    /// Sends SIGKILL to the init process: an abrupt, ungraceful crash with no SIGTERM phase.
+    /// Stop remains the graceful stop, and the stop-timeout grace does not apply to Kill.
+    /// On-disk session storage and metadata are preserved exactly as Stop preserves them, so a
+    /// subsequent Start re-provisions the same instance.
+    /// </summary>
+    /// <remarks>
+    /// When the container has not been started, Kill behaves exactly as Stop does in that state
+    /// and mirrors Stop's documented exceptions.
+    /// </remarks>
+    void Kill(std::stop_token token = {});
 
     /// <summary>Executes a command and captures its exit code, stdout and stderr. At most 1000 arguments may be
     /// passed.</summary>

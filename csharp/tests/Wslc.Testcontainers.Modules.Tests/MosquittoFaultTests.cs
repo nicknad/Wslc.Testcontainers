@@ -118,7 +118,7 @@ public sealed class MosquittoFaultTests
         await ConnectMqttAsync(stalledStream, "wslc-stalled-client", cancellationToken, ShortKeepAliveSeconds);
         await WaitUntilAsync(() => shim.LiveConnections == 1, cancellationToken);
 
-        Assert.Equal(1, shim.Inject(FaultMode.Stall, FaultDirection.BrokerToClient));
+        Assert.Equal(1, shim.Inject(FaultMode.Stall, FaultDirection.TargetToClient));
 
         // Model a client's keepalive: keep sending PINGREQ so the broker's own 1.5x timer never
         // fires, and assert that no PINGRESP makes it back within twice the keepalive interval.
@@ -188,7 +188,7 @@ public sealed class MosquittoFaultTests
         await broker.StartAsync(cancellationToken);
         await using var shim = FaultShim.Attach(broker.GetConnectEndpoint(MosquittoContainer.DefaultPort));
 
-        shim.Latency(TimeSpan.FromMilliseconds(400), FaultDirection.BrokerToClient);
+        shim.Latency(TimeSpan.FromMilliseconds(400), FaultDirection.TargetToClient);
 
         using var client = await ConnectTcpAsync(shim.Endpoint, cancellationToken);
         var stream = client.GetStream();
@@ -213,7 +213,7 @@ public sealed class MosquittoFaultTests
         await broker.StartAsync(cancellationToken);
         await using var shim = FaultShim.Attach(broker.GetConnectEndpoint(MosquittoContainer.DefaultPort));
 
-        shim.Latency(TimeSpan.FromSeconds(10), FaultDirection.BrokerToClient);
+        shim.Latency(TimeSpan.FromSeconds(10), FaultDirection.TargetToClient);
         shim.Arm(5, FaultMode.Reset);
         shim.Clear();
 

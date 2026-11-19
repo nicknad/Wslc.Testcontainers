@@ -82,13 +82,22 @@ When a test uses the `FaultShim` relay and misbehaves:
   concluding the broker is broken, call `Clear()` and open a fresh connection, or
   connect to the container's direct endpoint.
 - The relay is disposed before the container. Using a disposed shim throws;
-  reusing a shim after `StopAsync`/`StartAsync` targets a stale host port, so
-  attach a new one.
+  reusing a shim after a `StopAsync`/`KillAsync` → `StartAsync` cycle targets a
+  stale host port, so attach a new one.
 - The relay adds a loopback hop. If an assertion measures latency, use the direct
   endpoint; the hop is not what the test is about.
 - The relay never fabricates MQTT packets. If a scenario needs an authentication
   rejection or a specific CONNACK code, configure the broker through the module's
   escape hatch instead of injecting it.
+- `RefuseNewConnections()` is a dead port by design: new connects are refused while the
+  container's direct endpoint still serves. Call `AcceptNewConnections()` before
+  concluding the service is dead — and remember that Windows loopback refusal itself
+  takes ~2 s (SYN retransmit), which is host behavior, not the relay's hop.
+- `KillAsync()`/`Kill` is a genuine crash: SIGKILL, no grace, no clean shutdown. The killed
+  container's mapped port stays dead until the next `StartAsync()`; connected clients
+  observed a reset, not a FIN. Rebirth is always `StartAsync()` after the kill — and a
+  restarted ephemeral container comes back with clean storage, so durability replay is
+  not what happened.
 
 ## Readiness timeout triage
 

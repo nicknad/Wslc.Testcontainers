@@ -54,6 +54,9 @@ public:
     /// <summary>Stops the Environment and its processes (storage preserved for restart).</summary>
     void Stop(std::stop_token token = {}) { m_inner.Stop(token); }
 
+    /// <summary>Crashes the Environment with SIGKILL, no SIGTERM phase (storage preserved).</summary>
+    void Kill(std::stop_token token = {}) { m_inner.Kill(token); }
+
     /// <summary>Executes a command and captures its exit code, stdout and stderr.</summary>
     ExecResult Exec(std::string command, std::vector<std::string> arguments = {}, ExecOptions options = {},
                     std::stop_token token = {})

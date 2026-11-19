@@ -56,6 +56,7 @@ add_executable(wslc_tests
   platform_tests.cpp
   port_mapping_tests.cpp
   process_registry_tests.cpp
+  redis_fault_tests.cpp
   resource_reaper_tests.cpp
   stdin_limit_tests.cpp
   wait_strategy_tests.cpp

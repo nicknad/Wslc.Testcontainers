@@ -67,6 +67,10 @@ constexpr std::chrono::milliseconds c_delaySlice{10};
 // slice, which is far below any test's tolerance, and no lock is held across a blocking call.
 constexpr std::chrono::milliseconds c_stallSlice{5};
 
+// A refused relay parks its accept loop in slices: AcceptNewConnections and dispose are observed
+// within one slice, mirroring the stall gate's shape, without a wakeup mechanism to maintain.
+constexpr std::chrono::milliseconds c_refuseSlice{50};
+
 std::string SocketErrorText()
 {
     return internal::FormatWindowsError(static_cast<unsigned long>(WSAGetLastError()));
@@ -134,6 +138,36 @@ bool ResolveTarget(const WslEndpoint& target, sockaddr_storage& address, int& le
     length = static_cast<int>(addresses->ai_addrlen);
     freeaddrinfo(addresses);
     return true;
+}
+
+/// <summary>Creates, binds and listens on a loopback port; throws the Attach bind failure.</summary>
+SOCKET BindLoopbackListener(int port)
+{
+    const SOCKET listener = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (std::cmp_equal(listener, INVALID_SOCKET))
+    {
+        throw WslException("Fault shim listener could not be created: " + SocketErrorText());
+    }
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    address.sin_port = htons(static_cast<u_short>(port));
+    if (bind(listener, reinterpret_cast<const sockaddr*>(&address), static_cast<int>(sizeof(address))) != 0)
+    {
+        const std::string error = SocketErrorText();
+        closesocket(listener);
+        throw WslException("Fault shim listener could not bind loopback: " + error);
+    }
+
+    if (listen(listener, SOMAXCONN) != 0)
+    {
+        const std::string error = SocketErrorText();
+        closesocket(listener);
+        throw WslException("Fault shim listener could not listen: " + error);
+    }
+
+    return listener;
 }
 
 /// <summary>Connects to the address with a fixed deadline; the returned socket is blocking, or invalid.</summary>
@@ -226,7 +260,7 @@ void ValidateMode(FaultMode mode)
 
 void ValidateDirection(FaultDirection direction)
 {
-    if (direction != FaultDirection::ClientToBroker && direction != FaultDirection::BrokerToClient &&
+    if (direction != FaultDirection::ClientToTarget && direction != FaultDirection::TargetToClient &&
         direction != FaultDirection::Both)
     {
         throw WslException("Unknown fault direction.");
@@ -253,7 +287,9 @@ struct State final : public std::enable_shared_from_this<State>
     void Arm(int connections, FaultMode mode, FaultDirection direction);
     void Latency(std::chrono::milliseconds delay, FaultDirection direction);
     void Clear();
-    std::chrono::milliseconds GetLatency(bool clientToBroker) const;
+    void RefuseNewConnections();
+    void AcceptNewConnections();
+    std::chrono::milliseconds GetLatency(bool clientToTarget) const;
     std::optional<std::pair<FaultMode, FaultDirection>> TakeArmedFault();
 
     bool Register(const std::shared_ptr<Connection>& connection);
@@ -262,6 +298,7 @@ struct State final : public std::enable_shared_from_this<State>
     SOCKET ConnectTarget() const noexcept;
 
     void AcceptLoop();
+    void WaitWhileRefused();
     bool TryStartRelay(SOCKET client);
     void Relay(SOCKET client);
     void RelayFinished();
@@ -274,6 +311,7 @@ struct State final : public std::enable_shared_from_this<State>
     int m_targetAddressLength = 0;
     WslEndpoint m_endpoint;
     std::atomic<bool> m_closed{false};
+    std::atomic<bool> m_refused{false};
     std::atomic<bool> m_shutdown{false};
 
     mutable std::mutex m_gate;
@@ -321,12 +359,12 @@ private:
     bool HalfClose(FaultDirection direction);
     bool Stall(FaultDirection direction);
     bool Close(bool reset);
-    void PumpDirection(SOCKET source, SOCKET destination, bool clientToBroker);
+    void PumpDirection(SOCKET source, SOCKET destination, bool clientToTarget);
     bool SendAll(SOCKET destination, const char* data, int length) noexcept;
     void DelayOrAbort(std::chrono::milliseconds delay);
-    void WaitWhileStalled(bool clientToBroker);
-    bool Stopped(bool clientToBroker) const noexcept;
-    bool Stalled(bool clientToBroker) const noexcept;
+    void WaitWhileStalled(bool clientToTarget);
+    bool Stopped(bool clientToTarget) const noexcept;
+    bool Stalled(bool clientToTarget) const noexcept;
 
     State& m_owner;
     SOCKET m_client;
@@ -422,14 +460,14 @@ bool Connection::HalfClose(FaultDirection direction)
         }
     }
 
-    if (direction == FaultDirection::ClientToBroker || direction == FaultDirection::Both)
+    if (direction == FaultDirection::ClientToTarget || direction == FaultDirection::Both)
     {
         // The pump drops the late chunk instead of writing after Shutdown(Send).
         m_clientToTargetStopped.store(true);
         TryShutdownSend(m_target);
     }
 
-    if (direction == FaultDirection::BrokerToClient || direction == FaultDirection::Both)
+    if (direction == FaultDirection::TargetToClient || direction == FaultDirection::Both)
     {
         m_targetToClientStopped.store(true);
         TryShutdownSend(m_client);
@@ -448,12 +486,12 @@ bool Connection::Stall(FaultDirection direction)
         }
     }
 
-    if (direction == FaultDirection::ClientToBroker || direction == FaultDirection::Both)
+    if (direction == FaultDirection::ClientToTarget || direction == FaultDirection::Both)
     {
         m_clientToTargetStalled.store(true);
     }
 
-    if (direction == FaultDirection::BrokerToClient || direction == FaultDirection::Both)
+    if (direction == FaultDirection::TargetToClient || direction == FaultDirection::Both)
     {
         m_targetToClientStalled.store(true);
     }
@@ -487,7 +525,7 @@ void Connection::Pump()
     m_owner.Unregister(this);
 }
 
-void Connection::PumpDirection(SOCKET source, SOCKET destination, bool clientToBroker)
+void Connection::PumpDirection(SOCKET source, SOCKET destination, bool clientToTarget)
 {
     std::array<char, c_bufferSize> buffer{};
 
@@ -497,7 +535,7 @@ void Connection::PumpDirection(SOCKET source, SOCKET destination, bool clientToB
     {
         // Stall gate before the read: a stalled direction stops pulling bytes so the sender's own
         // socket buffer provides backpressure.
-        WaitWhileStalled(clientToBroker);
+        WaitWhileStalled(clientToTarget);
         if (m_closed.load())
         {
             return;
@@ -518,7 +556,7 @@ void Connection::PumpDirection(SOCKET source, SOCKET destination, bool clientToB
             return;
         }
 
-        if (Stopped(clientToBroker))
+        if (Stopped(clientToTarget))
         {
             // The half-close fault already sent FIN this way; discard the late chunk instead of
             // writing to a socket whose send side is shut down.
@@ -527,13 +565,13 @@ void Connection::PumpDirection(SOCKET source, SOCKET destination, bool clientToB
 
         // Stall gate after the read: the chunk that raced the stall is held, not forwarded, and
         // Clear resumes it without corrupting the byte stream.
-        WaitWhileStalled(clientToBroker);
+        WaitWhileStalled(clientToTarget);
         if (m_closed.load())
         {
             return;
         }
 
-        const auto delay = m_owner.GetLatency(clientToBroker);
+        const auto delay = m_owner.GetLatency(clientToTarget);
         if (delay > std::chrono::milliseconds::zero())
         {
             DelayOrAbort(delay);
@@ -581,24 +619,24 @@ void Connection::DelayOrAbort(std::chrono::milliseconds delay)
     }
 }
 
-void Connection::WaitWhileStalled(bool clientToBroker)
+void Connection::WaitWhileStalled(bool clientToTarget)
 {
     // Parks while the direction is stalled. Clear() resumes the stream and teardown ends the wait
     // through m_closed, so a pump is never left waiting on a connection that is going away.
-    while (!m_closed.load() && Stalled(clientToBroker))
+    while (!m_closed.load() && Stalled(clientToTarget))
     {
         std::this_thread::sleep_for(c_stallSlice);
     }
 }
 
-bool Connection::Stopped(bool clientToBroker) const noexcept
+bool Connection::Stopped(bool clientToTarget) const noexcept
 {
-    return clientToBroker ? m_clientToTargetStopped.load() : m_targetToClientStopped.load();
+    return clientToTarget ? m_clientToTargetStopped.load() : m_targetToClientStopped.load();
 }
 
-bool Connection::Stalled(bool clientToBroker) const noexcept
+bool Connection::Stalled(bool clientToTarget) const noexcept
 {
-    return clientToBroker ? m_clientToTargetStalled.load() : m_targetToClientStalled.load();
+    return clientToTarget ? m_clientToTargetStalled.load() : m_targetToClientStalled.load();
 }
 
 State::~State()
@@ -618,30 +656,9 @@ void State::Initialize(const WslEndpoint& target)
 
     // Bind an ephemeral IPv4 loopback port: never pin a fixed port, so parallel test runs cannot
     // collide (ADR-0009).
-    const SOCKET listener = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (std::cmp_equal(listener, INVALID_SOCKET))
-    {
-        throw WslException("Fault shim listener could not be created: " + SocketErrorText());
-    }
+    const SOCKET listener = BindLoopbackListener(0);
 
     sockaddr_in address{};
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    address.sin_port = 0;
-    if (bind(listener, reinterpret_cast<const sockaddr*>(&address), static_cast<int>(sizeof(address))) != 0)
-    {
-        const std::string error = SocketErrorText();
-        closesocket(listener);
-        throw WslException("Fault shim listener could not bind loopback: " + error);
-    }
-
-    if (listen(listener, SOMAXCONN) != 0)
-    {
-        const std::string error = SocketErrorText();
-        closesocket(listener);
-        throw WslException("Fault shim listener could not listen: " + error);
-    }
-
     int length = static_cast<int>(sizeof(address));
     if (getsockname(listener, reinterpret_cast<sockaddr*>(&address), &length) != 0)
     {
@@ -829,10 +846,10 @@ void State::Clear()
     }
 }
 
-std::chrono::milliseconds State::GetLatency(bool clientToBroker) const
+std::chrono::milliseconds State::GetLatency(bool clientToTarget) const
 {
     std::lock_guard lock(m_gate);
-    const auto direction = clientToBroker ? FaultDirection::ClientToBroker : FaultDirection::BrokerToClient;
+    const auto direction = clientToTarget ? FaultDirection::ClientToTarget : FaultDirection::TargetToClient;
     const bool applies = m_latencyDirection == FaultDirection::Both || m_latencyDirection == direction;
     return applies ? m_latency : std::chrono::milliseconds::zero();
 }
@@ -881,12 +898,63 @@ SOCKET State::ConnectTarget() const noexcept
     return ConnectAddress(reinterpret_cast<const sockaddr*>(&m_targetAddress), m_targetAddressLength);
 }
 
+void State::RefuseNewConnections()
+{
+    std::lock_guard lock(m_gate);
+    if (m_refused.load())
+    {
+        return;
+    }
+
+    // Flag first, socket second: a select error caused by the close is then already recognized as
+    // refusal, so the accept loop parks instead of treating it as a fatal listener failure.
+    m_refused.store(true);
+
+    // Releasing the listener makes Endpoint() a dead port: a new connect observes a genuine
+    // refusal (WSAECONNREFUSED), the same as a service with no listener, instead of an
+    // accepted-then-reset connection an armed fault would produce.
+    CloseSocket(m_listener);
+}
+
+void State::AcceptNewConnections()
+{
+    std::lock_guard lock(m_gate);
+    if (!m_refused.load())
+    {
+        return;
+    }
+
+    // Rebind the same endpoint synchronously on the caller's thread. A stolen port throws the
+    // same bind failure Attach documents, and the relay stays refused so a later call can retry.
+    m_listener = BindLoopbackListener(m_endpoint.Port);
+    m_refused.store(false);
+}
+
+void State::WaitWhileRefused()
+{
+    // Parks the accept loop while refused. AcceptNewConnections clears the flag and dispose sets
+    // m_closed, so the loop always resumes or tears down within one slice (the stall gate's shape).
+    while (!m_closed.load() && m_refused.load())
+    {
+        std::this_thread::sleep_for(c_refuseSlice);
+    }
+}
+
 void State::AcceptLoop()
 {
     // Per ADR bounded loops the accept loop stops after a fixed number of connections and also stops
-    // as soon as dispose closes the listener.
+    // as soon as dispose closes the listener. Refusal parks without spending iterations, so the
+    // lifetime cap keeps meaning only for accepted connections.
     for (int accepted = 0; accepted < c_maxAcceptedConnections && !m_closed.load(); ++accepted)
     {
+        if (m_refused.load())
+        {
+            // The listener was released: park until the same endpoint is rebound on the
+            // AcceptNewConnections caller's thread or dispose wakes the loop.
+            WaitWhileRefused();
+            continue;
+        }
+
         const int selected = SelectReadable(m_listener, c_acceptSlice);
         if (selected == 0)
         {
@@ -895,6 +963,12 @@ void State::AcceptLoop()
 
         if (selected < 0)
         {
+            if (m_refused.load())
+            {
+                // Refusal closed the listener mid-select: park instead of ending the loop.
+                continue;
+            }
+
             // The listener was closed (dispose) or failed: nothing more can be accepted.
             return;
         }
@@ -1113,6 +1187,18 @@ void FaultShim::Clear()
 {
     ThrowIfDisposed();
     m_impl->m_state->Clear();
+}
+
+void FaultShim::RefuseNewConnections()
+{
+    ThrowIfDisposed();
+    m_impl->m_state->RefuseNewConnections();
+}
+
+void FaultShim::AcceptNewConnections()
+{
+    ThrowIfDisposed();
+    m_impl->m_state->AcceptNewConnections();
 }
 
 void FaultShim::Dispose() noexcept

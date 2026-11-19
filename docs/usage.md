@@ -391,9 +391,11 @@ await using var relay = FaultShim.Attach(broker.GetConnectEndpoint(MosquittoCont
 using var client = factory.CreateClient(broker.GetConnectionString(relay.Endpoint));
 await client.ConnectAsync();
 
-relay.Latency(TimeSpan.FromSeconds(2), FaultDirection.BrokerToClient); // slow CONNACK
+relay.Latency(TimeSpan.FromSeconds(2), FaultDirection.TargetToClient); // slow CONNACK
 relay.Inject(FaultMode.Reset);                                          // ungraceful drop now
 relay.Arm(2, FaultMode.Stall);                                          // next two connections go silent
+relay.RefuseNewConnections();  // dead port: new connects are refused, live ones keep flowing
+relay.AcceptNewConnections();  // rebind the same endpoint and accept again
 relay.Clear();                                                          // back to normal
 ```
 
@@ -420,16 +422,19 @@ broker.Dispose();
 | `Stall` | Bytes stop flowing while sockets stay open, so PINGREQ goes unanswered | keepalive and PINGRESP timeouts |
 | `Latency` | Every chunk in the selected direction is delayed by a fixed duration | slow CONNACK/SUBACK/PUBLISH |
 | `Arm(n, mode)` | The mode applies from accept time to the next `n` connections | retry storms, "first N reconnects fail" |
+| `RefuseNewConnections` | New connects are refused as if the service is gone; live connections keep flowing | dead-port and retry paths without stopping the container |
 
 `Inject` applies to connections that are already relayed and returns how many it touched; `0`
 means nothing was connected, not that the fault failed. `FaultDirection` selects
-`ClientToBroker`, `BrokerToClient` or `Both`. `LiveConnections` is a cheap count, useful for
-waiting until a client is actually attached.
+`ClientToTarget`, `TargetToClient` or `Both`. `LiveConnections` is a cheap count, useful for
+waiting until a client is actually attached. `RefuseNewConnections` releases the listener —
+refusal is listener state, not a `FaultMode` — and `AcceptNewConnections` rebinds the same
+endpoint, throwing when the port was taken while refused.
 
 Operational rules:
 
-- Keep the relay per test. Dispose it **before** the container; after a `StopAsync`/`StartAsync`
-  cycle the mapped host port can change, so attach a new relay.
+- Keep the relay per test. Dispose it **before** the container; after a `StopAsync`/`KillAsync` →
+  `StartAsync` cycle the mapped host port can change, so attach a new relay.
 - Readiness waits target the container's direct endpoint, and the relay does not exist during
   `StartAsync`, so a broken broker cannot be masked by it.
 - The direct endpoint stays usable while the relay is attached. Use it for assertions that must
@@ -506,6 +511,11 @@ await container.StopAsync();  // optional: stop but keep storage
   their scratch volumes are recreated empty.
 - `WithStopTimeout(t)` sets how long a graceful stop waits for the init process after SIGTERM
   (default 10 s; 1 s–24 h). The process-exit cleanup hook intentionally stays at 2 s.
+- `KillAsync()` sends SIGKILL to the init process — an abrupt crash with no SIGTERM phase and
+  no stop-timeout grace (C++: `Kill`). Storage is preserved as with `StopAsync()`, so a
+  subsequent `StartAsync()` re-provisions the same instance: the crash/rebirth pattern for
+  fault tests. A service that would shut down cleanly on SIGTERM skips its shutdown path —
+  that is the point of the kill.
 - Lifecycle calls are serialized; `Exec`/`Copy`/`StartProcess` issued concurrently
   with `DisposeAsync` fail fast instead of corrupting state.
 - A process-exit hook does best-effort cleanup on crash; next `StartAsync()` reaps

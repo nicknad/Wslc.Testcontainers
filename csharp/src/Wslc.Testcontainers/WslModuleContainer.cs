@@ -42,6 +42,10 @@ public abstract class WslModuleContainer : IWslContainer
     public Task StopAsync(CancellationToken cancellationToken = default) =>
         _inner.StopAsync(cancellationToken);
 
+    /// <summary>Kills the environment's init process outright (storage preserved for restart).</summary>
+    public Task KillAsync(CancellationToken cancellationToken = default) =>
+        _inner.KillAsync(cancellationToken);
+
     /// <summary>Executes a command and captures its exit code, stdout and stderr.</summary>
     public Task<ExecResult> ExecAsync(
         string command,

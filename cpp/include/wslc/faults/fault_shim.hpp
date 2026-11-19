@@ -18,7 +18,7 @@ namespace wslc::faults
 enum class FaultMode
 {
     /// <summary>Aborts the connection with linger-to-zero on both legs: the peer observes a TCP reset
-    /// (RST), not a clean FIN, the same way a crashed broker or host would appear.</summary>
+    /// (RST), not a clean FIN, the same way a crashed service or host would appear.</summary>
     Reset,
 
     /// <summary>Send-shuts the selected direction: the destination peer sees a clean FIN while the
@@ -34,11 +34,11 @@ enum class FaultMode
 /// <summary>Data-flow direction a fault applies to.</summary>
 enum class FaultDirection
 {
-    /// <summary>From the test client through the relay to the target (broker).</summary>
-    ClientToBroker,
+    /// <summary>From the test client through the relay to the target.</summary>
+    ClientToTarget,
 
-    /// <summary>From the target (broker) through the relay back to the test client.</summary>
-    BrokerToClient,
+    /// <summary>From the target through the relay back to the test client.</summary>
+    TargetToClient,
 
     /// <summary>Both directions.</summary>
     Both,
@@ -51,9 +51,9 @@ enum class FaultDirection
 /// </summary>
 /// <remarks>
 /// <para>
-/// The relay is protocol-blind and opt-in: it never inspects or fabricates broker protocol
+/// The relay is protocol-blind and opt-in: it never inspects or fabricates target protocol
 /// messages, and the container endpoint remains usable directly. One relay connection maps 1:1 to
-/// one target connection, so a broker observes one session per client session.
+/// one target connection, so the target observes one session per client session.
 /// </para>
 /// <para>
 /// Attach after the container is started. The relay binds an ephemeral IPv4 loopback port, so it
@@ -144,6 +144,26 @@ public:
     /// </remarks>
     /// <exception cref="WslException">The relay has been disposed.</exception>
     void Clear();
+
+    /// <summary>
+    /// Stops the relay's listener: new connections to <see cref="Endpoint"/> observe a genuine
+    /// connection refusal (a dead port), the same as a service with no listener. Live relayed
+    /// connections keep flowing.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent. Not armable: an accepted connection cannot honestly be refused, so refusal
+    /// releases the listener instead of faulting connections the arm machinery would accept.
+    /// </remarks>
+    /// <exception cref="WslException">The relay has been disposed.</exception>
+    void RefuseNewConnections();
+
+    /// <summary>Binds the same endpoint again and resumes accepting.</summary>
+    /// <remarks>No-op when the relay is not refusing.</remarks>
+    /// <exception cref="WslException">
+    /// The relay has been disposed, or the port was taken by another listener while refused (the
+    /// same bind failure <see cref="Attach"/> documents); the relay stays refused.
+    /// </exception>
+    void AcceptNewConnections();
 
     /// <summary>
     /// Stops accepting, closes every relayed connection, and releases the listener. Idempotent,

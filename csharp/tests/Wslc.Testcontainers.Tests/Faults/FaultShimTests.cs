@@ -51,7 +51,7 @@ public sealed class FaultShimTests
     }
 
     [Fact]
-    public async Task Inject_close_send_shuts_client_to_broker_while_reverse_direction_flows()
+    public async Task Inject_close_send_shuts_client_to_target_while_reverse_direction_flows()
     {
         await using var echo = new EchoServer();
         await using var shim = FaultShim.Attach(echo.Endpoint);
@@ -60,16 +60,16 @@ public sealed class FaultShimTests
         var stream = client.GetStream();
         await RoundTripAsync(stream, "open");
 
-        Assert.Equal(1, shim.Inject(FaultMode.Close, FaultDirection.ClientToBroker));
+        Assert.Equal(1, shim.Inject(FaultMode.Close, FaultDirection.ClientToTarget));
 
         // The echo server sees EOF on its read side and answers with the marker, which proves the
-        // broker-to-client direction is still open after the half-close.
+        // target-to-client direction is still open after the half-close.
         var payload = await ReadExactlyAsync(stream, 3, DefaultTimeout);
         Assert.Equal("bye", Encoding.ASCII.GetString(payload));
     }
 
     [Fact]
-    public async Task Inject_close_on_broker_to_client_keeps_client_to_broker_flowing()
+    public async Task Inject_close_on_target_to_client_keeps_client_to_target_flowing()
     {
         await using var echo = new EchoServer();
         await using var shim = FaultShim.Attach(echo.Endpoint);
@@ -78,7 +78,7 @@ public sealed class FaultShimTests
         var stream = client.GetStream();
         await RoundTripAsync(stream, "open");
 
-        Assert.Equal(1, shim.Inject(FaultMode.Close, FaultDirection.BrokerToClient));
+        Assert.Equal(1, shim.Inject(FaultMode.Close, FaultDirection.TargetToClient));
 
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -91,7 +91,7 @@ public sealed class FaultShimTests
         await stream.WriteAsync("after"u8.ToArray(), cancellationToken).AsTask().WaitAsync(DefaultTimeout, cancellationToken);
         await WaitUntilAsync(
             () => echo.Received.Contains("after", StringComparison.Ordinal),
-            "the target to receive bytes after the broker-to-client half-close");
+            "the target to receive bytes after the target-to-client half-close");
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class FaultShimTests
         var stream = client.GetStream();
         await RoundTripAsync(stream, "warm");
 
-        Assert.Equal(1, shim.Inject(FaultMode.Stall, FaultDirection.BrokerToClient));
+        Assert.Equal(1, shim.Inject(FaultMode.Stall, FaultDirection.TargetToClient));
 
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -124,7 +124,7 @@ public sealed class FaultShimTests
     }
 
     [Fact]
-    public async Task Latency_delays_broker_to_client_chunks()
+    public async Task Latency_delays_target_to_client_chunks()
     {
         await using var echo = new EchoServer();
         await using var shim = FaultShim.Attach(echo.Endpoint);
@@ -133,7 +133,7 @@ public sealed class FaultShimTests
         var stream = client.GetStream();
         await RoundTripAsync(stream, "warm");
 
-        shim.Latency(TimeSpan.FromMilliseconds(200), FaultDirection.BrokerToClient);
+        shim.Latency(TimeSpan.FromMilliseconds(200), FaultDirection.TargetToClient);
 
         var stopwatch = Stopwatch.StartNew();
         var payload = await RoundTripAsync(stream, "delay");
@@ -142,7 +142,7 @@ public sealed class FaultShimTests
         Assert.Equal("delay", payload);
         Assert.True(
             stopwatch.Elapsed >= TimeSpan.FromMilliseconds(150),
-            $"A 200ms broker-to-client delay must be observable; the round trip took {stopwatch.Elapsed}.");
+            $"A 200ms target-to-client delay must be observable; the round trip took {stopwatch.Elapsed}.");
     }
 
     [Fact]
@@ -208,7 +208,7 @@ public sealed class FaultShimTests
         shim.Clear();
 
         shim.Arm(1, FaultMode.Reset);
-        shim.Latency(TimeSpan.FromSeconds(5), FaultDirection.BrokerToClient);
+        shim.Latency(TimeSpan.FromSeconds(5), FaultDirection.TargetToClient);
         shim.Clear();
 
         using var client = await ConnectAsync(shim);
@@ -217,6 +217,127 @@ public sealed class FaultShimTests
         // A fresh connection must neither be reset (the arm is gone) nor take five seconds
         // (the latency is gone). The bounded read timeout fails fast if either survives.
         Assert.Equal("ok", await RoundTripAsync(stream, "ok", TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public async Task RefuseNewConnections_refuses_new_connects_while_live_connections_flow()
+    {
+        await using var echo = new EchoServer();
+        await using var shim = FaultShim.Attach(echo.Endpoint);
+
+        using var live = await ConnectAsync(shim);
+        await RoundTripAsync(live.GetStream(), "warm");
+        await WaitUntilAsync(() => shim.LiveConnections == 1, "one live relayed connection");
+
+        shim.RefuseNewConnections();
+        shim.RefuseNewConnections(); // Idempotent.
+
+        using var refused = new TcpClient();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await Assert.ThrowsAsync<SocketException>(
+            async () => await refused.ConnectAsync(shim.Endpoint, cancellationToken).AsTask().WaitAsync(DefaultTimeout, cancellationToken));
+
+        // The refusal is listener state: the live relayed connection keeps flowing.
+        Assert.Equal("after", await RoundTripAsync(live.GetStream(), "after"));
+    }
+
+    [Fact]
+    public async Task AcceptNewConnections_rebinds_the_same_endpoint_and_resumes_accepting()
+    {
+        await using var echo = new EchoServer();
+        await using var shim = FaultShim.Attach(echo.Endpoint);
+        var endpoint = shim.Endpoint;
+
+        shim.AcceptNewConnections(); // No-op when not refusing.
+
+        using var live = await ConnectAsync(shim);
+        await RoundTripAsync(live.GetStream(), "warm");
+
+        shim.RefuseNewConnections();
+        shim.AcceptNewConnections();
+
+        using var fresh = await ConnectAsync(shim);
+        Assert.Equal(endpoint, shim.Endpoint);
+        Assert.Equal("fresh", await RoundTripAsync(fresh.GetStream(), "fresh"));
+        Assert.Equal("live", await RoundTripAsync(live.GetStream(), "live"));
+    }
+
+    [Fact]
+    public async Task Dispose_from_the_refused_state_is_clean_and_idempotent()
+    {
+        var echo = new EchoServer();
+        var shim = FaultShim.Attach(echo.Endpoint);
+        try
+        {
+            using var client = await ConnectAsync(shim);
+            await RoundTripAsync(client.GetStream(), "warm");
+
+            shim.RefuseNewConnections();
+
+            // The parked accept loop must be woken by disposal instead of timing out the drain.
+            var stopwatch = Stopwatch.StartNew();
+            await shim.DisposeAsync();
+            stopwatch.Stop();
+            Assert.True(
+                stopwatch.Elapsed < TimeSpan.FromSeconds(2),
+                $"Disposal from the refused state must wake the parked loop; it took {stopwatch.Elapsed}.");
+
+            await shim.DisposeAsync(); // Idempotent.
+
+            Assert.Throws<ObjectDisposedException>(shim.RefuseNewConnections);
+            Assert.Throws<ObjectDisposedException>(shim.AcceptNewConnections);
+        }
+        finally
+        {
+            await echo.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task AcceptNewConnections_throws_when_the_port_was_stolen_while_refused()
+    {
+        await using var echo = new EchoServer();
+        await using var shim = FaultShim.Attach(echo.Endpoint);
+
+        using var live = await ConnectAsync(shim);
+        await RoundTripAsync(live.GetStream(), "warm");
+
+        shim.RefuseNewConnections();
+
+        // A thief takes the shim's port while the listener is stopped.
+        var thief = new TcpListener(IPAddress.Loopback, shim.Endpoint.Port);
+        thief.Start();
+        try
+        {
+            Assert.Throws<SocketException>(shim.AcceptNewConnections);
+        }
+        finally
+        {
+            thief.Stop();
+        }
+
+        // The OS may need a moment to release the thief's port; retry the rebind briefly.
+        Exception? bindError = null;
+        for (var attempt = 0; attempt < 200; attempt++)
+        {
+            try
+            {
+                shim.AcceptNewConnections();
+                bindError = null;
+                break;
+            }
+            catch (SocketException exception)
+            {
+                bindError = exception;
+                await Task.Delay(10, TestContext.Current.CancellationToken);
+            }
+        }
+
+        Assert.Null(bindError);
+
+        using var fresh = await ConnectAsync(shim);
+        Assert.Equal("fresh", await RoundTripAsync(fresh.GetStream(), "fresh"));
+        Assert.Equal("live", await RoundTripAsync(live.GetStream(), "live"));
     }
 
     [Fact]

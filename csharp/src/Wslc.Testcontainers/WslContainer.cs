@@ -16,7 +16,8 @@ namespace Wslc.Testcontainers;
 /// <see cref="WslContainerBuilder"/>, then call <see cref="StartAsync"/>.
 /// </summary>
 /// <remarks>
-/// Lifecycle transitions (<see cref="StartAsync"/>, <see cref="StopAsync"/>, <see cref="DisposeAsync"/>)
+/// Lifecycle transitions (<see cref="StartAsync"/>, <see cref="StopAsync"/>,
+/// <see cref="KillAsync"/>, <see cref="DisposeAsync"/>)
 /// are serialized. Commands, copies and long-running processes are intentionally not gated:
 /// starting one while the container stops aborts that operation with an exception instead of
 /// corrupting state. Don't expect operations issued concurrently with <see cref="DisposeAsync"/>
@@ -104,7 +105,15 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         RunExclusiveAsync(async () =>
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            await StopCoreAsync(cancellationToken, throwOnError: true).ConfigureAwait(false);
+            await StopCoreAsync(cancellationToken, throwOnError: true, Signal.SIGTERM).ConfigureAwait(false);
+        }, cancellationToken);
+
+    /// <inheritdoc />
+    public Task KillAsync(CancellationToken cancellationToken = default) =>
+        RunExclusiveAsync(async () =>
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            await StopCoreAsync(cancellationToken, throwOnError: true, Signal.SIGKILL).ConfigureAwait(false);
         }, cancellationToken);
 
     /// <inheritdoc />
@@ -775,7 +784,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
         try
         {
-            await StopCoreAsync(cancellationToken, throwOnError: false).ConfigureAwait(false);
+            await StopCoreAsync(cancellationToken, throwOnError: false, Signal.SIGTERM).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
@@ -796,7 +805,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
     }
 
-    private async Task StopCoreAsync(CancellationToken cancellationToken, bool throwOnError)
+    private async Task StopCoreAsync(CancellationToken cancellationToken, bool throwOnError, Signal stopSignal)
     {
         var failures = new List<Exception>(4);
 
@@ -812,8 +821,8 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
             }
         }
 
-        await DisposeMainProcessAsync(failures).ConfigureAwait(false);
-        StopAndDeleteContainer(failures);
+        await DisposeMainProcessAsync(failures, stopSignal).ConfigureAwait(false);
+        StopAndDeleteContainer(failures, stopSignal);
         TerminateSession(failures);
 
         // The instance is torn down, so a later StartAsync must be able to re-acquire the lock.
@@ -830,7 +839,7 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         }
     }
 
-    private async Task DisposeMainProcessAsync(List<Exception> failures)
+    private async Task DisposeMainProcessAsync(List<Exception> failures, Signal stopSignal)
     {
         if (_mainProcess is null)
         {
@@ -839,7 +848,14 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
 
         try
         {
-            await _mainProcess.KillAsync(_configuration.StopTimeout, CancellationToken.None).ConfigureAwait(false);
+            if (stopSignal == Signal.SIGTERM)
+            {
+                // Graceful stop: SIGTERM, then the configured stop timeout, then SIGKILL.
+                await _mainProcess.KillAsync(_configuration.StopTimeout, CancellationToken.None).ConfigureAwait(false);
+            }
+
+            // Crash stop (SIGKILL) skips the graceful phase: DisposeAsync signals a still-running
+            // init process with SIGKILL directly, so the container dies as if it had crashed.
             await _mainProcess.DisposeAsync().ConfigureAwait(false);
         }
         catch (Exception exception)
@@ -850,14 +866,14 @@ public sealed class WslContainer : IWslContainer, IWaitTarget
         _mainProcess = null;
     }
 
-    private void StopAndDeleteContainer(List<Exception> failures)
+    private void StopAndDeleteContainer(List<Exception> failures, Signal stopSignal)
     {
         if (_container is null)
         {
             return;
         }
 
-        TryStep(failures, () => _container.Stop(Signal.SIGTERM, _configuration.StopTimeout), IsBenignRuntimeError);
+        TryStep(failures, () => _container.Stop(stopSignal, _configuration.StopTimeout), IsBenignRuntimeError);
         TryStep(failures, () => _container.Delete(DeleteContainerOption.Force), IsBenignRuntimeError);
         _container = null;
     }

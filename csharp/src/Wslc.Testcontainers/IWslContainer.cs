@@ -55,6 +55,19 @@ public interface IWslContainer : IAsyncDisposable
     Task StopAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Sends SIGKILL to the container's init process: an abrupt, ungraceful crash with no
+    /// SIGTERM phase. <see cref="StopAsync"/> remains the graceful stop, and
+    /// <see cref="WslContainerBuilder.WithStopTimeout(TimeSpan)"/> does not apply to this
+    /// method. On-disk session storage and metadata are preserved exactly as
+    /// <see cref="StopAsync"/> preserves them, so a subsequent <see cref="StartAsync"/>
+    /// re-provisions the same instance (the same documented restart contract as
+    /// <see cref="StopAsync"/>). When the container has not been started, behaves exactly as
+    /// <see cref="StopAsync"/> does in that state: every teardown step is skipped and the call
+    /// completes successfully.
+    /// </summary>
+    Task KillAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Executes a command and captures its exit code, stdout and stderr. Pass <paramref name="arguments"/>
     /// as <c>null</c> or omit it to run the command without arguments. <see cref="ExecOptions.Timeout"/>
     /// must be positive and at most 24 hours when set; per-command environment names must be valid

@@ -38,6 +38,7 @@ constexpr DWORD c_socketTimeoutMs = 5000;
 constexpr int c_echoBufferSize = 4096;
 constexpr int c_maxEchoChunks = 1024;
 constexpr int c_maxEchoConnections = 32;
+constexpr int c_maxEchoAcceptPasses = 6000;
 constexpr int c_maxWaitAttempts = 500;
 constexpr std::chrono::milliseconds c_waitSlice{10};
 constexpr std::chrono::milliseconds c_acceptSlice{10};
@@ -242,9 +243,14 @@ EchoServer::~EchoServer()
 
 void EchoServer::AcceptLoop(std::stop_token token)
 {
-    // Bounded by c_maxEchoConnections and by the stop request, so teardown cannot leave the loop
-    // spinning (ADR-0001).
-    for (int accepted = 0; accepted < c_maxEchoConnections && !token.stop_requested() && !m_closed.load(); ++accepted)
+    int accepted = 0;
+    // Bounded per ADR-0001 in two dimensions: at most c_maxEchoConnections clients are served,
+    // and the loop stops after c_maxEchoAcceptPasses passes (a 10ms slice each, ~60s) even when
+    // no connection arrives. Refusal tests hold the relay for seconds before their first real
+    // connection, so the pass cap must outlive those waits.
+    for (int pass = 0;
+         pass < c_maxEchoAcceptPasses && accepted < c_maxEchoConnections && !token.stop_requested() && !m_closed.load();
+         ++pass)
     {
         fd_set readSet;
         FD_ZERO(&readSet);
@@ -381,6 +387,49 @@ void ClientSocket::Close() noexcept
     }
 }
 
+/// <summary>Plain loopback listener that occupies a port while alive; steals a refused relay's port.</summary>
+class StealListener final
+{
+public:
+    explicit StealListener(int port)
+    {
+        m_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        if (std::cmp_equal(m_socket, INVALID_SOCKET))
+        {
+            throw std::runtime_error("steal socket() failed: " + std::to_string(WSAGetLastError()));
+        }
+
+        sockaddr_in address{};
+        address.sin_family = AF_INET;
+        address.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        address.sin_port = htons(static_cast<u_short>(port));
+        if (bind(m_socket, reinterpret_cast<const sockaddr*>(&address), static_cast<int>(sizeof(address))) != 0 ||
+            listen(m_socket, SOMAXCONN) != 0)
+        {
+            const int error = WSAGetLastError();
+            Close();
+            throw std::runtime_error("steal bind/listen failed: " + std::to_string(error));
+        }
+    }
+
+    ~StealListener() { Close(); }
+
+    StealListener(const StealListener&) = delete;
+    StealListener& operator=(const StealListener&) = delete;
+
+private:
+    void Close() noexcept
+    {
+        if (!std::cmp_equal(m_socket, INVALID_SOCKET))
+        {
+            closesocket(m_socket);
+            m_socket = INVALID_SOCKET;
+        }
+    }
+
+    SOCKET m_socket = INVALID_SOCKET;
+};
+
 } // namespace
 
 TEST(FaultShim, AttachBindsLoopbackEphemeralPortAndForwardsBytes)
@@ -414,7 +463,7 @@ TEST(FaultShim, InjectResetMakesTheClientObserveAReset)
     WaitUntil([&shim] { return shim.LiveConnections() == 0; }, "the reset connection to leave the relay");
 }
 
-TEST(FaultShim, InjectCloseSendShutsClientToBrokerWhileReverseDirectionFlows)
+TEST(FaultShim, InjectCloseSendShutsClientToTargetWhileReverseDirectionFlows)
 {
     EchoServer echo;
     auto shim = FaultShim::Attach(echo.Endpoint());
@@ -422,14 +471,14 @@ TEST(FaultShim, InjectCloseSendShutsClientToBrokerWhileReverseDirectionFlows)
     ClientSocket client(shim.Endpoint());
     EXPECT_EQ(RoundTrip(client.Get(), "open"), "open");
 
-    EXPECT_EQ(shim.Inject(FaultMode::Close, FaultDirection::ClientToBroker), 1);
+    EXPECT_EQ(shim.Inject(FaultMode::Close, FaultDirection::ClientToTarget), 1);
 
     // The echo server sees EOF on its read side and answers with the marker, which proves the
-    // broker-to-client direction is still open after the half-close.
+    // target-to-client direction is still open after the half-close.
     EXPECT_EQ(ReceiveExactly(client.Get(), 3), "bye");
 }
 
-TEST(FaultShim, InjectCloseOnBrokerToClientKeepsClientToBrokerFlowing)
+TEST(FaultShim, InjectCloseOnTargetToClientKeepsClientToTargetFlowing)
 {
     EchoServer echo;
     auto shim = FaultShim::Attach(echo.Endpoint());
@@ -437,7 +486,7 @@ TEST(FaultShim, InjectCloseOnBrokerToClientKeepsClientToBrokerFlowing)
     ClientSocket client(shim.Endpoint());
     EXPECT_EQ(RoundTrip(client.Get(), "open"), "open");
 
-    EXPECT_EQ(shim.Inject(FaultMode::Close, FaultDirection::BrokerToClient), 1);
+    EXPECT_EQ(shim.Inject(FaultMode::Close, FaultDirection::TargetToClient), 1);
 
     // The client observes a clean FIN (zero bytes), not a reset.
     std::array<char, 1> buffer{};
@@ -447,7 +496,7 @@ TEST(FaultShim, InjectCloseOnBrokerToClientKeepsClientToBrokerFlowing)
     // The client can still send, and the echo server still receives those bytes.
     SendText(client.Get(), "after");
     WaitUntil([&echo] { return echo.Received().find("after") != std::string::npos; },
-              "the target to receive bytes after the broker-to-client half-close");
+              "the target to receive bytes after the target-to-client half-close");
 }
 
 TEST(FaultShim, InjectStallHoldsBytesUntilClearResumesTheStream)
@@ -458,7 +507,7 @@ TEST(FaultShim, InjectStallHoldsBytesUntilClearResumesTheStream)
     ClientSocket client(shim.Endpoint());
     EXPECT_EQ(RoundTrip(client.Get(), "warm"), "warm");
 
-    EXPECT_EQ(shim.Inject(FaultMode::Stall, FaultDirection::BrokerToClient), 1);
+    EXPECT_EQ(shim.Inject(FaultMode::Stall, FaultDirection::TargetToClient), 1);
 
     // The echo server answers "held" immediately, but the relay must hold the chunk while the
     // direction is stalled; nothing may arrive at the client in the meantime.
@@ -478,7 +527,7 @@ TEST(FaultShim, InjectStallHoldsBytesUntilClearResumesTheStream)
     EXPECT_EQ(ReceiveExactly(client.Get(), 4), "held");
 }
 
-TEST(FaultShim, LatencyDelaysBrokerToClientChunks)
+TEST(FaultShim, LatencyDelaysTargetToClientChunks)
 {
     EchoServer echo;
     auto shim = FaultShim::Attach(echo.Endpoint());
@@ -486,7 +535,7 @@ TEST(FaultShim, LatencyDelaysBrokerToClientChunks)
     ClientSocket client(shim.Endpoint());
     EXPECT_EQ(RoundTrip(client.Get(), "warm"), "warm");
 
-    shim.Latency(200ms, FaultDirection::BrokerToClient);
+    shim.Latency(200ms, FaultDirection::TargetToClient);
 
     const auto started = std::chrono::steady_clock::now();
     const std::string payload = RoundTrip(client.Get(), "delay");
@@ -494,7 +543,7 @@ TEST(FaultShim, LatencyDelaysBrokerToClientChunks)
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
 
     EXPECT_EQ(payload, "delay");
-    EXPECT_GE(elapsed.count(), 150) << "a 200ms broker-to-client delay must be observable; the round trip took "
+    EXPECT_GE(elapsed.count(), 150) << "a 200ms target-to-client delay must be observable; the round trip took "
                                     << elapsed.count() << "ms";
 }
 
@@ -552,7 +601,7 @@ TEST(FaultShim, ClearIsIdempotentAndDropsLatencyAndArmedFaults)
     shim.Clear();
 
     shim.Arm(1, FaultMode::Reset);
-    shim.Latency(5s, FaultDirection::BrokerToClient);
+    shim.Latency(5s, FaultDirection::TargetToClient);
     shim.Clear();
 
     ClientSocket client(shim.Endpoint());
@@ -564,6 +613,82 @@ TEST(FaultShim, ClearIsIdempotentAndDropsLatencyAndArmedFaults)
     const auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
     EXPECT_LT(elapsed.count(), 2000) << "Clear must drop the armed fault and the latency";
+}
+
+TEST(FaultShim, RefuseNewConnectionsStopsTheListenerWhileLiveConnectionsKeepFlowing)
+{
+    EchoServer echo;
+    auto shim = FaultShim::Attach(echo.Endpoint());
+
+    ClientSocket live(shim.Endpoint());
+    EXPECT_EQ(RoundTrip(live.Get(), "warm"), "warm");
+
+    shim.RefuseNewConnections();
+    shim.RefuseNewConnections(); // Idempotent.
+
+    // A new connect observes a genuine refusal: the port is dead, nothing accepted it - the same
+    // failure a service with no listener produces, not an accepted-then-reset connection.
+    EXPECT_THROW({ ClientSocket refused(shim.Endpoint()); }, std::runtime_error);
+
+    // Refusal never touches relayed connections, so the live one keeps flowing.
+    EXPECT_EQ(RoundTrip(live.Get(), "still-flowing"), "still-flowing");
+}
+
+TEST(FaultShim, AcceptNewConnectionsRebindsTheSameEndpointAndAcceptsAgain)
+{
+    EchoServer echo;
+    auto shim = FaultShim::Attach(echo.Endpoint());
+    const WslEndpoint endpoint = shim.Endpoint();
+
+    // Not refusing: a no-op that must leave the relay accepting.
+    shim.AcceptNewConnections();
+
+    shim.RefuseNewConnections();
+    EXPECT_THROW({ ClientSocket refused(endpoint); }, std::runtime_error);
+
+    shim.AcceptNewConnections();
+
+    ClientSocket client(endpoint);
+    EXPECT_EQ(RoundTrip(client.Get(), "accepted"), "accepted");
+}
+
+TEST(FaultShim, DisposeFromTheRefusedStateIsClean)
+{
+    EchoServer echo;
+    auto shim = FaultShim::Attach(echo.Endpoint());
+
+    ClientSocket live(shim.Endpoint());
+    EXPECT_EQ(RoundTrip(live.Get(), "warm"), "warm");
+
+    shim.RefuseNewConnections();
+
+    // Dispose from the refused state must wake the parked accept loop, stay best-effort and
+    // idempotent, and never throw (ADR-0004).
+    shim.Dispose();
+    shim.Dispose();
+
+    EXPECT_THROW(shim.Endpoint(), WslException);
+}
+
+TEST(FaultShim, AcceptNewConnectionsThrowsWhileThePortIsStolenAndRecoversAfterRelease)
+{
+    EchoServer echo;
+    auto shim = FaultShim::Attach(echo.Endpoint());
+    const WslEndpoint endpoint = shim.Endpoint();
+
+    shim.RefuseNewConnections();
+
+    {
+        // A plain listener takes the port while the relay refuses.
+        StealListener stolen(endpoint.Port);
+        EXPECT_THROW(shim.AcceptNewConnections(), WslException);
+    }
+
+    // The failed rebind left the relay refused, so releasing the port makes the retry succeed.
+    shim.AcceptNewConnections();
+
+    ClientSocket client(endpoint);
+    EXPECT_EQ(RoundTrip(client.Get(), "recovered"), "recovered");
 }
 
 TEST(FaultShim, DisposeIsIdempotentAndUseAfterDisposeThrows)
@@ -581,6 +706,8 @@ TEST(FaultShim, DisposeIsIdempotentAndUseAfterDisposeThrows)
     EXPECT_THROW(shim.Arm(1, FaultMode::Reset), WslException);
     EXPECT_THROW(shim.Latency(1ms), WslException);
     EXPECT_THROW(shim.Clear(), WslException);
+    EXPECT_THROW(shim.RefuseNewConnections(), WslException);
+    EXPECT_THROW(shim.AcceptNewConnections(), WslException);
     EXPECT_THROW(shim.LiveConnections(), WslException);
     EXPECT_THROW(shim.Endpoint(), WslException);
 }

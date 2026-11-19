@@ -50,13 +50,19 @@ public sealed class FaultShim : IAsyncDisposable
     private static readonly TimeSpan DisposeDrainTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IPEndPoint _target;
-    private readonly TcpListener _listener;
     private readonly IPEndPoint _endpoint;
     private readonly SemaphoreSlim _slots = new(MaxLiveConnections, MaxLiveConnections);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly object _gate = new();
     private readonly HashSet<FaultConnection> _connections = [];
     private readonly Task _acceptLoop;
+
+    // Listener state: null while refusing new connections. The resume signal parks the accept
+    // loop for that interval; RefuseNewConnections swaps in an incomplete signal and
+    // AcceptNewConnections completes it after rebinding on the caller's thread.
+    private TcpListener? _listener;
+    private TaskCompletionSource _resumeSignal = CreateCompletedResumeSignal();
+    private bool _refusing;
 
     private FaultMode? _armedMode;
     private FaultDirection _armedDirection = FaultDirection.Both;
@@ -252,7 +258,84 @@ public sealed class FaultShim : IAsyncDisposable
     }
 
     /// <summary>
-    /// Stops accepting, closes every relayed connection, and releases the listener. Idempotent,
+    /// Stops the relay's listener: new connections to <see cref="Endpoint"/> observe a genuine
+    /// connection refusal (a dead port), the same as a service with no listener. Live relayed
+    /// connections keep flowing; drop them with <see cref="Inject(FaultMode, FaultDirection)"/>
+    /// using <see cref="FaultMode.Reset"/> when a scenario needs it.
+    /// </summary>
+    /// <remarks>
+    /// Idempotent. Refusal is listener state, not an armable per-connection fault: an accepted
+    /// connection cannot honestly be refused (that would be a reset).
+    /// </remarks>
+    /// <exception cref="ObjectDisposedException">The shim has been disposed.</exception>
+    public void RefuseNewConnections()
+    {
+        ThrowIfDisposed();
+
+        lock (_gate)
+        {
+            if (_refusing)
+            {
+                // Idempotent: already refusing, nothing to stop.
+                return;
+            }
+
+            _refusing = true;
+            _resumeSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var listener = _listener;
+            _listener = null;
+
+            // Stopping under the gate guarantees an accept that fails because of the stop also
+            // observes _refusing, so the loop parks instead of ending.
+            try
+            {
+                listener?.Stop();
+            }
+            catch
+            {
+                // Best-effort: the listener is already closed.
+            }
+        }
+    }
+
+    /// <summary>Binds the same endpoint again and resumes accepting.</summary>
+    /// <remarks>No-op when not refusing.</remarks>
+    /// <exception cref="SocketException">
+    /// The port was taken while refused; the shim stays refused in that case and the caller may
+    /// retry.
+    /// </exception>
+    /// <exception cref="ObjectDisposedException">The shim has been disposed.</exception>
+    public void AcceptNewConnections()
+    {
+        ThrowIfDisposed();
+
+        TaskCompletionSource? toResume = null;
+        lock (_gate)
+        {
+            if (!_refusing)
+            {
+                // No-op when not refusing.
+                return;
+            }
+
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+
+            // Rebind on the caller's thread so a stolen port surfaces as a SocketException at
+            // the call site; the shim stays refused in that case and the caller may retry.
+            var listener = new TcpListener(_endpoint.Address, _endpoint.Port);
+            listener.Start();
+
+            _listener = listener;
+            _refusing = false;
+            toResume = _resumeSignal;
+        }
+
+        _ = toResume?.TrySetResult();
+    }
+
+    /// <summary>
+    /// Stops accepting, closes every relayed connection, and releases the listener — including
+    /// from the refused state, where the parked accept loop is woken by cancellation. Idempotent,
     /// best-effort, and never throws (per ADR-0004 best-effort cleanup).
     /// </summary>
     public async ValueTask DisposeAsync()
@@ -271,24 +354,34 @@ public sealed class FaultShim : IAsyncDisposable
             // Best-effort: a cancellation callback may already have torn down the listener.
         }
 
-        try
-        {
-            _listener.Stop();
-        }
-        catch
-        {
-            // Best-effort: the listener is already closed or was never started.
-        }
-
+        TcpListener? listener;
         FaultConnection[] connections;
         lock (_gate)
         {
+            // Take the listener (it is parked off while refusing) and clear the refusal so a
+            // racing AcceptNewConnections cannot hand a fresh listener to a dying loop; the
+            // cancelled lifetime token wakes any parked accept wait.
+            listener = _listener;
+            _listener = null;
+            _refusing = false;
             connections = new FaultConnection[_connections.Count];
             _connections.CopyTo(connections);
             _connections.Clear();
             _armedMode = null;
             _armedRemaining = 0;
             _latency = TimeSpan.Zero;
+        }
+
+        if (listener is not null)
+        {
+            try
+            {
+                listener.Stop();
+            }
+            catch
+            {
+                // Best-effort: the listener is already closed or was never started.
+            }
         }
 
         var tasks = new Task[connections.Length + 1];
@@ -328,12 +421,12 @@ public sealed class FaultShim : IAsyncDisposable
     }
 
     /// <summary>Returns the configured latency for a direction, or zero when none applies.</summary>
-    internal TimeSpan GetLatency(bool clientToBroker)
+    internal TimeSpan GetLatency(bool clientToTarget)
     {
         lock (_gate)
         {
             var applies = _latencyDirection == FaultDirection.Both
-                || _latencyDirection == (clientToBroker ? FaultDirection.ClientToBroker : FaultDirection.BrokerToClient);
+                || _latencyDirection == (clientToTarget ? FaultDirection.ClientToTarget : FaultDirection.TargetToClient);
             return applies ? _latency : TimeSpan.Zero;
         }
     }
@@ -392,7 +485,7 @@ public sealed class FaultShim : IAsyncDisposable
 
     private static void ValidateDirection(FaultDirection direction)
     {
-        if (direction is not (FaultDirection.ClientToBroker or FaultDirection.BrokerToClient or FaultDirection.Both))
+        if (direction is not (FaultDirection.ClientToTarget or FaultDirection.TargetToClient or FaultDirection.Both))
         {
             throw new ArgumentOutOfRangeException(nameof(direction), direction, "Unknown fault direction.");
         }
@@ -400,22 +493,79 @@ public sealed class FaultShim : IAsyncDisposable
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
 
+    private static TaskCompletionSource CreateCompletedResumeSignal()
+    {
+        var signal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        signal.SetResult();
+        return signal;
+    }
+
     private async Task AcceptLoopAsync()
     {
-        // Per ADR bounded loops we don't allow while(true): accept at most MaxAcceptedConnections,
-        // and stop immediately when dispose cancels the listener.
-        for (var accepted = 0; accepted < MaxAcceptedConnections && !_lifetime.IsCancellationRequested; accepted++)
+        // Per ADR bounded loops we don't allow while(true): accept at most MaxAcceptedConnections
+        // connections per shim lifetime — parking while refusing does not consume the budget —
+        // and stop immediately when dispose cancels the lifetime token. The increment lives in
+        // the body so a parked attempt counts as zero accepted connections.
+        for (var accepted = 0; accepted < MaxAcceptedConnections && !_lifetime.IsCancellationRequested;)
         {
-            TcpClient client;
-            try
+            TcpListener? listener;
+            lock (_gate)
             {
-                client = await _listener.AcceptTcpClientAsync(_lifetime.Token).ConfigureAwait(false);
+                listener = _listener;
             }
-            catch
+
+            TcpClient? client = null;
+            if (listener is not null)
             {
-                // Dispose stops the listener; the accept loop ends quietly.
-                return;
+                try
+                {
+                    client = await listener.AcceptTcpClientAsync(_lifetime.Token).ConfigureAwait(false);
+                }
+                catch
+                {
+                    // Refusal stopped the listener mid-accept; disposal cancels the token. Both
+                    // cases are handled below.
+                }
             }
+
+            if (client is null)
+            {
+                Task currentSignal;
+                bool retry;
+                lock (_gate)
+                {
+                    // A rebind can land between the snapshot above and this check: when the
+                    // listener is back, retry the accept instead of parking or ending.
+                    retry = _listener is not null;
+                    currentSignal = _resumeSignal.Task;
+                }
+
+                if (!retry)
+                {
+                    if (_lifetime.IsCancellationRequested)
+                    {
+                        // Dispose stopped the listener and cancelled the lifetime; the loop ends
+                        // quietly, exactly as it did before refusal existed.
+                        return;
+                    }
+
+                    // Refusing: park until AcceptNewConnections rebinds and wakes the loop, or
+                    // dispose cancels the wait so a parked loop cannot outlive the shim
+                    // (ADR-0004).
+                    try
+                    {
+                        await currentSignal.WaitAsync(_lifetime.Token).ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        return;
+                    }
+                }
+
+                continue;
+            }
+
+            accepted++;
 
             if (!_slots.Wait(0))
             {

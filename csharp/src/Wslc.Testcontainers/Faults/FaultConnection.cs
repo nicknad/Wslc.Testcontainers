@@ -108,13 +108,13 @@ internal sealed class FaultConnection : IDisposable
             }
         }
 
-        if (direction is FaultDirection.ClientToBroker or FaultDirection.Both)
+        if (direction is FaultDirection.ClientToTarget or FaultDirection.Both)
         {
             _clientToTargetStopped = true;
             TryShutdownSend(_target.Client);
         }
 
-        if (direction is FaultDirection.BrokerToClient or FaultDirection.Both)
+        if (direction is FaultDirection.TargetToClient or FaultDirection.Both)
         {
             _targetToClientStopped = true;
             TryShutdownSend(_client.Client);
@@ -133,12 +133,12 @@ internal sealed class FaultConnection : IDisposable
             }
         }
 
-        if (direction is FaultDirection.ClientToBroker or FaultDirection.Both)
+        if (direction is FaultDirection.ClientToTarget or FaultDirection.Both)
         {
             _clientToTargetGate.Close();
         }
 
-        if (direction is FaultDirection.BrokerToClient or FaultDirection.Both)
+        if (direction is FaultDirection.TargetToClient or FaultDirection.Both)
         {
             _targetToClientGate.Close();
         }
@@ -151,8 +151,8 @@ internal sealed class FaultConnection : IDisposable
         try
         {
             await Task.WhenAll(
-                PumpAsync(_client, _target, _clientToTargetGate, clientToBroker: true),
-                PumpAsync(_target, _client, _targetToClientGate, clientToBroker: false)).ConfigureAwait(false);
+                PumpAsync(_client, _target, _clientToTargetGate, clientToTarget: true),
+                PumpAsync(_target, _client, _targetToClientGate, clientToTarget: false)).ConfigureAwait(false);
         }
         catch
         {
@@ -180,7 +180,7 @@ internal sealed class FaultConnection : IDisposable
         }
     }
 
-    private async Task PumpAsync(TcpClient sourceClient, TcpClient destinationClient, AsyncGate gate, bool clientToBroker)
+    private async Task PumpAsync(TcpClient sourceClient, TcpClient destinationClient, AsyncGate gate, bool clientToTarget)
     {
         var buffer = new byte[FaultShim.BufferSize];
         try
@@ -205,7 +205,7 @@ internal sealed class FaultConnection : IDisposable
                     return;
                 }
 
-                if (IsStopped(clientToBroker))
+                if (IsStopped(clientToTarget))
                 {
                     // The half-close fault already sent FIN this way; discard the late chunk
                     // instead of writing to a socket whose send side is shut down.
@@ -215,7 +215,7 @@ internal sealed class FaultConnection : IDisposable
                 // Stall gate after the read: the chunk that raced the stall is held, not forwarded,
                 // and Clear resumes it without corrupting the byte stream.
                 await gate.WaitAsync().WaitAsync(token).ConfigureAwait(false);
-                var delay = _owner.GetLatency(clientToBroker);
+                var delay = _owner.GetLatency(clientToTarget);
                 if (delay > TimeSpan.Zero)
                 {
                     await Task.Delay(delay, token).ConfigureAwait(false);
@@ -237,8 +237,8 @@ internal sealed class FaultConnection : IDisposable
         }
     }
 
-    private bool IsStopped(bool clientToBroker) =>
-        clientToBroker ? _clientToTargetStopped : _targetToClientStopped;
+    private bool IsStopped(bool clientToTarget) =>
+        clientToTarget ? _clientToTargetStopped : _targetToClientStopped;
 
     private static void TryShutdownSend(Socket socket)
     {

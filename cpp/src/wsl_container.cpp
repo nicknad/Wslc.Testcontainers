@@ -153,6 +153,7 @@ struct WslContainer::Impl
 
     void Start(WslContainer& target, std::stop_token caller);
     void Stop(std::stop_token token);
+    void Kill(std::stop_token token);
     void Dispose();
 
     ExecResult Exec(std::string command, std::vector<std::string> arguments, ExecOptions options,
@@ -229,14 +230,22 @@ private:
     std::string FormatMappedPorts();
     void AcquireReuseLock(std::stop_token token);
     void ReleaseReuseLock();
-    void StopLocked(std::stop_token token, bool throw_on_error);
+    // Graceful Stop signals SIGTERM with the configured stop-timeout grace; Crash (Kill) sends
+    // SIGKILL immediately: no SIGTERM phase and no grace. Both share one teardown core.
+    enum class StopMode
+    {
+        Graceful,
+        Crash
+    };
+
+    void StopLocked(std::stop_token token, bool throw_on_error, StopMode mode);
     void CleanupLocked(bool throw_on_error);
     void CleanupSynchronously();
     void UpdateState(const std::string& State);
     void UpdateImageMetadata(const std::string& Image);
-    void StopAndDeleteContainer(std::vector<std::string>& failures);
+    void StopAndDeleteContainer(std::vector<std::string>& failures, StopMode mode);
     void TerminateSession();
-    void DisposeMainProcess(std::vector<std::string>& failures);
+    void DisposeMainProcess(std::vector<std::string>& failures, StopMode mode);
     void TranslateAndThrow(std::stop_token caller, const std::stop_source& startup_source);
     WslReadinessException enrich(const WslReadinessException& readiness);
     std::map<std::string, std::string> BuildEnvironment(const std::map<std::string, std::string>& overrides);
@@ -803,10 +812,24 @@ void WslContainer::Impl::Stop(std::stop_token token)
         throw WslException("Container '" + Name + "' has been disposed.");
     }
 
-    StopLocked(token, true);
+    StopLocked(token, true, StopMode::Graceful);
 }
 
-void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool throw_on_error)
+void WslContainer::Impl::Kill(std::stop_token token)
+{
+    internal::EnsureComInitialized();
+    std::unique_lock lifecycle_lock(lifecycle);
+    if (disposed)
+    {
+        throw WslException("Container '" + Name + "' has been disposed.");
+    }
+
+    // The shared core crashes the init process; a not-started container is a quiet no-op exactly
+    // as Stop is, because there is no container or session to tear down yet.
+    StopLocked(token, true, StopMode::Crash);
+}
+
+void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool throw_on_error, StopMode mode)
 {
     std::vector<std::string> failures;
 
@@ -814,7 +837,16 @@ void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool
     {
         try
         {
-            process->Kill(c_abortGracePeriod, std::stop_token{});
+            if (mode == StopMode::Crash)
+            {
+                // Crash stop: SIGKILL only, so a long-running process gets no SIGTERM phase.
+                process->TrySignal(WSLC_SIGNAL_SIGKILL);
+            }
+            else
+            {
+                process->Kill(c_abortGracePeriod, std::stop_token{});
+            }
+
             process->Dispose();
         }
         catch (const std::exception& exception)
@@ -823,8 +855,8 @@ void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool
         }
     }
 
-    DisposeMainProcess(failures);
-    StopAndDeleteContainer(failures);
+    DisposeMainProcess(failures, mode);
+    StopAndDeleteContainer(failures, mode);
     TerminateSession();
 
     // The instance is torn down, so a later Start must be able to re-acquire the reuse lock.
@@ -841,11 +873,13 @@ void WslContainer::Impl::StopLocked([[maybe_unused]] std::stop_token token, bool
 
     if (!failures.empty() && throw_on_error)
     {
-        throw WslCleanupException("Failed to Stop container '" + Name + "': " + failures.front());
+        const char* const action = mode == StopMode::Crash ? "Kill" : "Stop";
+        throw WslCleanupException("Failed to " + std::string(action) + " container '" + Name +
+                                  "': " + failures.front());
     }
 }
 
-void WslContainer::Impl::DisposeMainProcess(std::vector<std::string>& failures)
+void WslContainer::Impl::DisposeMainProcess(std::vector<std::string>& failures, StopMode mode)
 {
     auto process = get_main_process();
     if (!process)
@@ -855,7 +889,17 @@ void WslContainer::Impl::DisposeMainProcess(std::vector<std::string>& failures)
 
     try
     {
-        process->Kill(configuration.StopTimeout, std::stop_token{});
+        if (mode == StopMode::Crash)
+        {
+            // Crash stop: SIGKILL the init process directly; the SIGTERM phase and the
+            // stop-timeout grace belong to Stop only.
+            process->TrySignal(WSLC_SIGNAL_SIGKILL);
+        }
+        else
+        {
+            process->Kill(configuration.StopTimeout, std::stop_token{});
+        }
+
         process->Dispose();
     }
     catch (const std::exception& exception)
@@ -867,7 +911,7 @@ void WslContainer::Impl::DisposeMainProcess(std::vector<std::string>& failures)
     main_process.reset();
 }
 
-void WslContainer::Impl::StopAndDeleteContainer(std::vector<std::string>& failures)
+void WslContainer::Impl::StopAndDeleteContainer(std::vector<std::string>& failures, StopMode mode)
 {
     auto containerHandle = get_container();
     if (!containerHandle)
@@ -875,9 +919,15 @@ void WslContainer::Impl::StopAndDeleteContainer(std::vector<std::string>& failur
         return;
     }
 
+    // Stop asks the init process to terminate gracefully within the stop-timeout grace; Kill
+    // crashes it with SIGKILL, which cannot be caught, so it carries no grace period.
+    const WslcSignal signal = mode == StopMode::Crash ? WSLC_SIGNAL_SIGKILL : WSLC_SIGNAL_SIGTERM;
+    const auto graceSeconds = mode == StopMode::Crash
+                                  ? std::uint32_t{0}
+                                  : static_cast<std::uint32_t>(configuration.StopTimeout.count() / 1000);
+
     PWSTR error = nullptr;
-    HRESULT result = WslcStopContainer(containerHandle->get(), WSLC_SIGNAL_SIGTERM,
-                                       static_cast<std::uint32_t>(configuration.StopTimeout.count() / 1000), &error);
+    HRESULT result = WslcStopContainer(containerHandle->get(), signal, graceSeconds, &error);
     if (error != nullptr)
     {
         CoTaskMemFree(error);
@@ -933,7 +983,7 @@ void WslContainer::Impl::CleanupLocked(bool throw_on_error)
     std::string failure;
     try
     {
-        StopLocked(std::stop_token{}, false);
+        StopLocked(std::stop_token{}, false, StopMode::Graceful);
     }
     catch (const std::exception& exception)
     {
@@ -1396,6 +1446,11 @@ void WslContainer::Start(std::stop_token token)
 void WslContainer::Stop(std::stop_token token)
 {
     m_impl->Stop(token);
+}
+
+void WslContainer::Kill(std::stop_token token)
+{
+    m_impl->Kill(token);
 }
 
 ExecResult WslContainer::Exec(std::string command, std::vector<std::string> arguments, ExecOptions options,

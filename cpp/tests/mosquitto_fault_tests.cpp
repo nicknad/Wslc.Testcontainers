@@ -50,7 +50,7 @@ constexpr char c_lastWillPayload[] = "wslc-client-crashed";
 constexpr DWORD c_stepTimeoutMilliseconds = 5000;
 
 // Keep-alive 1s plus a probe every 400ms keeps Mosquitto's 1.5x keep-alive expiry away while the
-// broker-to-client direction is stalled. Two seconds without a PINGRESP is twice the keep-alive, so
+// target-to-client direction is stalled. Two seconds without a PINGRESP is twice the keep-alive, so
 // a real client would already have declared the connection dead.
 constexpr std::uint16_t c_shortKeepAliveSeconds = 1;
 constexpr std::chrono::milliseconds c_keepAliveProbe{400};
@@ -419,7 +419,7 @@ TEST(MosquittoFault, ResetDropsTheClientAndTheSubscriberReceivesItsLastWill)
     EXPECT_EQ(will.Payload, c_lastWillPayload);
 }
 
-TEST(MosquittoFault, StallOnBrokerToClientTimesOutTheClientWhileTheBrokerStaysAlive)
+TEST(MosquittoFault, StallOnTargetToClientTimesOutTheClientWhileTheBrokerStaysAlive)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
 
@@ -435,7 +435,7 @@ TEST(MosquittoFault, StallOnBrokerToClientTimesOutTheClientWhileTheBrokerStaysAl
     ASSERT_TRUE(ConnectClient(stalled.get(), "wslc-stalled-client", c_shortKeepAliveSeconds));
     WaitUntil([&shim] { return shim.LiveConnections() == 1; }, "one live relayed connection");
 
-    ASSERT_EQ(shim.Inject(FaultMode::Stall, FaultDirection::BrokerToClient), 1);
+    ASSERT_EQ(shim.Inject(FaultMode::Stall, FaultDirection::TargetToClient), 1);
 
     // Model a client's keep-alive: keep sending PINGREQ so the broker's own 1.5x timer never fires,
     // and assert that no PINGRESP makes it back within twice the keep-alive interval.
@@ -451,7 +451,7 @@ TEST(MosquittoFault, StallOnBrokerToClientTimesOutTheClientWhileTheBrokerStaysAl
             unsigned char header = 0;
             std::vector<unsigned char> body;
             ASSERT_TRUE(ReceivePacket(stalled.get(), header, body));
-            FAIL() << "A stalled broker-to-client direction delivered MQTT packet 0x" << std::hex
+            FAIL() << "A stalled target-to-client direction delivered MQTT packet 0x" << std::hex
                    << static_cast<int>(header) << std::dec << ".";
         }
     }
@@ -497,7 +497,7 @@ TEST(MosquittoFault, ArmResetsTheNextTwoConnectionsAndTheThirdSucceeds)
     ASSERT_TRUE(Subscribe(third.get(), 1, c_sessionTopic));
 }
 
-TEST(MosquittoFault, LatencyOnBrokerToClientDelaysTheConnackWithoutBreakingTheSession)
+TEST(MosquittoFault, LatencyOnTargetToClientDelaysTheConnackWithoutBreakingTheSession)
 {
     WSLC_SKIP_UNLESS_INTEGRATION();
 
@@ -507,7 +507,7 @@ TEST(MosquittoFault, LatencyOnBrokerToClientDelaysTheConnackWithoutBreakingTheSe
     mosquitto.Start();
     auto shim = FaultShim::Attach(mosquitto.GetConnectEndpoint(wslc::modules::MosquittoContainer::DefaultPort));
 
-    shim.Latency(400ms, FaultDirection::BrokerToClient);
+    shim.Latency(400ms, FaultDirection::TargetToClient);
 
     const wil::unique_socket client = ConnectTo(shim.Endpoint());
     ASSERT_TRUE(client);
@@ -517,7 +517,7 @@ TEST(MosquittoFault, LatencyOnBrokerToClientDelaysTheConnackWithoutBreakingTheSe
     const auto elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started);
 
-    EXPECT_GE(elapsed.count(), 300) << "A 400ms broker-to-client delay must be observable on CONNACK; it took "
+    EXPECT_GE(elapsed.count(), 300) << "A 400ms target-to-client delay must be observable on CONNACK; it took "
                                     << elapsed.count() << "ms.";
 
     // The delayed session still works: SUBACK arrives after the session is usable again.
@@ -534,7 +534,7 @@ TEST(MosquittoFault, ClearRestoresNormalTrafficForAFreshConnection)
     mosquitto.Start();
     auto shim = FaultShim::Attach(mosquitto.GetConnectEndpoint(wslc::modules::MosquittoContainer::DefaultPort));
 
-    shim.Latency(10s, FaultDirection::BrokerToClient);
+    shim.Latency(10s, FaultDirection::TargetToClient);
     shim.Arm(5, FaultMode::Reset);
     shim.Clear();
 

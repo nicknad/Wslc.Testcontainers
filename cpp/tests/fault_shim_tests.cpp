@@ -391,9 +391,8 @@ void ClientSocket::Close() noexcept
 class StealListener final
 {
 public:
-    explicit StealListener(int port)
+    explicit StealListener(int port) : m_socket(::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP))
     {
-        m_socket = ::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (std::cmp_equal(m_socket, INVALID_SOCKET))
         {
             throw std::runtime_error("steal socket() failed: " + std::to_string(WSAGetLastError()));

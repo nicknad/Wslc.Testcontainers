@@ -117,7 +117,9 @@ $runner = Get-ChildItem -LiteralPath $binDir -Filter 'run-clang-tidy*' -File -Er
 $python = Get-Command python -ErrorAction SilentlyContinue
 
 if ($runner -and ($runner.Extension -eq '.exe' -or $python)) {
-  $runnerArgs = @('-p', $BuildDir, '-j', $Jobs, '-quiet') + $extraArgs
+  # run-clang-tidy resolves clang-tidy from PATH unless it is told otherwise, which would
+  # analyze with a different build than the one Test-ClangToolchain.ps1 just verified.
+  $runnerArgs = @('-p', $BuildDir, '-j', $Jobs, '-quiet', '-clang-tidy-binary', $clangTidy) + $extraArgs
   $exe = $runner.FullName
   if ($runner.Extension -ne '.exe') {
     $exe = $python.Source

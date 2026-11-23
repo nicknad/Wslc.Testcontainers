@@ -50,7 +50,16 @@ if (-not (Test-Path -LiteralPath $dbPath)) {
   throw "No compile_commands.json under '$BuildDir'. Configure a Ninja build first; CMAKE_EXPORT_COMPILE_COMMANDS is on by default."
 }
 
-$clangTidy = (Get-Command clang-tidy -ErrorAction Stop).Source
+# clang-tidy must be at least as new as the MSVC STL it parses; CI exports the analyzer
+# bundled with the image's Visual Studio through WSLC_CLANG_TIDY. Local runs use PATH.
+$clangTidy = if ($env:WSLC_CLANG_TIDY) {
+  if (-not (Test-Path -LiteralPath $env:WSLC_CLANG_TIDY)) {
+    throw "WSLC_CLANG_TIDY points at '$env:WSLC_CLANG_TIDY', which does not exist."
+  }
+  $env:WSLC_CLANG_TIDY
+} else {
+  (Get-Command clang-tidy -ErrorAction Stop).Source
+}
 
 # A clang older than the MSVC STL fails every translation unit with the same STL1000
 # static assertion, so surface that before the analysis loop starts.

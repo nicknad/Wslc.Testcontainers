@@ -52,6 +52,10 @@ if (-not (Test-Path -LiteralPath $dbPath)) {
 
 $clangTidy = (Get-Command clang-tidy -ErrorAction Stop).Source
 
+# A clang older than the MSVC STL fails every translation unit with the same STL1000
+# static assertion, so surface that before the analysis loop starts.
+& (Join-Path $PSScriptRoot 'Test-ClangToolchain.ps1') -ClangTidy $clangTidy
+
 # Every first-party translation unit in the compile database. Sources under _deps are
 # third-party (GoogleTest) and are never analyzed; only this repo's targets are.
 function Get-AnalysisSources {

@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# A push and its pull_request are the same commit; one run per branch keeps the runner
+# pool and the check history free of duplicates, and the newer run supersedes the older.
+concurrency:
+  # Scoped by head repository so a fork pull request cannot cancel a run on this repo's
+  # branches when it uses the same branch name.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   tfms:
     # The framework list lives in csharp/Directory.Build.props (per ADR-0010). CI reads it here
@@ -85,7 +93,10 @@ jobs:
         run: ctest --test-dir cpp/build -j 4 --output-on-failure
 
   cpp-lint:
-    runs-on: windows-latest
+    # Pinned rather than windows-latest (per ADR-0012): the pinned clang-tidy must stay
+    # compatible with the image's MSVC STL, and windows-latest now ships a toolset whose STL
+    # rejects clang 20 (STL1000 in <yvals_core.h>). Move the image and the LLVM pin together.
+    runs-on: windows-2025
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

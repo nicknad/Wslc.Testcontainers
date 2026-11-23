@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   cpp-analyzer:
-    runs-on: windows-latest
+    # Pinned rather than windows-latest (per ADR-0012): the pinned clang-tidy must stay
+    # compatible with the image's MSVC STL, and windows-latest now ships a toolset whose STL
+    # rejects clang 20 (STL1000 in <yvals_core.h>). Move the image and the LLVM pin together.
+    runs-on: windows-2025
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

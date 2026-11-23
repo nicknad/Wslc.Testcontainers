@@ -43,6 +43,11 @@ if (-not $All) { $Changed = $true }
 $repoRoot = (Invoke-Git -Arguments @('rev-parse', '--show-toplevel') | Select-Object -First 1).Trim()
 if (-not $repoRoot) { throw 'Run this script from inside the git repository.' }
 
+# run-clang-tidy probes the analyzer with `-list-checks -`, which has no file context: with
+# the config left to discovery the probe enables no checks and the runner aborts. Naming the
+# repo config explicitly keeps the probe, the runner, and the per-file analysis on one file.
+if (-not $ConfigFile) { $ConfigFile = 'cpp/.clang-tidy' }
+
 if (-not [IO.Path]::IsPathRooted($BuildDir)) { $BuildDir = Join-Path $repoRoot $BuildDir }
 if ($ConfigFile -and -not [IO.Path]::IsPathRooted($ConfigFile)) { $ConfigFile = Join-Path $repoRoot $ConfigFile }
 $dbPath = Join-Path $BuildDir 'compile_commands.json'

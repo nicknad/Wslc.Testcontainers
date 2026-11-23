@@ -17,3 +17,4 @@ When a comment refers to one of these rules, cite it as `per ADR-XXXX <slug>`.
 | [0009](0009-fault-relay.md) | Fault relay on the Windows host: protocol-blind, opt-in |
 | [0010](0010-target-frameworks.md) | Target framework policy: one list, net8/net10/net11 |
 | [0011](0011-fault-taxonomy.md) | Fault taxonomy: which modules get fault tests, which classes stay config |
+| [0012](0012-analysis-toolchain.md) | Analyzer follows the toolchain's LLVM; clang-format stays pinned |

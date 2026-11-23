@@ -8,6 +8,14 @@ on:
 permissions:
   contents: read
 
+# A push and its pull_request are the same commit; one run per branch keeps the runner
+# pool and the check history free of duplicates, and the newer run supersedes the older.
+concurrency:
+  # Scoped by head repository so a fork pull request cannot cancel a run on this repo's
+  # branches when it uses the same branch name.
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   tfms:
     # The framework list lives in csharp/Directory.Build.props (per ADR-0010). CI reads it here

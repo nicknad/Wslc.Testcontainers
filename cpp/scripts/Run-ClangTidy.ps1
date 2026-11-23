@@ -43,6 +43,11 @@ if (-not $All) { $Changed = $true }
 $repoRoot = (Invoke-Git -Arguments @('rev-parse', '--show-toplevel') | Select-Object -First 1).Trim()
 if (-not $repoRoot) { throw 'Run this script from inside the git repository.' }
 
+# run-clang-tidy probes the analyzer with `-list-checks -`, which has no file context: with
+# the config left to discovery the probe enables no checks and the runner aborts. Naming the
+# repo config explicitly keeps the probe, the runner, and the per-file analysis on one file.
+if (-not $ConfigFile) { $ConfigFile = 'cpp/.clang-tidy' }
+
 if (-not [IO.Path]::IsPathRooted($BuildDir)) { $BuildDir = Join-Path $repoRoot $BuildDir }
 if ($ConfigFile -and -not [IO.Path]::IsPathRooted($ConfigFile)) { $ConfigFile = Join-Path $repoRoot $ConfigFile }
 $dbPath = Join-Path $BuildDir 'compile_commands.json'
@@ -50,7 +55,20 @@ if (-not (Test-Path -LiteralPath $dbPath)) {
   throw "No compile_commands.json under '$BuildDir'. Configure a Ninja build first; CMAKE_EXPORT_COMPILE_COMMANDS is on by default."
 }
 
-$clangTidy = (Get-Command clang-tidy -ErrorAction Stop).Source
+# clang-tidy must be at least as new as the MSVC STL it parses; CI exports the analyzer
+# bundled with the image's Visual Studio through WSLC_CLANG_TIDY. Local runs use PATH.
+$clangTidy = if ($env:WSLC_CLANG_TIDY) {
+  if (-not (Test-Path -LiteralPath $env:WSLC_CLANG_TIDY)) {
+    throw "WSLC_CLANG_TIDY points at '$env:WSLC_CLANG_TIDY', which does not exist."
+  }
+  $env:WSLC_CLANG_TIDY
+} else {
+  (Get-Command clang-tidy -ErrorAction Stop).Source
+}
+
+# A clang older than the MSVC STL fails every translation unit with the same STL1000
+# static assertion, so surface that before the analysis loop starts.
+& (Join-Path $PSScriptRoot 'Test-ClangToolchain.ps1') -ClangTidy $clangTidy
 
 # Every first-party translation unit in the compile database. Sources under _deps are
 # third-party (GoogleTest) and are never analyzed; only this repo's targets are.
@@ -104,7 +122,9 @@ $runner = Get-ChildItem -LiteralPath $binDir -Filter 'run-clang-tidy*' -File -Er
 $python = Get-Command python -ErrorAction SilentlyContinue
 
 if ($runner -and ($runner.Extension -eq '.exe' -or $python)) {
-  $runnerArgs = @('-p', $BuildDir, '-j', $Jobs, '-quiet') + $extraArgs
+  # run-clang-tidy resolves clang-tidy from PATH unless it is told otherwise, which would
+  # analyze with a different build than the one Test-ClangToolchain.ps1 just verified.
+  $runnerArgs = @('-p', $BuildDir, '-j', $Jobs, '-quiet', '-clang-tidy-binary', $clangTidy) + $extraArgs
   $exe = $runner.FullName
   if ($runner.Extension -ne '.exe') {
     $exe = $python.Source
